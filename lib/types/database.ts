@@ -143,3 +143,38 @@ export interface Decision {
   rationale: string;
   createdAt: Date;
 }
+
+export const INTEGRATION_TYPES = ['JIRA', 'LINEAR', 'GITHUB', 'SLACK', 'TEAMS', 'NOTION', 'CONFLUENCE'] as const;
+export type IntegrationType = typeof INTEGRATION_TYPES[number];
+
+export interface Attachment {
+  id: string;
+  requestId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  url: string;
+  createdAt: Date;
+}
+
+export interface PriorityConfig {
+  id: string;
+  organizationId: string;
+  name: string;
+  framework: string;
+  weights: Record<string, number>;
+  isDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Integration {
+  id: string;
+  organizationId: string;
+  type: IntegrationType;
+  name: string;
+  config: Record<string, unknown>;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
