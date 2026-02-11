@@ -8,8 +8,10 @@ import { query } from '@/lib/db/pool';
 import { mapRow, mapRows } from '@/lib/db/mappers';
 import type { FeatureRequest, PriorityConfig, Complexity } from '@/lib/types/database';
 import { defaultScoringConfig } from '@/config/scoring';
+import { getGitHubToken, getRepoTree, getFileContent } from '@/lib/github/client';
+import { getActiveRepositoriesForOrg } from '@/lib/db/queries/repositories';
 
-export function createAssessmentTools(requestId: string, orgId: string) {
+export function createAssessmentTools(requestId: string, orgId: string, userId: string) {
   return {
     get_organization_context: tool({
       description:
@@ -81,6 +83,84 @@ export function createAssessmentTools(requestId: string, orgId: string) {
         >(result.rows);
 
         return { count: items.length, items };
+      },
+    }),
+
+    analyze_codebase_impact: tool({
+      description:
+        'Analyze connected GitHub repositories to identify files and areas that may be impacted by this feature request. Only available when repositories are connected.',
+      inputSchema: z.object({
+        keywords: z
+          .array(z.string())
+          .describe(
+            'Keywords from the feature request to search for in the codebase (e.g., component names, API endpoints, feature areas)'
+          ),
+      }),
+      execute: async ({ keywords }) => {
+        try {
+          const repos = await getActiveRepositoriesForOrg(orgId);
+          if (repos.length === 0) {
+            return { available: false, reason: 'No repositories connected for this organization.' };
+          }
+
+          const token = await getGitHubToken(userId);
+          if (!token) {
+            return { available: false, reason: 'No GitHub token available. User has not connected their GitHub account.' };
+          }
+
+          const reposToScan = repos.slice(0, 3);
+          const lowerKeywords = keywords.map((k) => k.toLowerCase());
+
+          const allMatchedFiles: { repo: string; path: string; size: number }[] = [];
+
+          for (const repo of reposToScan) {
+            const tree = await getRepoTree(token, repo.owner, repo.name, repo.defaultBranch);
+
+            const matched = tree.filter((entry) => {
+              const lowerPath = entry.path.toLowerCase();
+              return lowerKeywords.some((kw) => lowerPath.includes(kw));
+            });
+
+            for (const file of matched) {
+              allMatchedFiles.push({
+                repo: repo.fullName,
+                path: file.path,
+                size: file.size,
+              });
+            }
+          }
+
+          const topFiles = allMatchedFiles.slice(0, 10);
+
+          const filesToFetch = topFiles
+            .filter((f) => f.size <= 50 * 1024)
+            .slice(0, 5);
+
+          const fileContents: { repo: string; path: string; content: string }[] = [];
+
+          for (const file of filesToFetch) {
+            const [owner, repoName] = file.repo.split('/');
+            const repo = reposToScan.find((r) => r.fullName === file.repo);
+            const branch = repo?.defaultBranch ?? 'main';
+
+            const content = await getFileContent(token, owner, repoName, file.path, branch);
+            if (content) {
+              fileContents.push({ repo: file.repo, path: file.path, content });
+            }
+          }
+
+          return {
+            available: true,
+            repositories: reposToScan.map((r) => ({ name: r.fullName, branch: r.defaultBranch })),
+            matchingFiles: topFiles,
+            fileContents,
+          };
+        } catch (error) {
+          return {
+            available: false,
+            reason: `Failed to analyze codebase: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          };
+        }
       },
     }),
 

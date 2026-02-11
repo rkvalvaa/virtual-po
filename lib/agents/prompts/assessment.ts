@@ -6,8 +6,9 @@ The completed intake data for this feature request is provided as JSON context b
 
 1. **Call \`get_organization_context\`** first to retrieve the scoring framework and weight configuration.
 2. **Call \`get_current_backlog\`** and **\`get_historical_estimates\`** to calibrate your scores against existing items.
-3. Analyze the intake data across the three dimensions below.
-4. **Call \`save_assessment\`** with all scores, complexity rating, and a detailed assessment breakdown.
+3. **If repositories are connected**, call \`analyze_codebase_impact\` with relevant keywords from the feature request to identify potentially affected code areas. Use the results to inform your technical assessment and risk analysis.
+4. Analyze the intake data across the three dimensions below.
+5. **Call \`save_assessment\`** with all scores, complexity rating, and a detailed assessment breakdown.
 
 ## Scoring Dimensions
 

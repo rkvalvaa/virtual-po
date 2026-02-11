@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
+import { RepositorySettings } from "@/components/settings/RepositorySettings"
 import { defaultScoringConfig } from "@/config/scoring"
 
 interface SettingsContentProps {
@@ -38,6 +39,14 @@ interface SettingsContentProps {
   }>
   userRole: string
   currentUserId: string
+  repositories: Array<{
+    id: string
+    fullName: string
+    owner: string
+    name: string
+    defaultBranch: string
+    connectedAt: string
+  }>
 }
 
 function formatDate(dateStr: string): string {
@@ -59,6 +68,7 @@ export function SettingsContent({
   members,
   userRole,
   currentUserId,
+  repositories,
 }: SettingsContentProps) {
   const scoringSettings = organization.settings?.scoring as
     | Record<string, unknown>
@@ -99,6 +109,7 @@ export function SettingsContent({
           <TabsTrigger value="organization">Organization</TabsTrigger>
           <TabsTrigger value="scoring">Scoring</TabsTrigger>
           <TabsTrigger value="members">Members</TabsTrigger>
+          <TabsTrigger value="repositories">Repositories</TabsTrigger>
         </TabsList>
 
         <TabsContent value="organization">
@@ -283,6 +294,10 @@ export function SettingsContent({
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="repositories">
+          <RepositorySettings repositories={repositories} />
         </TabsContent>
       </Tabs>
     </div>

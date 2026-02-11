@@ -1,5 +1,6 @@
 import { requireAuth } from "@/lib/auth/session"
 import { getOrganizationById, getOrganizationUsers } from "@/lib/db/queries/organizations"
+import { getRepositoriesByOrgId } from "@/lib/db/queries/repositories"
 import "@/lib/auth/types"
 import { SettingsContent } from "./SettingsContent"
 
@@ -15,9 +16,10 @@ export default async function SettingsPage() {
     )
   }
 
-  const [organization, orgUsers] = await Promise.all([
+  const [organization, orgUsers, repositories] = await Promise.all([
     getOrganizationById(orgId),
     getOrganizationUsers(orgId),
+    getRepositoriesByOrgId(orgId),
   ])
 
   if (!organization) {
@@ -48,6 +50,14 @@ export default async function SettingsPage() {
       members={members}
       userRole={session.user.role}
       currentUserId={session.user.id}
+      repositories={repositories.map((r) => ({
+        id: r.id,
+        fullName: r.fullName,
+        owner: r.owner,
+        name: r.name,
+        defaultBranch: r.defaultBranch,
+        connectedAt: r.connectedAt.toISOString(),
+      }))}
     />
   )
 }

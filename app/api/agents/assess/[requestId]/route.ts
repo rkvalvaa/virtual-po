@@ -65,7 +65,7 @@ export async function POST(
     );
   }
 
-  const tools = createAssessmentTools(requestId, session.user.orgId);
+  const tools = createAssessmentTools(requestId, session.user.orgId, session.user.id);
 
   const systemPrompt = `${ASSESSMENT_SYSTEM_PROMPT}
 
