@@ -1,0 +1,188 @@
+"use client"
+
+import Link from "next/link"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { AssessmentView } from "@/components/requests/AssessmentView"
+import { EpicView } from "@/components/requests/EpicView"
+import { StoryList } from "@/components/requests/StoryList"
+import { StatusBadge } from "@/components/requests/StatusBadge"
+import { PriorityBadge } from "@/components/requests/PriorityBadge"
+import { QualityIndicator } from "@/components/chat/QualityIndicator"
+import { ArrowLeft } from "lucide-react"
+
+interface RequestDetailProps {
+  request: {
+    id: string
+    title: string
+    summary: string | null
+    status: string
+    intakeData: Record<string, unknown>
+    intakeComplete: boolean
+    qualityScore: number | null
+    assessmentData: Record<string, unknown> | null
+    businessScore: number | null
+    technicalScore: number | null
+    riskScore: number | null
+    priorityScore: number | null
+    complexity: string | null
+    createdAt: string
+    updatedAt: string
+  }
+  epic: {
+    id: string
+    title: string
+    description: string | null
+    goals: string[]
+    successCriteria: string[]
+    technicalNotes: string | null
+  } | null
+  stories: Array<{
+    id: string
+    title: string
+    asA: string
+    iWant: string
+    soThat: string
+    acceptanceCriteria: string[]
+    technicalNotes: string | null
+    priority: number
+    storyPoints: number | null
+  }>
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+}
+
+function formatIntakeKey(key: string): string {
+  return key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/_/g, " ")
+    .replace(/^\w/, (c) => c.toUpperCase())
+    .trim()
+}
+
+function renderIntakeValue(value: unknown): string {
+  if (typeof value === "string") return value
+  if (typeof value === "number" || typeof value === "boolean") return String(value)
+  if (Array.isArray(value)) return value.join(", ")
+  if (value === null || value === undefined) return "--"
+  return JSON.stringify(value, null, 2)
+}
+
+export function RequestDetail({ request, epic, stories }: RequestDetailProps) {
+  return (
+    <div className="space-y-6">
+      {/* Back button */}
+      <Button variant="ghost" size="sm" asChild>
+        <Link href="/requests">
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          Back to Requests
+        </Link>
+      </Button>
+
+      {/* Header */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-bold tracking-tight">{request.title}</h1>
+          <StatusBadge status={request.status} />
+          <PriorityBadge score={request.priorityScore} />
+          {request.complexity && (
+            <Badge variant="outline">Complexity: {request.complexity}</Badge>
+          )}
+        </div>
+        <div className="text-muted-foreground flex gap-4 text-sm">
+          <span>Created: {formatDate(request.createdAt)}</span>
+          <span>Updated: {formatDate(request.updatedAt)}</span>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <Tabs defaultValue="overview">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="assessment">Assessment</TabsTrigger>
+          <TabsTrigger value="epic-stories">Epic & Stories</TabsTrigger>
+        </TabsList>
+
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6">
+          {request.summary && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  {request.summary}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {request.qualityScore !== null && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Intake Quality</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <QualityIndicator score={request.qualityScore} />
+              </CardContent>
+            </Card>
+          )}
+
+          {Object.keys(request.intakeData).length > 0 && (
+            <div className="space-y-4">
+              {Object.entries(request.intakeData).map(([key, value]) => (
+                <Card key={key}>
+                  <CardHeader>
+                    <CardTitle className="text-base">{formatIntakeKey(key)}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground whitespace-pre-wrap text-sm">
+                      {renderIntakeValue(value)}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Assessment Tab */}
+        <TabsContent value="assessment" className="space-y-6">
+          <AssessmentView
+            assessmentData={request.assessmentData}
+            businessScore={request.businessScore}
+            technicalScore={request.technicalScore}
+            riskScore={request.riskScore}
+            priorityScore={request.priorityScore}
+            complexity={request.complexity}
+          />
+        </TabsContent>
+
+        {/* Epic & Stories Tab */}
+        <TabsContent value="epic-stories" className="space-y-6">
+          {epic ? (
+            <>
+              <EpicView epic={epic} />
+              <StoryList stories={stories} />
+            </>
+          ) : (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <p className="text-muted-foreground">No epic has been generated yet.</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
