@@ -28,3 +28,21 @@ export async function getCommentsByRequestId(
   );
   return mapRows<Comment>(result.rows);
 }
+
+export interface CommentWithAuthor extends Comment {
+  authorName: string;
+}
+
+export async function getCommentsWithAuthorByRequestId(
+  requestId: string
+): Promise<CommentWithAuthor[]> {
+  const result = await query(
+    `SELECT c.*, u.name AS author_name
+     FROM comments c
+     LEFT JOIN users u ON c.author_id = u.id
+     WHERE c.request_id = $1
+     ORDER BY c.created_at ASC`,
+    [requestId]
+  );
+  return mapRows<CommentWithAuthor>(result.rows);
+}
