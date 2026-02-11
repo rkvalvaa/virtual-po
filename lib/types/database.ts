@@ -178,3 +178,17 @@ export interface Integration {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface Repository {
+  id: string;
+  organizationId: string;
+  githubRepoId: number;
+  owner: string;
+  name: string;
+  fullName: string;
+  defaultBranch: string;
+  isActive: boolean;
+  connectedBy: string | null;
+  connectedAt: Date;
+  updatedAt: Date;
+}

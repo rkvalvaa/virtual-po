@@ -3,7 +3,12 @@ import Google from "next-auth/providers/google"
 import type { NextAuthConfig } from "next-auth"
 
 export default {
-  providers: [GitHub, Google],
+  providers: [
+    GitHub({
+      authorization: { params: { scope: "read:user user:email repo" } },
+    }),
+    Google,
+  ],
   pages: {
     signIn: "/login",
     error: "/login",
