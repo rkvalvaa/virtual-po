@@ -11,6 +11,7 @@ import {
   FileText,
   ClipboardCheck,
   Layers,
+  BarChart3,
   Settings,
   Menu,
   LogOut,
@@ -20,6 +21,7 @@ const navLinks = [
   { href: "/requests", label: "Requests", icon: FileText },
   { href: "/review", label: "Review", icon: ClipboardCheck },
   { href: "/backlog", label: "Backlog", icon: Layers },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const
 
