@@ -4,6 +4,7 @@ import { getFeatureRequestById } from "@/lib/db/queries/feature-requests"
 import { getEpicByRequestId, getStoriesByEpicId } from "@/lib/db/queries/epics"
 import { getDecisionsByRequestId } from "@/lib/db/queries/decisions"
 import { getCommentsWithAuthorByRequestId } from "@/lib/db/queries/comments"
+import { findSimilarByKeywords } from "@/lib/db/queries/outcomes"
 import { RequestDetail } from "./RequestDetail"
 import "@/lib/auth/types"
 
@@ -21,10 +22,21 @@ export default async function RequestDetailPage({
     notFound()
   }
 
-  const [epic, decisions, comments] = await Promise.all([
+  // Extract keywords from title for similarity search (words with 3+ chars)
+  const keywords = request.title
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-zA-Z0-9]/g, "").toLowerCase())
+    .filter((w) => w.length >= 3)
+
+  const keywordCount = keywords.length
+
+  const [epic, decisions, comments, similarResults] = await Promise.all([
     getEpicByRequestId(request.id),
     getDecisionsByRequestId(request.id),
     getCommentsWithAuthorByRequestId(request.id),
+    keywordCount > 0
+      ? findSimilarByKeywords(session.user.orgId!, keywords, request.id, 5)
+      : Promise.resolve([]),
   ])
   const stories = epic ? await getStoriesByEpicId(epic.id) : []
 
@@ -44,6 +56,9 @@ export default async function RequestDetailPage({
         riskScore: request.riskScore,
         priorityScore: request.priorityScore,
         complexity: request.complexity,
+        actualComplexity: request.actualComplexity,
+        actualEffortDays: request.actualEffortDays,
+        lessonsLearned: request.lessonsLearned,
         createdAt: request.createdAt.toISOString(),
         updatedAt: request.updatedAt.toISOString(),
       }}
@@ -74,6 +89,8 @@ export default async function RequestDetailPage({
         id: d.id,
         decision: d.decision,
         rationale: d.rationale,
+        outcome: d.outcome ?? null,
+        outcomeNotes: d.outcomeNotes ?? null,
         userId: d.userId,
         createdAt: d.createdAt.toISOString(),
       }))}
@@ -83,6 +100,13 @@ export default async function RequestDetailPage({
         authorName: c.authorName ?? "Unknown",
         parentId: c.parentId,
         createdAt: c.createdAt.toISOString(),
+      }))}
+      similarRequests={similarResults.map((sr) => ({
+        id: sr.id,
+        title: sr.title,
+        priorityScore: sr.priorityScore ?? null,
+        complexity: sr.complexity ?? null,
+        similarityScore: keywordCount > 0 ? sr.relevanceScore / keywordCount : 0,
       }))}
       userRole={session.user.role}
     />

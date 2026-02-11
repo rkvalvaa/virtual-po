@@ -27,6 +27,9 @@ export type AgentType = typeof AGENT_TYPES[number];
 export const DECISION_TYPES = ['APPROVE', 'REJECT', 'DEFER', 'REQUEST_INFO'] as const;
 export type DecisionType = typeof DECISION_TYPES[number];
 
+export const DECISION_OUTCOMES = ['CORRECT', 'INCORRECT', 'PARTIALLY_CORRECT', 'PENDING'] as const;
+export type DecisionOutcome = typeof DECISION_OUTCOMES[number];
+
 // Database row types (camelCase mapped from snake_case)
 export interface Organization {
   id: string;
@@ -74,6 +77,9 @@ export interface FeatureRequest {
   tags: string[];
   externalId: string | null;
   externalUrl: string | null;
+  actualComplexity: Complexity | null;
+  actualEffortDays: number | null;
+  lessonsLearned: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -141,6 +147,9 @@ export interface Decision {
   userId: string;
   decision: DecisionType;
   rationale: string;
+  outcome: DecisionOutcome | null;
+  outcomeNotes: string | null;
+  outcomeRecordedAt: Date | null;
   createdAt: Date;
 }
 
@@ -191,4 +200,13 @@ export interface Repository {
   connectedBy: string | null;
   connectedAt: Date;
   updatedAt: Date;
+}
+
+export interface RequestSimilarity {
+  id: string;
+  sourceRequestId: string;
+  similarRequestId: string;
+  similarityScore: number;
+  matchReasons: string[];
+  createdAt: Date;
 }

@@ -10,7 +10,9 @@ import { EpicView } from "@/components/requests/EpicView"
 import { StoryList } from "@/components/requests/StoryList"
 import { StatusBadge } from "@/components/requests/StatusBadge"
 import { PriorityBadge } from "@/components/requests/PriorityBadge"
+import { SimilarRequests } from "@/components/requests/SimilarRequests"
 import { DecisionPanel } from "@/components/review/DecisionPanel"
+import { OutcomePanel } from "@/components/review/OutcomePanel"
 import { CommentThread } from "@/components/review/CommentThread"
 import { QualityIndicator } from "@/components/chat/QualityIndicator"
 import { ArrowLeft } from "lucide-react"
@@ -30,6 +32,9 @@ interface RequestDetailProps {
     riskScore: number | null
     priorityScore: number | null
     complexity: string | null
+    actualComplexity: string | null
+    actualEffortDays: number | null
+    lessonsLearned: string | null
     createdAt: string
     updatedAt: string
   }
@@ -56,6 +61,8 @@ interface RequestDetailProps {
     id: string
     decision: string
     rationale: string
+    outcome: string | null
+    outcomeNotes: string | null
     userId: string
     createdAt: string
   }>
@@ -65,6 +72,13 @@ interface RequestDetailProps {
     authorName: string
     parentId: string | null
     createdAt: string
+  }>
+  similarRequests: Array<{
+    id: string
+    title: string
+    priorityScore: number | null
+    complexity: string | null
+    similarityScore: number
   }>
   userRole: string
 }
@@ -99,6 +113,7 @@ export function RequestDetail({
   stories,
   decisions,
   comments,
+  similarRequests,
   userRole,
 }: RequestDetailProps) {
   return (
@@ -134,6 +149,23 @@ export function RequestDetail({
         userRole={userRole}
         decisions={decisions}
       />
+
+      {/* Outcome Panel */}
+      {decisions.length > 0 && (
+        <OutcomePanel
+          requestId={request.id}
+          decisions={decisions}
+          predictedComplexity={request.complexity}
+          actualComplexity={request.actualComplexity}
+          actualEffortDays={request.actualEffortDays}
+          lessonsLearned={request.lessonsLearned}
+          requestStatus={request.status}
+          userRole={userRole}
+        />
+      )}
+
+      {/* Similar Requests */}
+      <SimilarRequests similarRequests={similarRequests} />
 
       {/* Tabs */}
       <Tabs defaultValue="overview">
