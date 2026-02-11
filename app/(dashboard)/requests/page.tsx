@@ -2,7 +2,6 @@ import Link from "next/link"
 import { requireAuth } from "@/lib/auth/session"
 import { listFeatureRequests } from "@/lib/db/queries/feature-requests"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   Card,
   CardContent,
@@ -18,28 +17,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { StatusBadge } from "@/components/requests/StatusBadge"
+import { PriorityBadge } from "@/components/requests/PriorityBadge"
 import { Plus } from "lucide-react"
-
-const statusVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
-  DRAFT: "outline",
-  INTAKE_IN_PROGRESS: "secondary",
-  PENDING_ASSESSMENT: "secondary",
-  UNDER_REVIEW: "default",
-  NEEDS_INFO: "outline",
-  APPROVED: "default",
-  REJECTED: "destructive",
-  DEFERRED: "outline",
-  IN_BACKLOG: "secondary",
-  IN_PROGRESS: "default",
-  COMPLETED: "default",
-}
-
-function formatStatus(status: string): string {
-  return status
-    .split("_")
-    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-    .join(" ")
-}
 
 function formatDate(date: Date): string {
   return new Date(date).toLocaleDateString("en-US", {
@@ -105,6 +85,7 @@ export default async function RequestsPage() {
               <TableRow>
                 <TableHead>Title</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Priority</TableHead>
                 <TableHead>Quality</TableHead>
                 <TableHead>Created</TableHead>
               </TableRow>
@@ -121,9 +102,10 @@ export default async function RequestsPage() {
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={statusVariant[request.status] ?? "outline"}>
-                      {formatStatus(request.status)}
-                    </Badge>
+                    <StatusBadge status={request.status} />
+                  </TableCell>
+                  <TableCell>
+                    <PriorityBadge score={request.priorityScore} />
                   </TableCell>
                   <TableCell>
                     {request.qualityScore !== null
