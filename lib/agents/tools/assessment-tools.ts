@@ -10,6 +10,8 @@ import type { FeatureRequest, PriorityConfig, Complexity } from '@/lib/types/dat
 import { defaultScoringConfig } from '@/config/scoring';
 import { getGitHubToken, getRepoTree, getFileContent } from '@/lib/github/client';
 import { getActiveRepositoriesForOrg } from '@/lib/db/queries/repositories';
+import { getActiveObjectives, getKeyResultsByObjectiveId } from '@/lib/db/queries/okrs';
+import { getCurrentQuarterCapacity } from '@/lib/db/queries/capacity';
 
 export function createAssessmentTools(requestId: string, orgId: string, userId: string) {
   return {
@@ -33,6 +35,51 @@ export function createAssessmentTools(requestId: string, orgId: string, userId: 
         }
 
         return defaultScoringConfig;
+      },
+    }),
+
+    get_strategic_context: tool({
+      description: 'Retrieve active organizational objectives (OKRs) and current team capacity for strategic alignment assessment',
+      inputSchema: z.object({}),
+      execute: async () => {
+        const objectives = await getActiveObjectives(orgId);
+
+        const objectivesWithKRs = await Promise.all(
+          objectives.map(async (obj) => {
+            const keyResults = await getKeyResultsByObjectiveId(obj.id);
+            return {
+              id: obj.id,
+              title: obj.title,
+              description: obj.description,
+              timeFrame: obj.timeFrame,
+              keyResults: keyResults.map((kr) => ({
+                title: kr.title,
+                target: kr.targetValue,
+                current: kr.currentValue,
+                unit: kr.unit,
+                progress: kr.targetValue > 0 ? Math.round((kr.currentValue / kr.targetValue) * 100) : 0,
+              })),
+            };
+          })
+        );
+
+        const capacityRows = await getCurrentQuarterCapacity(orgId);
+        const capacity = capacityRows.length > 0 ? capacityRows[0] : null;
+
+        return {
+          objectives: objectivesWithKRs,
+          capacity: capacity
+            ? {
+                quarter: capacity.quarter,
+                totalDays: capacity.totalCapacityDays,
+                allocatedDays: capacity.allocatedDays,
+                availableDays: capacity.totalCapacityDays - capacity.allocatedDays,
+                utilizationPercent: capacity.totalCapacityDays > 0
+                  ? Math.round((capacity.allocatedDays / capacity.totalCapacityDays) * 100)
+                  : 0,
+              }
+            : null,
+        };
       },
     }),
 

@@ -5,16 +5,17 @@ The completed intake data for this feature request is provided as JSON context b
 ## Assessment Workflow
 
 1. **Call \`get_organization_context\`** first to retrieve the scoring framework and weight configuration.
-2. **Call \`get_current_backlog\`** and **\`get_historical_estimates\`** to calibrate your scores against existing items.
-3. **If repositories are connected**, call \`analyze_codebase_impact\` with relevant keywords from the feature request to identify potentially affected code areas. Use the results to inform your technical assessment and risk analysis.
-4. Analyze the intake data across the three dimensions below.
-5. **Call \`save_assessment\`** with all scores, complexity rating, and a detailed assessment breakdown.
+2. **Call \`get_strategic_context\`** to retrieve active organizational objectives (OKRs) and current team capacity. Use this to evaluate strategic alignment and resource feasibility.
+3. **Call \`get_current_backlog\`** and **\`get_historical_estimates\`** to calibrate your scores against existing items.
+4. **If repositories are connected**, call \`analyze_codebase_impact\` with relevant keywords from the feature request to identify potentially affected code areas. Use the results to inform your technical assessment and risk analysis.
+5. Analyze the intake data across the three dimensions below.
+6. **Call \`save_assessment\`** with all scores, complexity rating, and a detailed assessment breakdown.
 
 ## Scoring Dimensions
 
 ### Business Value (default weight: 40%)
 Evaluate each sub-factor on a 1-10 scale:
-- **Strategic Alignment** — How well does this align with organizational goals and product vision?
+- **Strategic Alignment** — How well does this align with active organizational objectives (OKRs)? Reference specific objectives and key results that this feature supports. If no OKRs are configured, assess general strategic fit.
 - **Revenue Impact** — What is the potential for revenue growth, retention, or cost savings?
 - **Customer Value** — How much does this improve the user experience or solve a real customer pain?
 - **Market Position** — Does this strengthen competitive advantage or open new markets?
@@ -37,7 +38,7 @@ Evaluate each risk type with severity 1-10:
 - **Technical Risk** — Unknowns, new technologies, integration challenges.
 - **Business Risk** — Market changes, stakeholder alignment, ROI uncertainty.
 - **Timeline Risk** — Deadline pressure, dependency delays, scope creep potential.
-- **Resource Risk** — Availability of skills, team capacity, competing priorities.
+- **Resource Risk** — Availability of skills, team capacity, competing priorities. Consider current quarter capacity utilization from strategic context — high utilization (>80%) increases resource risk.
 - **Dependency Risk** — External systems, third-party services, cross-team coordination.
 
 Aggregate into a 0-100 risk score (higher = more risky). The scoring system inverts this when calculating priority.
@@ -69,6 +70,8 @@ When calling \`save_assessment\`, include in the \`assessmentData\` object:
 - \`confidence\` — Confidence levels per dimension with reasoning.
 - \`recommendations\` — Actionable next steps or considerations for reviewers.
 - \`comparative_notes\` — How this compares to similar backlog items, if applicable.
+- \`strategic_alignment\` — Which specific OKRs this feature aligns with, how it contributes to key results, and an alignment score (0-10). If no OKRs configured, note this and assess general strategic fit.
+- \`capacity_assessment\` — Current team utilization and whether capacity exists for this work given its complexity estimate.
 
 ## Guidelines
 
