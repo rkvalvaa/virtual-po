@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { RepositorySettings } from "@/components/settings/RepositorySettings"
+import { OkrSettings } from "@/components/settings/OkrSettings"
+import { CapacitySettings } from "@/components/settings/CapacitySettings"
 import { defaultScoringConfig } from "@/config/scoring"
 
 interface SettingsContentProps {
@@ -47,6 +49,27 @@ interface SettingsContentProps {
     defaultBranch: string
     connectedAt: string
   }>
+  objectives: Array<{
+    id: string
+    title: string
+    description: string | null
+    timeFrame: string
+    status: string
+    keyResults: Array<{
+      id: string
+      title: string
+      targetValue: number
+      currentValue: number
+      unit: string
+    }>
+  }>
+  capacity: {
+    quarter: string
+    totalCapacityDays: number
+    allocatedDays: number
+    notes: string | null
+  } | null
+  currentQuarter: string
 }
 
 function formatDate(dateStr: string): string {
@@ -69,6 +92,9 @@ export function SettingsContent({
   userRole,
   currentUserId,
   repositories,
+  objectives,
+  capacity,
+  currentQuarter,
 }: SettingsContentProps) {
   const scoringSettings = organization.settings?.scoring as
     | Record<string, unknown>
@@ -110,6 +136,8 @@ export function SettingsContent({
           <TabsTrigger value="scoring">Scoring</TabsTrigger>
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="repositories">Repositories</TabsTrigger>
+          <TabsTrigger value="okrs">OKRs</TabsTrigger>
+          <TabsTrigger value="capacity">Capacity</TabsTrigger>
         </TabsList>
 
         <TabsContent value="organization">
@@ -298,6 +326,18 @@ export function SettingsContent({
 
         <TabsContent value="repositories">
           <RepositorySettings repositories={repositories} />
+        </TabsContent>
+
+        <TabsContent value="okrs">
+          <OkrSettings objectives={objectives} userRole={userRole} />
+        </TabsContent>
+
+        <TabsContent value="capacity">
+          <CapacitySettings
+            capacity={capacity}
+            currentQuarter={currentQuarter}
+            userRole={userRole}
+          />
         </TabsContent>
       </Tabs>
     </div>

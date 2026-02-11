@@ -153,6 +153,44 @@ export interface Decision {
   createdAt: Date;
 }
 
+export const OKR_STATUSES = ['ACTIVE', 'COMPLETED', 'CANCELLED'] as const;
+export type OkrStatus = typeof OKR_STATUSES[number];
+
+export interface Objective {
+  id: string;
+  organizationId: string;
+  title: string;
+  description: string | null;
+  timeFrame: string;
+  status: OkrStatus;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface KeyResult {
+  id: string;
+  objectiveId: string;
+  title: string;
+  targetValue: number;
+  currentValue: number;
+  unit: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface TeamCapacity {
+  id: string;
+  organizationId: string;
+  quarter: string;
+  totalCapacityDays: number;
+  allocatedDays: number;
+  notes: string | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export const INTEGRATION_TYPES = ['JIRA', 'LINEAR', 'GITHUB', 'SLACK', 'TEAMS', 'NOTION', 'CONFLUENCE'] as const;
 export type IntegrationType = typeof INTEGRATION_TYPES[number];
 
