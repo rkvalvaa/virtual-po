@@ -10,6 +10,8 @@ import { EpicView } from "@/components/requests/EpicView"
 import { StoryList } from "@/components/requests/StoryList"
 import { StatusBadge } from "@/components/requests/StatusBadge"
 import { PriorityBadge } from "@/components/requests/PriorityBadge"
+import { DecisionPanel } from "@/components/review/DecisionPanel"
+import { CommentThread } from "@/components/review/CommentThread"
 import { QualityIndicator } from "@/components/chat/QualityIndicator"
 import { ArrowLeft } from "lucide-react"
 
@@ -50,6 +52,21 @@ interface RequestDetailProps {
     priority: number
     storyPoints: number | null
   }>
+  decisions: Array<{
+    id: string
+    decision: string
+    rationale: string
+    userId: string
+    createdAt: string
+  }>
+  comments: Array<{
+    id: string
+    content: string
+    authorName: string
+    parentId: string | null
+    createdAt: string
+  }>
+  userRole: string
 }
 
 function formatDate(dateStr: string): string {
@@ -76,7 +93,14 @@ function renderIntakeValue(value: unknown): string {
   return JSON.stringify(value, null, 2)
 }
 
-export function RequestDetail({ request, epic, stories }: RequestDetailProps) {
+export function RequestDetail({
+  request,
+  epic,
+  stories,
+  decisions,
+  comments,
+  userRole,
+}: RequestDetailProps) {
   return (
     <div className="space-y-6">
       {/* Back button */}
@@ -103,12 +127,28 @@ export function RequestDetail({ request, epic, stories }: RequestDetailProps) {
         </div>
       </div>
 
+      {/* Decision Panel */}
+      <DecisionPanel
+        requestId={request.id}
+        currentStatus={request.status}
+        userRole={userRole}
+        decisions={decisions}
+      />
+
       {/* Tabs */}
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="assessment">Assessment</TabsTrigger>
           <TabsTrigger value="epic-stories">Epic & Stories</TabsTrigger>
+          <TabsTrigger value="discussion">
+            Discussion
+            {comments.length > 0 && (
+              <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-xs">
+                {comments.length}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -181,6 +221,11 @@ export function RequestDetail({ request, epic, stories }: RequestDetailProps) {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Discussion Tab */}
+        <TabsContent value="discussion" className="space-y-6">
+          <CommentThread comments={comments} requestId={request.id} />
         </TabsContent>
       </Tabs>
     </div>

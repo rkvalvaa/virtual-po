@@ -2,6 +2,8 @@ import { notFound } from "next/navigation"
 import { requireAuth } from "@/lib/auth/session"
 import { getFeatureRequestById } from "@/lib/db/queries/feature-requests"
 import { getEpicByRequestId, getStoriesByEpicId } from "@/lib/db/queries/epics"
+import { getDecisionsByRequestId } from "@/lib/db/queries/decisions"
+import { getCommentsWithAuthorByRequestId } from "@/lib/db/queries/comments"
 import { RequestDetail } from "./RequestDetail"
 import "@/lib/auth/types"
 
@@ -19,7 +21,11 @@ export default async function RequestDetailPage({
     notFound()
   }
 
-  const epic = await getEpicByRequestId(request.id)
+  const [epic, decisions, comments] = await Promise.all([
+    getEpicByRequestId(request.id),
+    getDecisionsByRequestId(request.id),
+    getCommentsWithAuthorByRequestId(request.id),
+  ])
   const stories = epic ? await getStoriesByEpicId(epic.id) : []
 
   return (
@@ -64,6 +70,21 @@ export default async function RequestDetailPage({
         priority: story.priority,
         storyPoints: story.storyPoints,
       }))}
+      decisions={decisions.map((d) => ({
+        id: d.id,
+        decision: d.decision,
+        rationale: d.rationale,
+        userId: d.userId,
+        createdAt: d.createdAt.toISOString(),
+      }))}
+      comments={comments.map((c) => ({
+        id: c.id,
+        content: c.content,
+        authorName: c.authorName ?? "Unknown",
+        parentId: c.parentId,
+        createdAt: c.createdAt.toISOString(),
+      }))}
+      userRole={session.user.role}
     />
   )
 }
