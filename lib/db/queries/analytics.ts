@@ -150,3 +150,184 @@ export async function getTopRequesters(
     count: parseInt(row.count, 10),
   }));
 }
+
+// --- Advanced Analytics ---
+
+export interface EstimateAccuracyRow {
+  complexity: string;
+  predictedCount: number;
+  matchedCount: number;
+  accuracyPercent: number;
+}
+
+export interface EstimateAccuracySummary {
+  totalCompared: number;
+  matchCount: number;
+  accuracyPercent: number;
+  byComplexity: EstimateAccuracyRow[];
+}
+
+export async function getEstimateAccuracySummary(orgId: string): Promise<EstimateAccuracySummary> {
+  const result = await query(
+    `SELECT
+       COUNT(*) AS total,
+       COUNT(*) FILTER (WHERE complexity = actual_complexity) AS matched,
+       complexity,
+       COUNT(*) FILTER (WHERE complexity = actual_complexity) AS complexity_matched
+     FROM feature_requests
+     WHERE complexity IS NOT NULL
+       AND actual_complexity IS NOT NULL
+       AND organization_id = $1
+     GROUP BY complexity`,
+    [orgId]
+  );
+
+  let totalCompared = 0;
+  let matchCount = 0;
+  const byComplexity: EstimateAccuracyRow[] = result.rows.map((row) => {
+    const predicted = parseInt(row.total, 10);
+    const matched = parseInt(row.complexity_matched, 10);
+    totalCompared += predicted;
+    matchCount += matched;
+    return {
+      complexity: row.complexity,
+      predictedCount: predicted,
+      matchedCount: matched,
+      accuracyPercent: predicted > 0 ? Math.round((matched / predicted) * 100) : 0,
+    };
+  });
+
+  return {
+    totalCompared,
+    matchCount,
+    accuracyPercent: totalCompared > 0 ? Math.round((matchCount / totalCompared) * 100) : 0,
+    byComplexity,
+  };
+}
+
+export interface StakeholderEngagementRow {
+  userId: string;
+  name: string;
+  requestCount: number;
+  commentCount: number;
+  avgQualityScore: number | null;
+  lastActivityAt: string | null;
+}
+
+export async function getStakeholderEngagement(
+  orgId: string,
+  limit = 10
+): Promise<StakeholderEngagementRow[]> {
+  const result = await query(
+    `SELECT
+       u.id AS user_id,
+       u.name,
+       COUNT(DISTINCT fr.id) AS request_count,
+       COUNT(DISTINCT c.id) AS comment_count,
+       ROUND(AVG(fr.quality_score)::numeric, 1) AS avg_quality_score,
+       GREATEST(MAX(fr.created_at), MAX(c.created_at)) AS last_activity_at
+     FROM users u
+     JOIN feature_requests fr ON fr.requester_id = u.id AND fr.organization_id = $1
+     LEFT JOIN comments c ON c.author_id = u.id
+     GROUP BY u.id, u.name
+     ORDER BY (COUNT(DISTINCT fr.id) + COUNT(DISTINCT c.id)) DESC
+     LIMIT $2`,
+    [orgId, limit]
+  );
+
+  return result.rows.map((row) => ({
+    userId: row.user_id,
+    name: row.name,
+    requestCount: parseInt(row.request_count, 10),
+    commentCount: parseInt(row.comment_count, 10),
+    avgQualityScore: row.avg_quality_score != null ? parseFloat(row.avg_quality_score) : null,
+    lastActivityAt: row.last_activity_at != null ? String(row.last_activity_at) : null,
+  }));
+}
+
+export interface TimeToDecisionTrendRow {
+  month: string;
+  avgDays: number;
+  decisionCount: number;
+}
+
+export async function getTimeToDecisionTrend(orgId: string): Promise<TimeToDecisionTrendRow[]> {
+  const result = await query(
+    `SELECT
+       TO_CHAR(DATE_TRUNC('month', d.created_at), 'YYYY-MM') AS month,
+       ROUND(AVG(EXTRACT(EPOCH FROM (d.created_at - fr.created_at)) / 86400)::numeric, 1) AS avg_days,
+       COUNT(*) AS decision_count
+     FROM decisions d
+     JOIN feature_requests fr ON d.request_id = fr.id
+     WHERE fr.organization_id = $1
+       AND d.created_at >= NOW() - INTERVAL '12 months'
+     GROUP BY DATE_TRUNC('month', d.created_at)
+     ORDER BY month ASC`,
+    [orgId]
+  );
+
+  return result.rows.map((row) => ({
+    month: row.month,
+    avgDays: parseFloat(row.avg_days),
+    decisionCount: parseInt(row.decision_count, 10),
+  }));
+}
+
+export interface ConfidenceTrendRow {
+  month: string;
+  avgBusinessScore: number;
+  avgTechnicalScore: number;
+  avgRiskScore: number;
+  assessmentCount: number;
+}
+
+export async function getConfidenceTrend(orgId: string): Promise<ConfidenceTrendRow[]> {
+  const result = await query(
+    `SELECT
+       TO_CHAR(DATE_TRUNC('month', updated_at), 'YYYY-MM') AS month,
+       ROUND(AVG(business_score)::numeric, 1) AS avg_business_score,
+       ROUND(AVG(technical_score)::numeric, 1) AS avg_technical_score,
+       ROUND(AVG(risk_score)::numeric, 1) AS avg_risk_score,
+       COUNT(*) AS assessment_count
+     FROM feature_requests
+     WHERE assessment_data IS NOT NULL
+       AND organization_id = $1
+       AND updated_at >= NOW() - INTERVAL '12 months'
+     GROUP BY DATE_TRUNC('month', updated_at)
+     ORDER BY month ASC`,
+    [orgId]
+  );
+
+  return result.rows.map((row) => ({
+    month: row.month,
+    avgBusinessScore: parseFloat(row.avg_business_score),
+    avgTechnicalScore: parseFloat(row.avg_technical_score),
+    avgRiskScore: parseFloat(row.avg_risk_score),
+    assessmentCount: parseInt(row.assessment_count, 10),
+  }));
+}
+
+export interface DecisionOutcomeDistributionRow {
+  outcome: string;
+  count: number;
+}
+
+export async function getDecisionOutcomeDistribution(
+  orgId: string
+): Promise<DecisionOutcomeDistributionRow[]> {
+  const result = await query(
+    `SELECT d.outcome, COUNT(*) AS count
+     FROM decisions d
+     JOIN feature_requests fr ON d.request_id = fr.id
+     WHERE fr.organization_id = $1
+       AND d.outcome IS NOT NULL
+     GROUP BY d.outcome
+     ORDER BY count DESC`,
+    [orgId]
+  );
+
+  return result.rows.map((row) => ({
+    outcome: row.outcome,
+    count: parseInt(row.count, 10),
+  }));
+}
