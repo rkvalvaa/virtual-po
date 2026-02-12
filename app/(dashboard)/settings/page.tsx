@@ -9,6 +9,7 @@ import { getGitHubSyncHistory } from "@/lib/db/queries/github-sync"
 import { getSlackNotifications } from "@/lib/db/queries/slack"
 import { getApiKeysByOrg } from "@/lib/db/queries/api-keys"
 import { getWebhooksByOrg } from "@/lib/db/queries/webhooks"
+import { getAllTemplates, seedDefaultTemplates } from "@/lib/db/queries/templates"
 import "@/lib/auth/types"
 import { SettingsContent } from "./SettingsContent"
 
@@ -24,7 +25,9 @@ export default async function SettingsPage() {
     )
   }
 
-  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, apiKeys, webhookSubscriptions] = await Promise.all([
+  await seedDefaultTemplates(orgId)
+
+  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, apiKeys, webhookSubscriptions, allTemplates] = await Promise.all([
     getOrganizationById(orgId),
     getOrganizationUsers(orgId),
     getRepositoriesByOrgId(orgId),
@@ -40,6 +43,7 @@ export default async function SettingsPage() {
     getSlackNotifications(orgId),
     getApiKeysByOrg(orgId),
     getWebhooksByOrg(orgId),
+    getAllTemplates(orgId),
   ])
 
   if (!organization) {
@@ -202,6 +206,17 @@ export default async function SettingsPage() {
         lastTriggeredAt: w.lastTriggeredAt?.toISOString() ?? null,
         failureCount: w.failureCount,
         createdAt: w.createdAt.toISOString(),
+      }))}
+      templates={allTemplates.map((t) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        category: t.category,
+        icon: t.icon,
+        defaultTitle: t.defaultTitle,
+        promptHints: t.promptHints,
+        isActive: t.isActive,
+        sortOrder: t.sortOrder,
       }))}
     />
   )
