@@ -1,6 +1,8 @@
 import { query } from '@/lib/db/pool';
 import { mapRow, mapRows } from '@/lib/db/mappers';
 import type { Notification, NotificationType } from '@/lib/types/database';
+import { getUserEmailForNotification } from '@/lib/db/queries/email-preferences';
+import { sendNotificationEmail } from '@/lib/email/send';
 
 export async function createNotification(params: {
   organizationId: string;
@@ -97,6 +99,25 @@ export async function notifyUser(params: {
   // Don't notify the actor about their own action
   if (params.actorId && params.userId === params.actorId) return;
   await createNotification(params);
+
+  // Send email if user has email enabled for this notification type
+  const emailInfo = await getUserEmailForNotification(
+    params.userId,
+    params.organizationId,
+    params.type
+  );
+  if (emailInfo) {
+    sendNotificationEmail({
+      to: emailInfo.email,
+      recipientName: emailInfo.name,
+      type: params.type,
+      title: params.title,
+      message: params.message,
+      link: params.link,
+    }).catch(() => {
+      // fire-and-forget, errors already logged inside sendNotificationEmail
+    });
+  }
 }
 
 export async function notifyRequestOwner(params: {

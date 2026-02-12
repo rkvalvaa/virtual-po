@@ -433,3 +433,13 @@ export interface SlackNotification {
   isActive: boolean;
   createdAt: Date;
 }
+
+export interface EmailPreference {
+  id: string;
+  userId: string;
+  organizationId: string;
+  notificationType: NotificationType;
+  emailEnabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
