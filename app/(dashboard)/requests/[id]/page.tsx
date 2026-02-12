@@ -5,6 +5,7 @@ import { getEpicByRequestId, getStoriesByEpicId } from "@/lib/db/queries/epics"
 import { getDecisionsByRequestId } from "@/lib/db/queries/decisions"
 import { getCommentsWithAuthorByRequestId } from "@/lib/db/queries/comments"
 import { findSimilarByKeywords } from "@/lib/db/queries/outcomes"
+import { getIntegrationByType } from "@/lib/db/queries/jira-sync"
 import { RequestDetail } from "./RequestDetail"
 import "@/lib/auth/types"
 
@@ -30,13 +31,16 @@ export default async function RequestDetailPage({
 
   const keywordCount = keywords.length
 
-  const [epic, decisions, comments, similarResults] = await Promise.all([
+  const [epic, decisions, comments, similarResults, jiraIntegration] = await Promise.all([
     getEpicByRequestId(request.id),
     getDecisionsByRequestId(request.id),
     getCommentsWithAuthorByRequestId(request.id),
     keywordCount > 0
       ? findSimilarByKeywords(session.user.orgId!, keywords, request.id, 5)
       : Promise.resolve([]),
+    session.user.orgId
+      ? getIntegrationByType(session.user.orgId, "JIRA")
+      : Promise.resolve(null),
   ])
   const stories = epic ? await getStoriesByEpicId(epic.id) : []
 
@@ -109,6 +113,10 @@ export default async function RequestDetailPage({
         similarityScore: keywordCount > 0 ? sr.relevanceScore / keywordCount : 0,
       }))}
       userRole={session.user.role}
+      requestId={request.id}
+      jiraEpicKey={epic?.jiraEpicKey ?? null}
+      jiraEpicUrl={epic?.jiraEpicUrl ?? null}
+      hasJiraIntegration={jiraIntegration !== null}
     />
   )
 }

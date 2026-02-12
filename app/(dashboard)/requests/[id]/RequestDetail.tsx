@@ -15,6 +15,7 @@ import { DecisionPanel } from "@/components/review/DecisionPanel"
 import { OutcomePanel } from "@/components/review/OutcomePanel"
 import { CommentThread } from "@/components/review/CommentThread"
 import { QualityIndicator } from "@/components/chat/QualityIndicator"
+import { JiraSyncButton } from "@/components/requests/JiraSyncButton"
 import { ArrowLeft } from "lucide-react"
 
 interface RequestDetailProps {
@@ -81,6 +82,10 @@ interface RequestDetailProps {
     similarityScore: number
   }>
   userRole: string
+  requestId: string
+  jiraEpicKey: string | null
+  jiraEpicUrl: string | null
+  hasJiraIntegration: boolean
 }
 
 function formatDate(dateStr: string): string {
@@ -115,6 +120,10 @@ export function RequestDetail({
   comments,
   similarRequests,
   userRole,
+  requestId,
+  jiraEpicKey,
+  jiraEpicUrl,
+  hasJiraIntegration,
 }: RequestDetailProps) {
   return (
     <div className="space-y-6">
@@ -244,6 +253,12 @@ export function RequestDetail({
           {epic ? (
             <>
               <EpicView epic={epic} />
+              <JiraSyncButton
+                requestId={requestId}
+                jiraEpicKey={jiraEpicKey}
+                jiraEpicUrl={jiraEpicUrl}
+                hasJiraIntegration={hasJiraIntegration}
+              />
               <StoryList stories={stories} />
             </>
           ) : (
