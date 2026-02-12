@@ -44,6 +44,7 @@ interface AdvancedChartsProps {
     name: string
     requestCount: number
     commentCount: number
+    voteCount: number
     avgQualityScore: number | null
     lastActivityAt: string | null
   }>
@@ -312,6 +313,7 @@ export function AdvancedCharts({
                   <TableHead>Name</TableHead>
                   <TableHead className="text-right">Requests</TableHead>
                   <TableHead className="text-right">Comments</TableHead>
+                  <TableHead className="text-right">Votes</TableHead>
                   <TableHead className="text-right">Avg Quality</TableHead>
                   <TableHead className="text-right">Last Active</TableHead>
                 </TableRow>
@@ -325,6 +327,9 @@ export function AdvancedCharts({
                     </TableCell>
                     <TableCell className="text-right">
                       {row.commentCount}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {row.voteCount}
                     </TableCell>
                     <TableCell className="text-right">
                       {row.avgQualityScore != null
