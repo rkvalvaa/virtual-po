@@ -22,6 +22,8 @@ import { Button } from "@/components/ui/button"
 import { RepositorySettings } from "@/components/settings/RepositorySettings"
 import { OkrSettings } from "@/components/settings/OkrSettings"
 import { CapacitySettings } from "@/components/settings/CapacitySettings"
+import { JiraSettings } from "@/components/settings/JiraSettings"
+import type { JiraSettingsProps } from "@/components/settings/JiraSettings"
 import { defaultScoringConfig } from "@/config/scoring"
 
 interface SettingsContentProps {
@@ -70,6 +72,8 @@ interface SettingsContentProps {
     notes: string | null
   } | null
   currentQuarter: string
+  jiraIntegration: JiraSettingsProps["integration"]
+  jiraSyncHistory: JiraSettingsProps["syncHistory"]
 }
 
 function formatDate(dateStr: string): string {
@@ -95,6 +99,8 @@ export function SettingsContent({
   objectives,
   capacity,
   currentQuarter,
+  jiraIntegration,
+  jiraSyncHistory,
 }: SettingsContentProps) {
   const scoringSettings = organization.settings?.scoring as
     | Record<string, unknown>
@@ -138,6 +144,7 @@ export function SettingsContent({
           <TabsTrigger value="repositories">Repositories</TabsTrigger>
           <TabsTrigger value="okrs">OKRs</TabsTrigger>
           <TabsTrigger value="capacity">Capacity</TabsTrigger>
+          <TabsTrigger value="jira">Jira</TabsTrigger>
         </TabsList>
 
         <TabsContent value="organization">
@@ -336,6 +343,14 @@ export function SettingsContent({
           <CapacitySettings
             capacity={capacity}
             currentQuarter={currentQuarter}
+            userRole={userRole}
+          />
+        </TabsContent>
+
+        <TabsContent value="jira">
+          <JiraSettings
+            integration={jiraIntegration}
+            syncHistory={jiraSyncHistory}
             userRole={userRole}
           />
         </TabsContent>

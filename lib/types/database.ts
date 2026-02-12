@@ -80,6 +80,8 @@ export interface FeatureRequest {
   actualComplexity: Complexity | null;
   actualEffortDays: number | null;
   lessonsLearned: string | null;
+  jiraIssueKey: string | null;
+  jiraIssueUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -112,6 +114,8 @@ export interface Epic {
   goals: string[];
   successCriteria: string[];
   technicalNotes: string | null;
+  jiraEpicKey: string | null;
+  jiraEpicUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -127,6 +131,8 @@ export interface UserStory {
   technicalNotes: string | null;
   priority: number;
   storyPoints: number | null;
+  jiraStoryKey: string | null;
+  jiraStoryUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -247,4 +253,25 @@ export interface RequestSimilarity {
   similarityScore: number;
   matchReasons: string[];
   createdAt: Date;
+}
+
+export const JIRA_SYNC_DIRECTIONS = ['PUSH', 'PULL'] as const;
+export type JiraSyncDirection = typeof JIRA_SYNC_DIRECTIONS[number];
+
+export const JIRA_SYNC_STATUSES = ['SUCCESS', 'FAILED', 'PENDING'] as const;
+export type JiraSyncStatus = typeof JIRA_SYNC_STATUSES[number];
+
+export const JIRA_SYNC_ENTITY_TYPES = ['FEATURE_REQUEST', 'EPIC', 'STORY'] as const;
+export type JiraSyncEntityType = typeof JIRA_SYNC_ENTITY_TYPES[number];
+
+export interface JiraSyncLog {
+  id: string;
+  organizationId: string;
+  entityType: JiraSyncEntityType;
+  entityId: string;
+  jiraKey: string;
+  syncDirection: JiraSyncDirection;
+  syncStatus: JiraSyncStatus;
+  errorMessage: string | null;
+  syncedAt: Date;
 }
