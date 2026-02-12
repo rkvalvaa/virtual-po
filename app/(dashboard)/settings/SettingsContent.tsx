@@ -26,6 +26,8 @@ import { JiraSettings } from "@/components/settings/JiraSettings"
 import type { JiraSettingsProps } from "@/components/settings/JiraSettings"
 import { LinearSettings } from "@/components/settings/LinearSettings"
 import type { LinearSettingsProps } from "@/components/settings/LinearSettings"
+import { GitHubIssuesSettings } from "@/components/settings/GitHubIssuesSettings"
+import type { GitHubIssuesSettingsProps } from "@/components/settings/GitHubIssuesSettings"
 import { SlackSettings } from "@/components/settings/SlackSettings"
 import type { SlackSettingsProps } from "@/components/settings/SlackSettings"
 import { ApiKeySettings } from "@/components/settings/ApiKeySettings"
@@ -84,6 +86,8 @@ interface SettingsContentProps {
   jiraSyncHistory: JiraSettingsProps["syncHistory"]
   linearIntegration: LinearSettingsProps["integration"]
   linearSyncHistory: LinearSettingsProps["syncHistory"]
+  githubIssuesIntegration: GitHubIssuesSettingsProps["integration"]
+  githubSyncHistory: GitHubIssuesSettingsProps["syncHistory"]
   slackIntegration: SlackSettingsProps["integration"]
   slackNotifications: SlackSettingsProps["notifications"]
   apiKeys: ApiKeySettingsProps["apiKeys"]
@@ -117,6 +121,8 @@ export function SettingsContent({
   jiraSyncHistory,
   linearIntegration,
   linearSyncHistory,
+  githubIssuesIntegration,
+  githubSyncHistory,
   slackIntegration,
   slackNotifications,
   apiKeys,
@@ -166,6 +172,7 @@ export function SettingsContent({
           <TabsTrigger value="capacity">Capacity</TabsTrigger>
           <TabsTrigger value="jira">Jira</TabsTrigger>
           <TabsTrigger value="linear">Linear</TabsTrigger>
+          <TabsTrigger value="github-issues">GitHub Issues</TabsTrigger>
           <TabsTrigger value="slack">Slack</TabsTrigger>
           <TabsTrigger value="api-keys">API Keys</TabsTrigger>
           <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
@@ -384,6 +391,15 @@ export function SettingsContent({
             integration={linearIntegration}
             syncHistory={linearSyncHistory}
             userRole={userRole}
+          />
+        </TabsContent>
+
+        <TabsContent value="github-issues">
+          <GitHubIssuesSettings
+            integration={githubIssuesIntegration}
+            syncHistory={githubSyncHistory}
+            userRole={userRole}
+            repositories={repositories}
           />
         </TabsContent>
 

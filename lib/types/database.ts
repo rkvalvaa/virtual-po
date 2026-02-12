@@ -84,6 +84,8 @@ export interface FeatureRequest {
   jiraIssueUrl: string | null;
   linearIssueId: string | null;
   linearIssueUrl: string | null;
+  githubIssueNumber: number | null;
+  githubIssueUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -120,6 +122,8 @@ export interface Epic {
   jiraEpicUrl: string | null;
   linearProjectId: string | null;
   linearProjectUrl: string | null;
+  githubIssueNumber: number | null;
+  githubIssueUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -139,6 +143,8 @@ export interface UserStory {
   jiraStoryUrl: string | null;
   linearIssueId: string | null;
   linearIssueUrl: string | null;
+  githubIssueNumber: number | null;
+  githubIssueUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -203,7 +209,7 @@ export interface TeamCapacity {
   updatedAt: Date;
 }
 
-export const INTEGRATION_TYPES = ['JIRA', 'LINEAR', 'GITHUB', 'SLACK', 'TEAMS', 'NOTION', 'CONFLUENCE'] as const;
+export const INTEGRATION_TYPES = ['JIRA', 'LINEAR', 'GITHUB', 'GITHUB_ISSUES', 'SLACK', 'TEAMS', 'NOTION', 'CONFLUENCE'] as const;
 export type IntegrationType = typeof INTEGRATION_TYPES[number];
 
 export interface Attachment {
@@ -290,6 +296,27 @@ export interface LinearSyncLog {
   linearId: string;
   syncDirection: JiraSyncDirection;
   syncStatus: JiraSyncStatus;
+  errorMessage: string | null;
+  syncedAt: Date;
+}
+
+export const GITHUB_SYNC_DIRECTIONS = ['PUSH', 'PULL'] as const;
+export type GitHubSyncDirection = typeof GITHUB_SYNC_DIRECTIONS[number];
+
+export const GITHUB_SYNC_STATUSES = ['SUCCESS', 'FAILED', 'PENDING'] as const;
+export type GitHubSyncStatus = typeof GITHUB_SYNC_STATUSES[number];
+
+export const GITHUB_SYNC_ENTITY_TYPES = ['FEATURE_REQUEST', 'EPIC', 'STORY'] as const;
+export type GitHubSyncEntityType = typeof GITHUB_SYNC_ENTITY_TYPES[number];
+
+export interface GitHubSyncLog {
+  id: string;
+  organizationId: string;
+  entityType: GitHubSyncEntityType;
+  entityId: string;
+  githubIssueNumber: number | null;
+  syncDirection: GitHubSyncDirection;
+  syncStatus: GitHubSyncStatus;
   errorMessage: string | null;
   syncedAt: Date;
 }

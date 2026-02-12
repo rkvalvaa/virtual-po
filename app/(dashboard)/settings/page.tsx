@@ -5,6 +5,7 @@ import { getObjectivesWithKeyResults } from "@/lib/db/queries/okrs"
 import { getCurrentQuarterCapacity } from "@/lib/db/queries/capacity"
 import { getIntegrationByType, getJiraSyncHistory } from "@/lib/db/queries/jira-sync"
 import { getLinearSyncHistory } from "@/lib/db/queries/linear-sync"
+import { getGitHubSyncHistory } from "@/lib/db/queries/github-sync"
 import { getSlackNotifications } from "@/lib/db/queries/slack"
 import { getApiKeysByOrg } from "@/lib/db/queries/api-keys"
 import { getWebhooksByOrg } from "@/lib/db/queries/webhooks"
@@ -23,7 +24,7 @@ export default async function SettingsPage() {
     )
   }
 
-  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, slackIntegration, slackNotifications, apiKeys, webhookSubscriptions] = await Promise.all([
+  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, apiKeys, webhookSubscriptions] = await Promise.all([
     getOrganizationById(orgId),
     getOrganizationUsers(orgId),
     getRepositoriesByOrgId(orgId),
@@ -33,6 +34,8 @@ export default async function SettingsPage() {
     getJiraSyncHistory(orgId),
     getIntegrationByType(orgId, "LINEAR"),
     getLinearSyncHistory(orgId),
+    getIntegrationByType(orgId, "GITHUB_ISSUES"),
+    getGitHubSyncHistory(orgId),
     getIntegrationByType(orgId, "SLACK"),
     getSlackNotifications(orgId),
     getApiKeysByOrg(orgId),
@@ -140,6 +143,26 @@ export default async function SettingsPage() {
         id: log.id,
         entityType: log.entityType,
         linearId: log.linearId,
+        syncDirection: log.syncDirection,
+        syncStatus: log.syncStatus,
+        errorMessage: log.errorMessage,
+        syncedAt: log.syncedAt.toISOString(),
+      }))}
+      githubIssuesIntegration={
+        githubIssuesIntegration
+          ? {
+              id: githubIssuesIntegration.id,
+              defaultRepo: (githubIssuesIntegration.config.defaultRepo as string) ?? "",
+              defaultProjectId: (githubIssuesIntegration.config.defaultProjectId as string) || null,
+              isActive: githubIssuesIntegration.isActive,
+              connectedAt: githubIssuesIntegration.createdAt.toISOString(),
+            }
+          : null
+      }
+      githubSyncHistory={githubSyncHistory.map((log) => ({
+        id: log.id,
+        entityType: log.entityType,
+        githubIssueNumber: log.githubIssueNumber,
         syncDirection: log.syncDirection,
         syncStatus: log.syncStatus,
         errorMessage: log.errorMessage,
