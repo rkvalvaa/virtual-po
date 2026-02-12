@@ -24,6 +24,8 @@ import { OkrSettings } from "@/components/settings/OkrSettings"
 import { CapacitySettings } from "@/components/settings/CapacitySettings"
 import { JiraSettings } from "@/components/settings/JiraSettings"
 import type { JiraSettingsProps } from "@/components/settings/JiraSettings"
+import { LinearSettings } from "@/components/settings/LinearSettings"
+import type { LinearSettingsProps } from "@/components/settings/LinearSettings"
 import { defaultScoringConfig } from "@/config/scoring"
 
 interface SettingsContentProps {
@@ -74,6 +76,8 @@ interface SettingsContentProps {
   currentQuarter: string
   jiraIntegration: JiraSettingsProps["integration"]
   jiraSyncHistory: JiraSettingsProps["syncHistory"]
+  linearIntegration: LinearSettingsProps["integration"]
+  linearSyncHistory: LinearSettingsProps["syncHistory"]
 }
 
 function formatDate(dateStr: string): string {
@@ -101,6 +105,8 @@ export function SettingsContent({
   currentQuarter,
   jiraIntegration,
   jiraSyncHistory,
+  linearIntegration,
+  linearSyncHistory,
 }: SettingsContentProps) {
   const scoringSettings = organization.settings?.scoring as
     | Record<string, unknown>
@@ -145,6 +151,7 @@ export function SettingsContent({
           <TabsTrigger value="okrs">OKRs</TabsTrigger>
           <TabsTrigger value="capacity">Capacity</TabsTrigger>
           <TabsTrigger value="jira">Jira</TabsTrigger>
+          <TabsTrigger value="linear">Linear</TabsTrigger>
         </TabsList>
 
         <TabsContent value="organization">
@@ -351,6 +358,14 @@ export function SettingsContent({
           <JiraSettings
             integration={jiraIntegration}
             syncHistory={jiraSyncHistory}
+            userRole={userRole}
+          />
+        </TabsContent>
+
+        <TabsContent value="linear">
+          <LinearSettings
+            integration={linearIntegration}
+            syncHistory={linearSyncHistory}
             userRole={userRole}
           />
         </TabsContent>

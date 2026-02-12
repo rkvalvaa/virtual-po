@@ -31,7 +31,7 @@ export default async function RequestDetailPage({
 
   const keywordCount = keywords.length
 
-  const [epic, decisions, comments, similarResults, jiraIntegration] = await Promise.all([
+  const [epic, decisions, comments, similarResults, jiraIntegration, linearIntegration] = await Promise.all([
     getEpicByRequestId(request.id),
     getDecisionsByRequestId(request.id),
     getCommentsWithAuthorByRequestId(request.id),
@@ -40,6 +40,9 @@ export default async function RequestDetailPage({
       : Promise.resolve([]),
     session.user.orgId
       ? getIntegrationByType(session.user.orgId, "JIRA")
+      : Promise.resolve(null),
+    session.user.orgId
+      ? getIntegrationByType(session.user.orgId, "LINEAR")
       : Promise.resolve(null),
   ])
   const stories = epic ? await getStoriesByEpicId(epic.id) : []
@@ -117,6 +120,9 @@ export default async function RequestDetailPage({
       jiraEpicKey={epic?.jiraEpicKey ?? null}
       jiraEpicUrl={epic?.jiraEpicUrl ?? null}
       hasJiraIntegration={jiraIntegration !== null}
+      linearProjectId={epic?.linearProjectId ?? null}
+      linearProjectUrl={epic?.linearProjectUrl ?? null}
+      hasLinearIntegration={linearIntegration !== null}
     />
   )
 }

@@ -16,6 +16,7 @@ import { OutcomePanel } from "@/components/review/OutcomePanel"
 import { CommentThread } from "@/components/review/CommentThread"
 import { QualityIndicator } from "@/components/chat/QualityIndicator"
 import { JiraSyncButton } from "@/components/requests/JiraSyncButton"
+import { LinearSyncButton } from "@/components/requests/LinearSyncButton"
 import { ArrowLeft } from "lucide-react"
 
 interface RequestDetailProps {
@@ -86,6 +87,9 @@ interface RequestDetailProps {
   jiraEpicKey: string | null
   jiraEpicUrl: string | null
   hasJiraIntegration: boolean
+  linearProjectId: string | null
+  linearProjectUrl: string | null
+  hasLinearIntegration: boolean
 }
 
 function formatDate(dateStr: string): string {
@@ -124,6 +128,9 @@ export function RequestDetail({
   jiraEpicKey,
   jiraEpicUrl,
   hasJiraIntegration,
+  linearProjectId,
+  linearProjectUrl,
+  hasLinearIntegration,
 }: RequestDetailProps) {
   return (
     <div className="space-y-6">
@@ -258,6 +265,12 @@ export function RequestDetail({
                 jiraEpicKey={jiraEpicKey}
                 jiraEpicUrl={jiraEpicUrl}
                 hasJiraIntegration={hasJiraIntegration}
+              />
+              <LinearSyncButton
+                requestId={requestId}
+                linearProjectId={linearProjectId}
+                linearProjectUrl={linearProjectUrl}
+                hasLinearIntegration={hasLinearIntegration}
               />
               <StoryList stories={stories} />
             </>
