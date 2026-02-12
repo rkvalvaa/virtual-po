@@ -6,6 +6,7 @@ import { getDecisionsByRequestId } from "@/lib/db/queries/decisions"
 import { getCommentsWithAuthorByRequestId } from "@/lib/db/queries/comments"
 import { findSimilarByKeywords } from "@/lib/db/queries/outcomes"
 import { getIntegrationByType } from "@/lib/db/queries/jira-sync"
+import { getVoteByUser, getVotesByRequest, getVoteSummary } from "@/lib/db/queries/votes"
 import { RequestDetail } from "./RequestDetail"
 import "@/lib/auth/types"
 
@@ -31,7 +32,7 @@ export default async function RequestDetailPage({
 
   const keywordCount = keywords.length
 
-  const [epic, decisions, comments, similarResults, jiraIntegration, linearIntegration] = await Promise.all([
+  const [epic, decisions, comments, similarResults, jiraIntegration, linearIntegration, currentVote, allVotes, voteSummary] = await Promise.all([
     getEpicByRequestId(request.id),
     getDecisionsByRequestId(request.id),
     getCommentsWithAuthorByRequestId(request.id),
@@ -44,6 +45,9 @@ export default async function RequestDetailPage({
     session.user.orgId
       ? getIntegrationByType(session.user.orgId, "LINEAR")
       : Promise.resolve(null),
+    getVoteByUser(request.id, session.user.id),
+    getVotesByRequest(request.id),
+    getVoteSummary(request.id),
   ])
   const stories = epic ? await getStoriesByEpicId(epic.id) : []
 
@@ -123,6 +127,21 @@ export default async function RequestDetailPage({
       linearProjectId={epic?.linearProjectId ?? null}
       linearProjectUrl={epic?.linearProjectUrl ?? null}
       hasLinearIntegration={linearIntegration !== null}
+      currentVote={
+        currentVote
+          ? { voteValue: currentVote.voteValue, rationale: currentVote.rationale }
+          : null
+      }
+      votes={allVotes.map((v) => ({
+        voteValue: v.voteValue,
+        rationale: v.rationale,
+        userName: v.userName,
+        createdAt: v.createdAt.toISOString(),
+      }))}
+      voteSummary={{
+        voteCount: voteSummary.voteCount,
+        averageScore: voteSummary.averageScore,
+      }}
     />
   )
 }
