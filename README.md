@@ -1,195 +1,220 @@
 # Virtual Product Owner (VPO)
 
-An AI-powered application that transforms vague feature requests into structured, prioritized epics and user stories. VPO streamlines the product intake and prioritization process through three specialized AI agents, keeping humans in the loop for final decisions while automating the heavy lifting of requirements gathering, assessment, and story generation.
+An AI-powered application that streamlines feature request intake, assessment, and prioritization. VPO addresses the common Product Owner bottleneck by providing intelligent intake forms, automated assessment, and structured output generation — while keeping humans in the loop for final decisions.
+
+Built with **Next.js 16**, **TypeScript**, **PostgreSQL**, and the **Vercel AI SDK** with **Claude**.
 
 ## Features
 
-- **Conversational intake** -- AI-guided feature request gathering with real-time quality scoring
-- **Automated assessment** -- Business value, technical complexity, and risk analysis using RICE/WSJF frameworks
-- **Epic and user story generation** -- INVEST-compliant stories with Given/When/Then acceptance criteria
-- **Role-based review workflow** -- Stakeholder, Reviewer, and Admin roles with approval/rejection/deferral
-- **Multi-tenant organization support** -- Isolated workspaces with per-organization configuration
-- **Configurable scoring weights** -- Customize priority frameworks and scoring thresholds
-- **Streaming AI responses** -- Real-time agent responses via Vercel AI SDK streaming
+### AI Agent Pipeline
 
-## Architecture
+Three specialized AI agents work in sequence to transform vague feature requests into structured, actionable output:
 
-### Agent Pipeline
+- **Intake Agent** — Conversational feature request gathering with quality scoring. Asks clarifying questions, extracts requirements, and ensures completeness.
+- **Assessment Agent** — Business value, technical complexity, and risk analysis using RICE/WSJF frameworks. Produces priority scores with strategic alignment.
+- **Output Agent** — Epic and user story generation with acceptance criteria, effort estimates, and implementation notes.
 
-Feature requests flow through three specialized agents in sequence:
+### Request Lifecycle
 
-```
-Stakeholder --> Intake Agent --> Assessment Agent --> Output Agent --> Review Queue --> Backlog
-```
+Requests flow through a structured pipeline: `DRAFT` → `INTAKE_IN_PROGRESS` → `PENDING_ASSESSMENT` → `UNDER_REVIEW` → `APPROVED/REJECTED/DEFERRED` → `IN_BACKLOG` → `IN_PROGRESS` → `COMPLETED`
 
-1. **Intake Agent** -- Conversational feature request gathering. Guides stakeholders through structured questions about the problem, solution, business justification, and success metrics. Produces a quality score indicating request completeness.
+### Review & Decision Workflow
 
-2. **Assessment Agent** -- Business value, technical complexity, and risk analysis. Scores requests on multiple dimensions and calculates priority using RICE or WSJF frameworks with configurable weights.
+- Review queue with filtering and bulk actions
+- Decision recording with rationale
+- Comment threads on requests
+- Role-based access (Stakeholder, Reviewer, Admin)
 
-3. **Output Agent** -- Epic and user story generation. Produces well-structured epics with goals and success criteria, broken down into user stories with Given/When/Then acceptance criteria.
+### Analytics Dashboard
 
-### Tech Stack
+- Request volume and status trends
+- Assessment accuracy tracking
+- Engagement metrics
+- Priority distribution and outcome analysis
 
-| Category       | Technology                                          |
-|----------------|-----------------------------------------------------|
-| Framework      | Next.js 16 (App Router) with TypeScript (strict)    |
-| AI             | Vercel AI SDK v6 (`ai` + `@ai-sdk/anthropic`)       |
-| Database       | PostgreSQL with raw SQL (`pg` library)               |
-| Migrations     | node-pg-migrate                                      |
-| Auth           | NextAuth.js v5 with OAuth (GitHub, Google)           |
-| Styling        | Tailwind CSS v4 + shadcn/ui                          |
-| State          | Zustand (client) + React Query (server state)        |
-| Validation     | Zod                                                  |
-| Testing        | Vitest + Testing Library                             |
+### Integrations
 
-### Project Structure
+| Integration | Capabilities |
+|-------------|-------------|
+| **Jira** | Push epics/stories, bidirectional sync, import issues |
+| **Linear** | Create issues, project/cycle mapping, status sync |
+| **GitHub Issues** | Create issues from requests, Projects v2 support, label mapping |
+| **Slack** | Submit requests via slash commands, notifications, approval workflows |
+| **Webhooks** | HMAC-signed event delivery for custom integrations |
+| **Public API** | RESTful API with API key auth and rate limiting |
 
-```
-app/                        # Next.js App Router pages and API routes
-  (auth)/                   # Auth routes (login, callback)
-  (dashboard)/              # Main app routes
-    requests/               # Feature request management
-    review/                 # Review queue
-    backlog/                # Approved items
-    analytics/              # Dashboard and metrics
-    settings/               # Configuration
-  api/                      # API route handlers
-    agents/                 # Agent streaming endpoints
-    auth/                   # NextAuth.js routes
-    organizations/          # Organization management
-lib/                        # Shared libraries
-  agents/                   # Agent integration (prompts, tools)
-  db/                       # Database client, pool, queries
-  auth/                     # Auth utilities
-  types/                    # TypeScript type definitions
-  utils/                    # Helper functions
-components/                 # React components
-  ui/                       # shadcn/ui base components
-  chat/                     # Agent chat interface
-  requests/                 # Feature request components
-  review/                   # Review workflow components
-  layout/                   # Layout components
-hooks/                      # Custom React hooks
-config/                     # App configuration (scoring, workflows)
-migrations/                 # PostgreSQL migration files
-reference/                  # Product documentation and plans
-```
+### Business Context
+
+- OKR management with strategic alignment scoring
+- Team capacity tracking per quarter
+- Historical learning from past decisions
+- Similar request detection
+
+## Tech Stack
+
+| Category | Technology |
+|----------|-----------|
+| Framework | Next.js 16 (App Router) with TypeScript (strict mode) |
+| Styling | Tailwind CSS v4 + shadcn/ui |
+| Database | PostgreSQL with raw SQL (`pg` library) |
+| Migrations | node-pg-migrate |
+| AI | Vercel AI SDK v6 (`ai` + `@ai-sdk/anthropic`) |
+| Auth | NextAuth.js v5 with GitHub/Google OAuth |
+| State | Zustand (client) + React Query (server state) |
+| Validation | Zod |
+| Testing | Vitest + Testing Library |
+| Linting | ESLint 9 (flat config) |
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
-- PostgreSQL 15+
-- npm
+- **Node.js** 20+
+- **PostgreSQL** 15+
+- **GitHub OAuth App** (for authentication)
+- **Anthropic API Key** (for AI agents)
 
-### Environment Variables
-
-Copy `.env.example` to `.env.local` and fill in the required values:
-
-| Variable             | Required | Description                              |
-|----------------------|----------|------------------------------------------|
-| `DATABASE_URL`       | Yes      | PostgreSQL connection string              |
-| `AUTH_SECRET`        | Yes      | NextAuth.js session encryption secret     |
-| `AUTH_GITHUB_ID`     | No       | GitHub OAuth app client ID                |
-| `AUTH_GITHUB_SECRET` | No       | GitHub OAuth app client secret            |
-| `AUTH_GOOGLE_ID`     | No       | Google OAuth client ID                    |
-| `AUTH_GOOGLE_SECRET` | No       | Google OAuth client secret                |
-| `ANTHROPIC_API_KEY`  | Yes      | Anthropic API key for Claude              |
-| `AUTH_TRUST_HOST`    | No       | Set to `true` for non-Vercel deployments  |
-
-At least one OAuth provider (GitHub or Google) must be configured for authentication.
-
-### Installation
+### Quick Start
 
 ```bash
+# Clone the repository
 git clone https://github.com/rkvalvaa/virtual-po.git
 cd virtual-po
+
+# Install dependencies
 npm install
+
+# Set up environment variables
 cp .env.example .env.local
-# Edit .env.local with your values
+# Edit .env.local with your values (see Configuration below)
+
+# Run database migrations
 npm run migrate:up
+
+# Start the development server
 npm run dev
 ```
 
-The application will be available at [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000) to access the application.
 
-### Available Scripts
+### Configuration
 
-| Command              | Description                              |
-|----------------------|------------------------------------------|
-| `npm run dev`        | Start development server                 |
-| `npm run build`      | Production build                         |
-| `npm run start`      | Start production server                  |
-| `npm run lint`       | Run ESLint                               |
-| `npm run migrate:up` | Run database migrations                  |
-| `npm run migrate:down` | Rollback last migration                |
-| `npm run migrate:create` | Create a new migration file          |
-| `npm run test`       | Run tests with Vitest                    |
+Copy `.env.example` to `.env.local` and configure:
 
-## Request Lifecycle
+**Required:**
+- `DATABASE_URL` — PostgreSQL connection string
+- `AUTH_SECRET` — Generate with `openssl rand -base64 32`
+- `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` — GitHub OAuth app credentials
+- `ANTHROPIC_API_KEY` — Anthropic API key for Claude
 
-Feature requests progress through the following statuses:
+**Optional integrations** (configured via Settings UI):
+- Jira, Linear, GitHub Issues — credentials entered through the settings page
+- Slack — requires `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET`
+
+See [.env.example](.env.example) for the full list of variables.
+
+## Project Structure
 
 ```
-DRAFT
-  --> INTAKE_IN_PROGRESS
-    --> PENDING_ASSESSMENT
-      --> UNDER_REVIEW
-        --> APPROVED --> IN_BACKLOG --> IN_PROGRESS --> COMPLETED
-        --> REJECTED
-        --> DEFERRED
+app/                          # Next.js App Router
+  (auth)/                     # Login and auth callback routes
+  (dashboard)/                # Main application routes
+    requests/                 # Feature request pages
+    review/                   # Review queue
+    backlog/                  # Backlog management
+    analytics/                # Analytics dashboard
+    settings/                 # Organization settings
+  api/                        # API route handlers
+    agents/                   # AI agent streaming endpoints
+    v1/                       # Public REST API
+lib/                          # Shared libraries
+  agents/                     # Agent prompts, tools, configuration
+  db/                         # Database pool, queries, mappers
+  auth/                       # Session, RBAC, types
+  api/                        # API key auth, rate limiting, webhooks
+  github/                     # GitHub API client
+  jira/                       # Jira API client
+  linear/                     # Linear API client
+  types/                      # TypeScript type definitions
+components/                   # React components
+  ui/                         # shadcn/ui base components
+  chat/                       # Agent chat interface
+  requests/                   # Feature request components
+  review/                     # Review workflow components
+  settings/                   # Integration settings components
+  layout/                     # Layout components (sidebar, header)
+config/                       # Scoring and workflow configuration
+migrations/                   # PostgreSQL migration files (0001-0018)
+reference/                    # Product documentation and plans
 ```
 
-- **DRAFT** -- Initial state when a request is created
-- **INTAKE_IN_PROGRESS** -- Stakeholder is in conversation with the Intake Agent
-- **PENDING_ASSESSMENT** -- Intake complete, awaiting automated assessment
-- **UNDER_REVIEW** -- Assessment complete, awaiting human reviewer decision
-- **APPROVED / REJECTED / DEFERRED** -- Reviewer decision recorded with rationale
-- **IN_BACKLOG** -- Approved and queued for development
-- **IN_PROGRESS** -- Currently being implemented
-- **COMPLETED** -- Development finished
+## Available Scripts
 
-## Database Schema
+```bash
+npm run dev          # Start development server
+npm run build        # Production build
+npm run start        # Start production server
+npm run lint         # Run ESLint
+npm run test         # Run tests with Vitest
+npm run migrate:up   # Run pending database migrations
+npm run migrate:down # Rollback last migration
+```
 
-The database uses PostgreSQL with raw SQL migrations managed by node-pg-migrate. Core tables:
+## Public API
 
-| Table                | Description                                         |
-|----------------------|-----------------------------------------------------|
-| `organizations`      | Multi-tenant workspaces                             |
-| `users`              | User accounts (linked to OAuth providers)           |
-| `organization_users` | Organization membership with roles                  |
-| `feature_requests`   | Feature requests with intake/assessment data        |
-| `conversations`      | AI agent conversation sessions                      |
-| `messages`           | Individual messages within conversations            |
-| `epics`              | Generated epics linked to feature requests          |
-| `user_stories`       | User stories with acceptance criteria               |
-| `comments`           | Threaded discussion on requests                     |
-| `decisions`          | Review decisions with rationale                     |
-| `attachments`        | File attachments on requests                        |
-| `priority_configs`   | Configurable scoring frameworks per organization    |
+VPO exposes a RESTful API at `/api/v1/` for programmatic access. API keys are managed via Settings > API Keys.
 
-Migration files are in the `migrations/` directory, numbered sequentially.
+```bash
+# List feature requests
+curl -H "Authorization: Bearer vpo_your_key_here" \
+  https://your-app.com/api/v1/requests
 
-## API Routes
+# Create a feature request
+curl -X POST -H "Authorization: Bearer vpo_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Add dark mode", "summary": "Users want a dark theme"}' \
+  https://your-app.com/api/v1/requests
+```
 
-| Method | Endpoint                              | Description                        |
-|--------|---------------------------------------|------------------------------------|
-| POST   | `/api/agents/intake`                  | Intake agent streaming             |
-| POST   | `/api/agents/assess/[requestId]`      | Assessment agent streaming         |
-| POST   | `/api/agents/generate/[requestId]`    | Output agent streaming             |
-| GET    | `/api/organizations`                  | List user organizations            |
-| POST   | `/api/organizations`                  | Create organization                |
-| *      | `/api/auth/*`                         | NextAuth.js authentication routes  |
+Rate limiting: 100 requests/minute per organization. Rate limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`) are included in every response.
+
+## Deployment
+
+### Vercel (Recommended)
+
+1. Push your repository to GitHub
+2. Import the project in [Vercel](https://vercel.com)
+3. Add environment variables in the Vercel dashboard
+4. Set up a PostgreSQL database (Vercel Postgres, Neon, Supabase, etc.)
+5. Deploy — migrations run automatically via the build step
+
+### Self-Hosted
+
+```bash
+# Clone and install
+git clone https://github.com/rkvalvaa/virtual-po.git
+cd virtual-po && npm ci
+
+# Configure environment
+cp .env.example .env.local
+# Edit .env.local with your values
+
+# Build and migrate
+npm run build
+npm run migrate:up
+
+# Start production server
+npm run start
+```
 
 ## Contributing
 
-1. Create a feature branch: `feature/<short-description>`, `fix/<short-description>`, or `chore/<short-description>`
-2. Keep PRs focused -- one feature or fix per pull request
-3. Include a summary, description of changes, and test plan in the PR description
-4. Link relevant Linear issues in the PR description
-5. Ensure `npm run lint` and `npm run build` pass before submitting
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code conventions, and pull request guidelines.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for reporting vulnerabilities and security best practices.
 
 ## License
 
-This project is proprietary. All rights reserved.
+[MIT](LICENSE)
