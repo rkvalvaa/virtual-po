@@ -6,8 +6,14 @@ import {
   getPriorityDistribution,
   getAverageTimeToDecision,
   getTopRequesters,
+  getEstimateAccuracySummary,
+  getStakeholderEngagement,
+  getTimeToDecisionTrend,
+  getConfidenceTrend,
+  getDecisionOutcomeDistribution,
 } from "@/lib/db/queries/analytics"
 import { DashboardCharts } from "./DashboardCharts"
+import { AdvancedCharts } from "./AdvancedCharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -38,6 +44,11 @@ export default async function AnalyticsPage() {
     priorityDistribution,
     timeToDecision,
     topRequesters,
+    estimateAccuracy,
+    stakeholderEngagement,
+    timeToDecisionTrend,
+    confidenceTrend,
+    outcomeDistribution,
   ] = await Promise.all([
     getDashboardSummary(orgId),
     getStatusDistribution(orgId),
@@ -45,6 +56,11 @@ export default async function AnalyticsPage() {
     getPriorityDistribution(orgId),
     getAverageTimeToDecision(orgId),
     getTopRequesters(orgId),
+    getEstimateAccuracySummary(orgId),
+    getStakeholderEngagement(orgId),
+    getTimeToDecisionTrend(orgId),
+    getConfidenceTrend(orgId),
+    getDecisionOutcomeDistribution(orgId),
   ])
 
   return (
@@ -165,6 +181,22 @@ export default async function AnalyticsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Advanced Analytics */}
+      <div className="space-y-2">
+        <h2 className="text-xl font-semibold tracking-tight">Advanced Analytics</h2>
+        <p className="text-muted-foreground text-sm">
+          Deeper insights into estimation accuracy, engagement, and decision patterns.
+        </p>
+      </div>
+
+      <AdvancedCharts
+        estimateAccuracy={estimateAccuracy}
+        stakeholderEngagement={stakeholderEngagement}
+        timeToDecisionTrend={timeToDecisionTrend}
+        confidenceTrend={confidenceTrend}
+        outcomeDistribution={outcomeDistribution}
+      />
     </div>
   )
 }
