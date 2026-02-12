@@ -363,6 +363,22 @@ export interface WebhookSubscription {
   updatedAt: Date;
 }
 
+export interface StakeholderVote {
+  id: string;
+  requestId: string;
+  userId: string;
+  voteValue: number;
+  rationale: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface VoteSummary {
+  requestId: string;
+  voteCount: number;
+  averageScore: number;
+}
+
 export const SLACK_EVENT_TYPES = ['REQUEST_CREATED', 'STATUS_CHANGED', 'DECISION_MADE', 'ASSESSMENT_COMPLETE', 'REVIEW_NEEDED'] as const;
 export type SlackEventType = typeof SLACK_EVENT_TYPES[number];
 

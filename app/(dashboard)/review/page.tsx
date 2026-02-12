@@ -3,6 +3,8 @@ import { requireAuth } from "@/lib/auth/session"
 import { listFeatureRequests } from "@/lib/db/queries/feature-requests"
 import { StatusBadge } from "@/components/requests/StatusBadge"
 import { PriorityBadge } from "@/components/requests/PriorityBadge"
+import { VoteBadge } from "@/components/requests/VoteBadge"
+import { getVoteSummariesByRequestIds } from "@/lib/db/queries/votes"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -45,10 +47,11 @@ export default async function ReviewQueuePage() {
     listFeatureRequests(orgId, { status: "NEEDS_INFO" }),
   ])
 
-  const requests = [
-    ...underReview.requests,
-    ...needsInfo.requests,
-  ].sort((a, b) => {
+  const allReqs = [...underReview.requests, ...needsInfo.requests]
+  const voteSummaries = await getVoteSummariesByRequestIds(allReqs.map((r) => r.id))
+  const voteMap = new Map(voteSummaries.map((v) => [v.requestId, v]))
+
+  const requests = allReqs.sort((a, b) => {
     if (a.priorityScore === null && b.priorityScore === null) return 0
     if (a.priorityScore === null) return 1
     if (b.priorityScore === null) return -1
@@ -86,6 +89,7 @@ export default async function ReviewQueuePage() {
                 <TableHead>Title</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Priority</TableHead>
+                <TableHead>Votes</TableHead>
                 <TableHead>Complexity</TableHead>
                 <TableHead>Created</TableHead>
               </TableRow>
@@ -106,6 +110,12 @@ export default async function ReviewQueuePage() {
                   </TableCell>
                   <TableCell>
                     <PriorityBadge score={request.priorityScore} />
+                  </TableCell>
+                  <TableCell>
+                    <VoteBadge
+                      averageScore={voteMap.get(request.id)?.averageScore ?? 0}
+                      voteCount={voteMap.get(request.id)?.voteCount ?? 0}
+                    />
                   </TableCell>
                   <TableCell>
                     {request.complexity ? (

@@ -17,6 +17,7 @@ import { CommentThread } from "@/components/review/CommentThread"
 import { QualityIndicator } from "@/components/chat/QualityIndicator"
 import { JiraSyncButton } from "@/components/requests/JiraSyncButton"
 import { LinearSyncButton } from "@/components/requests/LinearSyncButton"
+import { VoteWidget } from "@/components/requests/VoteWidget"
 import { ArrowLeft } from "lucide-react"
 
 interface RequestDetailProps {
@@ -90,6 +91,20 @@ interface RequestDetailProps {
   linearProjectId: string | null
   linearProjectUrl: string | null
   hasLinearIntegration: boolean
+  currentVote: {
+    voteValue: number
+    rationale: string | null
+  } | null
+  votes: Array<{
+    voteValue: number
+    rationale: string | null
+    userName: string | null
+    createdAt: string
+  }>
+  voteSummary: {
+    voteCount: number
+    averageScore: number
+  }
 }
 
 function formatDate(dateStr: string): string {
@@ -131,6 +146,9 @@ export function RequestDetail({
   linearProjectId,
   linearProjectUrl,
   hasLinearIntegration,
+  currentVote,
+  votes,
+  voteSummary,
 }: RequestDetailProps) {
   return (
     <div className="space-y-6">
@@ -182,6 +200,14 @@ export function RequestDetail({
 
       {/* Similar Requests */}
       <SimilarRequests similarRequests={similarRequests} />
+
+      {/* Stakeholder Voting */}
+      <VoteWidget
+        requestId={request.id}
+        currentVote={currentVote}
+        votes={votes}
+        summary={voteSummary}
+      />
 
       {/* Tabs */}
       <Tabs defaultValue="overview">

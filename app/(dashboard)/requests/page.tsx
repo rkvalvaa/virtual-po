@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/table"
 import { StatusBadge } from "@/components/requests/StatusBadge"
 import { PriorityBadge } from "@/components/requests/PriorityBadge"
+import { VoteBadge } from "@/components/requests/VoteBadge"
+import { getVoteSummariesByRequestIds } from "@/lib/db/queries/votes"
 import { Plus } from "lucide-react"
 
 function formatDate(date: Date): string {
@@ -42,6 +44,8 @@ export default async function RequestsPage() {
   }
 
   const { requests, total } = await listFeatureRequests(orgId)
+  const voteSummaries = await getVoteSummariesByRequestIds(requests.map((r) => r.id))
+  const voteMap = new Map(voteSummaries.map((v) => [v.requestId, v]))
 
   return (
     <div className="space-y-6">
@@ -86,6 +90,7 @@ export default async function RequestsPage() {
                 <TableHead>Title</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Priority</TableHead>
+                <TableHead>Votes</TableHead>
                 <TableHead>Quality</TableHead>
                 <TableHead>Created</TableHead>
               </TableRow>
@@ -106,6 +111,12 @@ export default async function RequestsPage() {
                   </TableCell>
                   <TableCell>
                     <PriorityBadge score={request.priorityScore} />
+                  </TableCell>
+                  <TableCell>
+                    <VoteBadge
+                      averageScore={voteMap.get(request.id)?.averageScore ?? 0}
+                      voteCount={voteMap.get(request.id)?.voteCount ?? 0}
+                    />
                   </TableCell>
                   <TableCell>
                     {request.qualityScore !== null

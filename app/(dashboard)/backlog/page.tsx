@@ -3,6 +3,8 @@ import { requireAuth } from "@/lib/auth/session"
 import { listFeatureRequests } from "@/lib/db/queries/feature-requests"
 import { StatusBadge } from "@/components/requests/StatusBadge"
 import { PriorityBadge } from "@/components/requests/PriorityBadge"
+import { VoteBadge } from "@/components/requests/VoteBadge"
+import { getVoteSummariesByRequestIds } from "@/lib/db/queries/votes"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -51,7 +53,13 @@ export default async function BacklogPage() {
     ...approved.requests,
     ...inBacklog.requests,
     ...inProgress.requests,
-  ].sort((a, b) => {
+  ]
+
+  const allRequestIds = [...activeRequests, ...completed.requests].map((r) => r.id)
+  const voteSummaries = await getVoteSummariesByRequestIds(allRequestIds)
+  const voteMap = new Map(voteSummaries.map((v) => [v.requestId, v]))
+
+  activeRequests.sort((a, b) => {
     if (a.priorityScore === null && b.priorityScore === null) return 0
     if (a.priorityScore === null) return 1
     if (b.priorityScore === null) return -1
@@ -90,6 +98,7 @@ export default async function BacklogPage() {
                 <TableHead>Title</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Priority</TableHead>
+                <TableHead>Votes</TableHead>
                 <TableHead>Complexity</TableHead>
                 <TableHead>Created</TableHead>
               </TableRow>
@@ -110,6 +119,12 @@ export default async function BacklogPage() {
                   </TableCell>
                   <TableCell>
                     <PriorityBadge score={request.priorityScore} />
+                  </TableCell>
+                  <TableCell>
+                    <VoteBadge
+                      averageScore={voteMap.get(request.id)?.averageScore ?? 0}
+                      voteCount={voteMap.get(request.id)?.voteCount ?? 0}
+                    />
                   </TableCell>
                   <TableCell>
                     {request.complexity ? (
