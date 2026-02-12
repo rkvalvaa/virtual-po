@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/auth/session";
 import { getFeatureRequestById } from "@/lib/db/queries/feature-requests";
-import { upsertVote, deleteVote } from "@/lib/db/queries/votes";
+import { upsertVote, deleteVote, getVoteByUser } from "@/lib/db/queries/votes";
+import { notifyRequestOwner } from "@/lib/db/queries/notifications";
 import "@/lib/auth/types";
 
 export async function submitVote(
@@ -25,7 +26,23 @@ export async function submitVote(
     throw new Error("Feature request not found");
   }
 
+  // Check if this is a new vote (not an update) before notifying
+  const existingVote = await getVoteByUser(requestId, session.user.id);
   await upsertVote(requestId, session.user.id, voteValue, rationale);
+
+  if (!existingVote) {
+    await notifyRequestOwner({
+      organizationId: request.organizationId,
+      requesterId: request.requesterId,
+      type: "VOTE_RECEIVED",
+      title: "New vote",
+      message: `${session.user.name ?? "Someone"} rated "${request.title}" ${voteValue}/5`,
+      link: `/requests/${requestId}`,
+      requestId,
+      actorId: session.user.id,
+    });
+  }
+
   revalidatePath(`/requests/${requestId}`);
   revalidatePath("/requests");
   revalidatePath("/review");
