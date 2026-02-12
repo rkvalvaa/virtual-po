@@ -210,6 +210,7 @@ export interface StakeholderEngagementRow {
   name: string;
   requestCount: number;
   commentCount: number;
+  voteCount: number;
   avgQualityScore: number | null;
   lastActivityAt: string | null;
 }
@@ -224,13 +225,15 @@ export async function getStakeholderEngagement(
        u.name,
        COUNT(DISTINCT fr.id) AS request_count,
        COUNT(DISTINCT c.id) AS comment_count,
+       COUNT(DISTINCT sv.id) AS vote_count,
        ROUND(AVG(fr.quality_score)::numeric, 1) AS avg_quality_score,
-       GREATEST(MAX(fr.created_at), MAX(c.created_at)) AS last_activity_at
+       GREATEST(MAX(fr.created_at), MAX(c.created_at), MAX(sv.created_at)) AS last_activity_at
      FROM users u
      JOIN feature_requests fr ON fr.requester_id = u.id AND fr.organization_id = $1
      LEFT JOIN comments c ON c.author_id = u.id
+     LEFT JOIN stakeholder_votes sv ON sv.user_id = u.id
      GROUP BY u.id, u.name
-     ORDER BY (COUNT(DISTINCT fr.id) + COUNT(DISTINCT c.id)) DESC
+     ORDER BY (COUNT(DISTINCT fr.id) + COUNT(DISTINCT c.id) + COUNT(DISTINCT sv.id)) DESC
      LIMIT $2`,
     [orgId, limit]
   );
@@ -240,6 +243,7 @@ export async function getStakeholderEngagement(
     name: row.name,
     requestCount: parseInt(row.request_count, 10),
     commentCount: parseInt(row.comment_count, 10),
+    voteCount: parseInt(row.vote_count, 10),
     avgQualityScore: row.avg_quality_score != null ? parseFloat(row.avg_quality_score) : null,
     lastActivityAt: row.last_activity_at != null ? String(row.last_activity_at) : null,
   }));
@@ -304,6 +308,127 @@ export async function getConfidenceTrend(orgId: string): Promise<ConfidenceTrend
     avgTechnicalScore: parseFloat(row.avg_technical_score),
     avgRiskScore: parseFloat(row.avg_risk_score),
     assessmentCount: parseInt(row.assessment_count, 10),
+  }));
+}
+
+// --- Vote Analytics ---
+
+export interface TopVotedRequestRow {
+  requestId: string;
+  title: string;
+  voteCount: number;
+  averageScore: number;
+  status: string;
+}
+
+export async function getTopVotedRequests(
+  orgId: string,
+  limit = 10
+): Promise<TopVotedRequestRow[]> {
+  const result = await query(
+    `SELECT
+       fr.id AS request_id,
+       fr.title,
+       COUNT(sv.id)::int AS vote_count,
+       ROUND(AVG(sv.vote_value)::numeric, 1)::float AS average_score,
+       fr.status
+     FROM feature_requests fr
+     JOIN stakeholder_votes sv ON sv.request_id = fr.id
+     WHERE fr.organization_id = $1
+     GROUP BY fr.id, fr.title, fr.status
+     ORDER BY average_score DESC, vote_count DESC
+     LIMIT $2`,
+    [orgId, limit]
+  );
+
+  return result.rows.map((row) => ({
+    requestId: row.request_id,
+    title: row.title,
+    voteCount: row.vote_count,
+    averageScore: parseFloat(row.average_score),
+    status: row.status,
+  }));
+}
+
+export interface VoteTrendRow {
+  month: string;
+  voteCount: number;
+  avgScore: number;
+  uniqueVoters: number;
+}
+
+export async function getVoteTrend(orgId: string): Promise<VoteTrendRow[]> {
+  const result = await query(
+    `SELECT
+       TO_CHAR(DATE_TRUNC('month', sv.created_at), 'YYYY-MM') AS month,
+       COUNT(*)::int AS vote_count,
+       ROUND(AVG(sv.vote_value)::numeric, 1)::float AS avg_score,
+       COUNT(DISTINCT sv.user_id)::int AS unique_voters
+     FROM stakeholder_votes sv
+     JOIN feature_requests fr ON sv.request_id = fr.id
+     WHERE fr.organization_id = $1
+       AND sv.created_at >= NOW() - INTERVAL '12 months'
+     GROUP BY DATE_TRUNC('month', sv.created_at)
+     ORDER BY month ASC`,
+    [orgId]
+  );
+
+  return result.rows.map((row) => ({
+    month: row.month,
+    voteCount: row.vote_count,
+    avgScore: parseFloat(row.avg_score),
+    uniqueVoters: row.unique_voters,
+  }));
+}
+
+export interface VoteSummaryStats {
+  totalVotes: number;
+  uniqueVoters: number;
+  avgScore: number;
+  votedRequestsCount: number;
+  totalRequestsCount: number;
+}
+
+export async function getVoteSummaryStats(orgId: string): Promise<VoteSummaryStats> {
+  const result = await query(
+    `SELECT
+       (SELECT COUNT(*)::int FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.organization_id = $1) AS total_votes,
+       (SELECT COUNT(DISTINCT sv.user_id)::int FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.organization_id = $1) AS unique_voters,
+       (SELECT COALESCE(ROUND(AVG(sv.vote_value)::numeric, 1), 0)::float FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.organization_id = $1) AS avg_score,
+       (SELECT COUNT(DISTINCT sv.request_id)::int FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.organization_id = $1) AS voted_requests_count,
+       (SELECT COUNT(*)::int FROM feature_requests WHERE organization_id = $1) AS total_requests_count`,
+    [orgId]
+  );
+
+  const row = result.rows[0];
+  return {
+    totalVotes: row.total_votes,
+    uniqueVoters: row.unique_voters,
+    avgScore: parseFloat(row.avg_score),
+    votedRequestsCount: row.voted_requests_count,
+    totalRequestsCount: row.total_requests_count,
+  };
+}
+
+export interface DecisionBreakdownRow {
+  decision: string;
+  count: number;
+}
+
+export async function getDecisionBreakdown(orgId: string): Promise<DecisionBreakdownRow[]> {
+  const result = await query(
+    `SELECT d.decision, COUNT(*)::int AS count
+     FROM decisions d
+     JOIN feature_requests fr ON d.request_id = fr.id
+     WHERE fr.organization_id = $1
+     GROUP BY d.decision
+     ORDER BY count DESC`,
+    [orgId]
+  );
+
+  return result.rows.map((row) => ({
+    decision: row.decision,
+    count: row.count,
   }));
 }
 

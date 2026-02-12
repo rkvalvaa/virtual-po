@@ -11,9 +11,14 @@ import {
   getTimeToDecisionTrend,
   getConfidenceTrend,
   getDecisionOutcomeDistribution,
+  getTopVotedRequests,
+  getVoteTrend,
+  getVoteSummaryStats,
+  getDecisionBreakdown,
 } from "@/lib/db/queries/analytics"
 import { DashboardCharts } from "./DashboardCharts"
 import { AdvancedCharts } from "./AdvancedCharts"
+import { VoteAnalytics } from "./VoteAnalytics"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -49,6 +54,10 @@ export default async function AnalyticsPage() {
     timeToDecisionTrend,
     confidenceTrend,
     outcomeDistribution,
+    topVotedRequests,
+    voteTrend,
+    voteSummaryStats,
+    decisionBreakdown,
   ] = await Promise.all([
     getDashboardSummary(orgId),
     getStatusDistribution(orgId),
@@ -61,6 +70,10 @@ export default async function AnalyticsPage() {
     getTimeToDecisionTrend(orgId),
     getConfidenceTrend(orgId),
     getDecisionOutcomeDistribution(orgId),
+    getTopVotedRequests(orgId),
+    getVoteTrend(orgId),
+    getVoteSummaryStats(orgId),
+    getDecisionBreakdown(orgId),
   ])
 
   return (
@@ -181,6 +194,21 @@ export default async function AnalyticsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Voting & Decisions */}
+      <div className="space-y-2">
+        <h2 className="text-xl font-semibold tracking-tight">Voting & Decisions</h2>
+        <p className="text-muted-foreground text-sm">
+          Stakeholder voting activity, decision rates, and top-voted requests.
+        </p>
+      </div>
+
+      <VoteAnalytics
+        voteSummary={voteSummaryStats}
+        topVotedRequests={topVotedRequests}
+        voteTrend={voteTrend}
+        decisionBreakdown={decisionBreakdown}
+      />
 
       {/* Advanced Analytics */}
       <div className="space-y-2">
