@@ -4,6 +4,7 @@ import { getRepositoriesByOrgId } from "@/lib/db/queries/repositories"
 import { getObjectivesWithKeyResults } from "@/lib/db/queries/okrs"
 import { getCurrentQuarterCapacity } from "@/lib/db/queries/capacity"
 import { getIntegrationByType, getJiraSyncHistory } from "@/lib/db/queries/jira-sync"
+import { getLinearSyncHistory } from "@/lib/db/queries/linear-sync"
 import "@/lib/auth/types"
 import { SettingsContent } from "./SettingsContent"
 
@@ -19,7 +20,7 @@ export default async function SettingsPage() {
     )
   }
 
-  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory] = await Promise.all([
+  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory] = await Promise.all([
     getOrganizationById(orgId),
     getOrganizationUsers(orgId),
     getRepositoriesByOrgId(orgId),
@@ -27,6 +28,8 @@ export default async function SettingsPage() {
     getCurrentQuarterCapacity(orgId),
     getIntegrationByType(orgId, "JIRA"),
     getJiraSyncHistory(orgId),
+    getIntegrationByType(orgId, "LINEAR"),
+    getLinearSyncHistory(orgId),
   ])
 
   if (!organization) {
@@ -111,6 +114,25 @@ export default async function SettingsPage() {
         id: log.id,
         entityType: log.entityType,
         jiraKey: log.jiraKey,
+        syncDirection: log.syncDirection,
+        syncStatus: log.syncStatus,
+        errorMessage: log.errorMessage,
+        syncedAt: log.syncedAt.toISOString(),
+      }))}
+      linearIntegration={
+        linearIntegration
+          ? {
+              id: linearIntegration.id,
+              defaultTeamId: (linearIntegration.config.defaultTeamId as string) || null,
+              isActive: linearIntegration.isActive,
+              connectedAt: linearIntegration.createdAt.toISOString(),
+            }
+          : null
+      }
+      linearSyncHistory={linearSyncHistory.map((log) => ({
+        id: log.id,
+        entityType: log.entityType,
+        linearId: log.linearId,
         syncDirection: log.syncDirection,
         syncStatus: log.syncStatus,
         errorMessage: log.errorMessage,

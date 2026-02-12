@@ -82,6 +82,8 @@ export interface FeatureRequest {
   lessonsLearned: string | null;
   jiraIssueKey: string | null;
   jiraIssueUrl: string | null;
+  linearIssueId: string | null;
+  linearIssueUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -116,6 +118,8 @@ export interface Epic {
   technicalNotes: string | null;
   jiraEpicKey: string | null;
   jiraEpicUrl: string | null;
+  linearProjectId: string | null;
+  linearProjectUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -133,6 +137,8 @@ export interface UserStory {
   storyPoints: number | null;
   jiraStoryKey: string | null;
   jiraStoryUrl: string | null;
+  linearIssueId: string | null;
+  linearIssueUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -270,6 +276,18 @@ export interface JiraSyncLog {
   entityType: JiraSyncEntityType;
   entityId: string;
   jiraKey: string;
+  syncDirection: JiraSyncDirection;
+  syncStatus: JiraSyncStatus;
+  errorMessage: string | null;
+  syncedAt: Date;
+}
+
+export interface LinearSyncLog {
+  id: string;
+  organizationId: string;
+  entityType: JiraSyncEntityType;
+  entityId: string;
+  linearId: string;
   syncDirection: JiraSyncDirection;
   syncStatus: JiraSyncStatus;
   errorMessage: string | null;
