@@ -28,6 +28,10 @@ import { LinearSettings } from "@/components/settings/LinearSettings"
 import type { LinearSettingsProps } from "@/components/settings/LinearSettings"
 import { SlackSettings } from "@/components/settings/SlackSettings"
 import type { SlackSettingsProps } from "@/components/settings/SlackSettings"
+import { ApiKeySettings } from "@/components/settings/ApiKeySettings"
+import type { ApiKeySettingsProps } from "@/components/settings/ApiKeySettings"
+import { WebhookSettings } from "@/components/settings/WebhookSettings"
+import type { WebhookSettingsProps } from "@/components/settings/WebhookSettings"
 import { defaultScoringConfig } from "@/config/scoring"
 
 interface SettingsContentProps {
@@ -82,6 +86,8 @@ interface SettingsContentProps {
   linearSyncHistory: LinearSettingsProps["syncHistory"]
   slackIntegration: SlackSettingsProps["integration"]
   slackNotifications: SlackSettingsProps["notifications"]
+  apiKeys: ApiKeySettingsProps["apiKeys"]
+  webhooks: WebhookSettingsProps["webhooks"]
 }
 
 function formatDate(dateStr: string): string {
@@ -113,6 +119,8 @@ export function SettingsContent({
   linearSyncHistory,
   slackIntegration,
   slackNotifications,
+  apiKeys,
+  webhooks,
 }: SettingsContentProps) {
   const scoringSettings = organization.settings?.scoring as
     | Record<string, unknown>
@@ -159,6 +167,8 @@ export function SettingsContent({
           <TabsTrigger value="jira">Jira</TabsTrigger>
           <TabsTrigger value="linear">Linear</TabsTrigger>
           <TabsTrigger value="slack">Slack</TabsTrigger>
+          <TabsTrigger value="api-keys">API Keys</TabsTrigger>
+          <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
         </TabsList>
 
         <TabsContent value="organization">
@@ -383,6 +393,14 @@ export function SettingsContent({
             notifications={slackNotifications}
             userRole={userRole}
           />
+        </TabsContent>
+
+        <TabsContent value="api-keys">
+          <ApiKeySettings apiKeys={apiKeys} userRole={userRole} />
+        </TabsContent>
+
+        <TabsContent value="webhooks">
+          <WebhookSettings webhooks={webhooks} userRole={userRole} />
         </TabsContent>
       </Tabs>
     </div>

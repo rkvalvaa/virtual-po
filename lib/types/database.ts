@@ -294,6 +294,48 @@ export interface LinearSyncLog {
   syncedAt: Date;
 }
 
+export const API_KEY_SCOPES = ['read', 'write', 'admin'] as const;
+export type ApiKeyScope = typeof API_KEY_SCOPES[number];
+
+export const WEBHOOK_EVENTS = [
+  'request.created',
+  'request.updated',
+  'request.status_changed',
+  'assessment.completed',
+  'decision.made',
+  'epic.created',
+  'story.created',
+] as const;
+export type WebhookEvent = typeof WEBHOOK_EVENTS[number];
+
+export interface ApiKey {
+  id: string;
+  organizationId: string;
+  name: string;
+  keyHash: string;
+  keyPrefix: string;
+  scopes: ApiKeyScope[];
+  lastUsedAt: Date | null;
+  expiresAt: Date | null;
+  isActive: boolean;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WebhookSubscription {
+  id: string;
+  organizationId: string;
+  url: string;
+  secret: string;
+  events: WebhookEvent[];
+  isActive: boolean;
+  lastTriggeredAt: Date | null;
+  failureCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export const SLACK_EVENT_TYPES = ['REQUEST_CREATED', 'STATUS_CHANGED', 'DECISION_MADE', 'ASSESSMENT_COMPLETE', 'REVIEW_NEEDED'] as const;
 export type SlackEventType = typeof SLACK_EVENT_TYPES[number];
 

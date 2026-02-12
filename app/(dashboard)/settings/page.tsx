@@ -6,6 +6,8 @@ import { getCurrentQuarterCapacity } from "@/lib/db/queries/capacity"
 import { getIntegrationByType, getJiraSyncHistory } from "@/lib/db/queries/jira-sync"
 import { getLinearSyncHistory } from "@/lib/db/queries/linear-sync"
 import { getSlackNotifications } from "@/lib/db/queries/slack"
+import { getApiKeysByOrg } from "@/lib/db/queries/api-keys"
+import { getWebhooksByOrg } from "@/lib/db/queries/webhooks"
 import "@/lib/auth/types"
 import { SettingsContent } from "./SettingsContent"
 
@@ -21,7 +23,7 @@ export default async function SettingsPage() {
     )
   }
 
-  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, slackIntegration, slackNotifications] = await Promise.all([
+  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, slackIntegration, slackNotifications, apiKeys, webhookSubscriptions] = await Promise.all([
     getOrganizationById(orgId),
     getOrganizationUsers(orgId),
     getRepositoriesByOrgId(orgId),
@@ -33,6 +35,8 @@ export default async function SettingsPage() {
     getLinearSyncHistory(orgId),
     getIntegrationByType(orgId, "SLACK"),
     getSlackNotifications(orgId),
+    getApiKeysByOrg(orgId),
+    getWebhooksByOrg(orgId),
   ])
 
   if (!organization) {
@@ -156,6 +160,25 @@ export default async function SettingsPage() {
         channelName: n.channelName,
         eventType: n.eventType,
         isActive: n.isActive,
+      }))}
+      apiKeys={apiKeys.map((k) => ({
+        id: k.id,
+        name: k.name,
+        keyPrefix: k.keyPrefix,
+        scopes: k.scopes,
+        lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+        expiresAt: k.expiresAt?.toISOString() ?? null,
+        isActive: k.isActive,
+        createdAt: k.createdAt.toISOString(),
+      }))}
+      webhooks={webhookSubscriptions.map((w) => ({
+        id: w.id,
+        url: w.url,
+        events: w.events,
+        isActive: w.isActive,
+        lastTriggeredAt: w.lastTriggeredAt?.toISOString() ?? null,
+        failureCount: w.failureCount,
+        createdAt: w.createdAt.toISOString(),
       }))}
     />
   )
