@@ -5,6 +5,7 @@ import { getObjectivesWithKeyResults } from "@/lib/db/queries/okrs"
 import { getCurrentQuarterCapacity } from "@/lib/db/queries/capacity"
 import { getIntegrationByType, getJiraSyncHistory } from "@/lib/db/queries/jira-sync"
 import { getLinearSyncHistory } from "@/lib/db/queries/linear-sync"
+import { getSlackNotifications } from "@/lib/db/queries/slack"
 import "@/lib/auth/types"
 import { SettingsContent } from "./SettingsContent"
 
@@ -20,7 +21,7 @@ export default async function SettingsPage() {
     )
   }
 
-  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory] = await Promise.all([
+  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, slackIntegration, slackNotifications] = await Promise.all([
     getOrganizationById(orgId),
     getOrganizationUsers(orgId),
     getRepositoriesByOrgId(orgId),
@@ -30,6 +31,8 @@ export default async function SettingsPage() {
     getJiraSyncHistory(orgId),
     getIntegrationByType(orgId, "LINEAR"),
     getLinearSyncHistory(orgId),
+    getIntegrationByType(orgId, "SLACK"),
+    getSlackNotifications(orgId),
   ])
 
   if (!organization) {
@@ -137,6 +140,22 @@ export default async function SettingsPage() {
         syncStatus: log.syncStatus,
         errorMessage: log.errorMessage,
         syncedAt: log.syncedAt.toISOString(),
+      }))}
+      slackIntegration={
+        slackIntegration
+          ? {
+              id: slackIntegration.id,
+              appId: (slackIntegration.config.appId as string) ?? "",
+              isActive: slackIntegration.isActive,
+              connectedAt: slackIntegration.createdAt.toISOString(),
+            }
+          : null
+      }
+      slackNotifications={slackNotifications.map((n) => ({
+        id: n.id,
+        channelName: n.channelName,
+        eventType: n.eventType,
+        isActive: n.isActive,
       }))}
     />
   )

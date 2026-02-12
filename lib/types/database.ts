@@ -293,3 +293,16 @@ export interface LinearSyncLog {
   errorMessage: string | null;
   syncedAt: Date;
 }
+
+export const SLACK_EVENT_TYPES = ['REQUEST_CREATED', 'STATUS_CHANGED', 'DECISION_MADE', 'ASSESSMENT_COMPLETE', 'REVIEW_NEEDED'] as const;
+export type SlackEventType = typeof SLACK_EVENT_TYPES[number];
+
+export interface SlackNotification {
+  id: string;
+  organizationId: string;
+  channelId: string;
+  channelName: string;
+  eventType: SlackEventType;
+  isActive: boolean;
+  createdAt: Date;
+}
