@@ -26,6 +26,8 @@ import { JiraSettings } from "@/components/settings/JiraSettings"
 import type { JiraSettingsProps } from "@/components/settings/JiraSettings"
 import { LinearSettings } from "@/components/settings/LinearSettings"
 import type { LinearSettingsProps } from "@/components/settings/LinearSettings"
+import { SlackSettings } from "@/components/settings/SlackSettings"
+import type { SlackSettingsProps } from "@/components/settings/SlackSettings"
 import { defaultScoringConfig } from "@/config/scoring"
 
 interface SettingsContentProps {
@@ -78,6 +80,8 @@ interface SettingsContentProps {
   jiraSyncHistory: JiraSettingsProps["syncHistory"]
   linearIntegration: LinearSettingsProps["integration"]
   linearSyncHistory: LinearSettingsProps["syncHistory"]
+  slackIntegration: SlackSettingsProps["integration"]
+  slackNotifications: SlackSettingsProps["notifications"]
 }
 
 function formatDate(dateStr: string): string {
@@ -107,6 +111,8 @@ export function SettingsContent({
   jiraSyncHistory,
   linearIntegration,
   linearSyncHistory,
+  slackIntegration,
+  slackNotifications,
 }: SettingsContentProps) {
   const scoringSettings = organization.settings?.scoring as
     | Record<string, unknown>
@@ -152,6 +158,7 @@ export function SettingsContent({
           <TabsTrigger value="capacity">Capacity</TabsTrigger>
           <TabsTrigger value="jira">Jira</TabsTrigger>
           <TabsTrigger value="linear">Linear</TabsTrigger>
+          <TabsTrigger value="slack">Slack</TabsTrigger>
         </TabsList>
 
         <TabsContent value="organization">
@@ -366,6 +373,14 @@ export function SettingsContent({
           <LinearSettings
             integration={linearIntegration}
             syncHistory={linearSyncHistory}
+            userRole={userRole}
+          />
+        </TabsContent>
+
+        <TabsContent value="slack">
+          <SlackSettings
+            integration={slackIntegration}
+            notifications={slackNotifications}
             userRole={userRole}
           />
         </TabsContent>
