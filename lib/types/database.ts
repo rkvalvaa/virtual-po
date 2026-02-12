@@ -379,6 +379,30 @@ export interface VoteSummary {
   averageScore: number;
 }
 
+export const NOTIFICATION_TYPES = [
+  'STATUS_CHANGED',
+  'DECISION_MADE',
+  'COMMENT_ADDED',
+  'VOTE_RECEIVED',
+  'ASSESSMENT_COMPLETE',
+  'REVIEW_NEEDED',
+] as const;
+export type NotificationType = typeof NOTIFICATION_TYPES[number];
+
+export interface Notification {
+  id: string;
+  organizationId: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  link: string | null;
+  isRead: boolean;
+  requestId: string | null;
+  actorId: string | null;
+  createdAt: Date;
+}
+
 export const SLACK_EVENT_TYPES = ['REQUEST_CREATED', 'STATUS_CHANGED', 'DECISION_MADE', 'ASSESSMENT_COMPLETE', 'REVIEW_NEEDED'] as const;
 export type SlackEventType = typeof SLACK_EVENT_TYPES[number];
 

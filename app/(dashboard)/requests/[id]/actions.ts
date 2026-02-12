@@ -11,6 +11,7 @@ import {
 } from "@/lib/db/queries/feature-requests";
 import { createDecision } from "@/lib/db/queries/decisions";
 import { createComment } from "@/lib/db/queries/comments";
+import { notifyRequestOwner, notifyUser, getOrgUserIds } from "@/lib/db/queries/notifications";
 import "@/lib/auth/types";
 
 const DECISION_STATUS_MAP: Record<DecisionType, RequestStatus> = {
@@ -50,6 +51,18 @@ export async function submitDecision(
   await createDecision(requestId, session.user.id, decision, rationale);
   await updateFeatureRequestStatus(requestId, targetStatus);
 
+  // Notify the request owner about the decision
+  await notifyRequestOwner({
+    organizationId: request.organizationId,
+    requesterId: request.requesterId,
+    type: "DECISION_MADE",
+    title: `Request ${decision.toLowerCase()}d`,
+    message: `"${request.title}" was ${decision.toLowerCase()}d. ${rationale}`,
+    link: `/requests/${requestId}`,
+    requestId,
+    actorId: session.user.id,
+  });
+
   revalidatePath("/requests/" + requestId);
   revalidatePath("/review");
 
@@ -77,6 +90,18 @@ export async function addComment(
     content,
     parentId
   );
+
+  // Notify the request owner about the new comment
+  await notifyRequestOwner({
+    organizationId: request.organizationId,
+    requesterId: request.requesterId,
+    type: "COMMENT_ADDED",
+    title: "New comment",
+    message: `${session.user.name ?? "Someone"} commented on "${request.title}"`,
+    link: `/requests/${requestId}`,
+    requestId,
+    actorId: session.user.id,
+  });
 
   revalidatePath("/requests/" + requestId);
 
@@ -112,6 +137,35 @@ export async function transitionStatus(
   }
 
   await updateFeatureRequestStatus(requestId, targetStatus);
+
+  // Notify the request owner about the status change
+  await notifyRequestOwner({
+    organizationId: request.organizationId,
+    requesterId: request.requesterId,
+    type: "STATUS_CHANGED",
+    title: "Status updated",
+    message: `"${request.title}" moved to ${targetStatus.replace(/_/g, " ")}`,
+    link: `/requests/${requestId}`,
+    requestId,
+    actorId: session.user.id,
+  });
+
+  // If moving to UNDER_REVIEW, notify all reviewers
+  if (targetStatus === "UNDER_REVIEW" && session.user.orgId) {
+    const orgUsers = await getOrgUserIds(session.user.orgId, session.user.id);
+    for (const uid of orgUsers) {
+      await notifyUser({
+        organizationId: session.user.orgId,
+        userId: uid,
+        type: "REVIEW_NEEDED",
+        title: "Review needed",
+        message: `"${request.title}" is ready for review`,
+        link: `/requests/${requestId}`,
+        requestId,
+        actorId: session.user.id,
+      });
+    }
+  }
 
   revalidatePath("/requests/" + requestId);
   revalidatePath("/review");

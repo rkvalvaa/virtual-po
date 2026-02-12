@@ -32,6 +32,7 @@ interface SidebarProps {
     image: string | null
   }
   signOutAction: () => Promise<void>
+  notificationBell?: React.ReactNode
 }
 
 function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
@@ -95,7 +96,7 @@ function UserSection({
   )
 }
 
-export function Sidebar({ user, signOutAction }: SidebarProps) {
+export function Sidebar({ user, signOutAction, notificationBell }: SidebarProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -112,10 +113,11 @@ export function Sidebar({ user, signOutAction }: SidebarProps) {
     <>
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r bg-background md:flex">
-        <div className="flex h-14 items-center px-6">
+        <div className="flex h-14 items-center justify-between px-6">
           <Link href="/" className="text-lg font-bold tracking-tight">
             VPO
           </Link>
+          {notificationBell}
         </div>
         <div className="flex-1 overflow-y-auto py-4">
           <NavLinks pathname={pathname} />
@@ -149,7 +151,8 @@ export function Sidebar({ user, signOutAction }: SidebarProps) {
             <UserSection user={user} initials={initials} signOutAction={signOutAction} />
           </SheetContent>
         </Sheet>
-        <span className="ml-3 text-lg font-bold tracking-tight">VPO</span>
+        <span className="ml-3 flex-1 text-lg font-bold tracking-tight">VPO</span>
+        {notificationBell}
       </div>
     </>
   )
