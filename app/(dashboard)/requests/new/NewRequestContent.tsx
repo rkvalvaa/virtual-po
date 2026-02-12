@@ -1,35 +1,72 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { ChatWindow } from "@/components/chat/ChatWindow"
 import { QualityIndicator } from "@/components/chat/QualityIndicator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { TemplatePicker } from "@/components/requests/TemplatePicker"
 import { createNewRequest } from "./actions"
 
-export function NewRequestContent() {
+interface Template {
+  id: string
+  name: string
+  description: string | null
+  category: string
+  icon: string | null
+  defaultTitle: string | null
+  promptHints: string[]
+}
+
+interface NewRequestContentProps {
+  templates: Template[]
+}
+
+export function NewRequestContent({ templates }: NewRequestContentProps) {
+  const [step, setStep] = useState<"pick" | "loading" | "chat">(
+    templates.length > 0 ? "pick" : "loading"
+  )
   const [requestId, setRequestId] = useState<string | null>(null)
+  const [promptHints, setPromptHints] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [qualityScore] = useState(0)
 
-  useEffect(() => {
-    let cancelled = false
-
-    createNewRequest()
+  function startRequest(params?: {
+    title?: string
+    templateId?: string
+    promptHints?: string[]
+  }) {
+    setStep("loading")
+    createNewRequest(params)
       .then((result) => {
-        if (!cancelled) {
-          setRequestId(result.requestId)
-        }
+        setRequestId(result.requestId)
+        setPromptHints(result.promptHints)
+        setStep("chat")
       })
       .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to create request")
-        }
+        setError(err instanceof Error ? err.message : "Failed to create request")
       })
+  }
 
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  // Auto-start if no templates
+  if (step === "loading" && !requestId && !error && templates.length === 0) {
+    startRequest()
+  }
+
+  if (step === "pick") {
+    return (
+      <TemplatePicker
+        templates={templates}
+        onSelect={(template) =>
+          startRequest({
+            title: template.defaultTitle || template.name,
+            templateId: template.id,
+            promptHints: template.promptHints,
+          })
+        }
+        onSkip={() => startRequest()}
+      />
+    )
+  }
 
   if (error) {
     return (
@@ -74,14 +111,22 @@ export function NewRequestContent() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Tips</CardTitle>
+            <CardTitle className="text-sm">
+              {promptHints.length > 0 ? "Guide" : "Tips"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="text-muted-foreground space-y-2 text-xs">
-              <li>Describe the problem your feature solves</li>
-              <li>Mention who will benefit from it</li>
-              <li>Include any constraints or requirements</li>
-              <li>Share examples or mockups if available</li>
+              {promptHints.length > 0
+                ? promptHints.map((hint, i) => <li key={i}>{hint}</li>)
+                : (
+                    <>
+                      <li>Describe the problem your feature solves</li>
+                      <li>Mention who will benefit from it</li>
+                      <li>Include any constraints or requirements</li>
+                      <li>Share examples or mockups if available</li>
+                    </>
+                  )}
             </ul>
           </CardContent>
         </Card>

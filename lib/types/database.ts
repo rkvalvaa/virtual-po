@@ -379,6 +379,24 @@ export interface VoteSummary {
   averageScore: number;
 }
 
+export const TEMPLATE_CATEGORIES = ['BUG_FIX', 'NEW_FEATURE', 'IMPROVEMENT', 'INTEGRATION', 'CUSTOM'] as const;
+export type TemplateCategory = typeof TEMPLATE_CATEGORIES[number];
+
+export interface RequestTemplate {
+  id: string;
+  organizationId: string;
+  name: string;
+  description: string | null;
+  category: TemplateCategory;
+  icon: string | null;
+  defaultTitle: string | null;
+  promptHints: string[];
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export const NOTIFICATION_TYPES = [
   'STATUS_CHANGED',
   'DECISION_MADE',

@@ -34,6 +34,8 @@ import { ApiKeySettings } from "@/components/settings/ApiKeySettings"
 import type { ApiKeySettingsProps } from "@/components/settings/ApiKeySettings"
 import { WebhookSettings } from "@/components/settings/WebhookSettings"
 import type { WebhookSettingsProps } from "@/components/settings/WebhookSettings"
+import { TemplateSettings } from "@/components/settings/TemplateSettings"
+import type { TemplateSettingsProps } from "@/components/settings/TemplateSettings"
 import { defaultScoringConfig } from "@/config/scoring"
 
 interface SettingsContentProps {
@@ -92,6 +94,7 @@ interface SettingsContentProps {
   slackNotifications: SlackSettingsProps["notifications"]
   apiKeys: ApiKeySettingsProps["apiKeys"]
   webhooks: WebhookSettingsProps["webhooks"]
+  templates: TemplateSettingsProps["templates"]
 }
 
 function formatDate(dateStr: string): string {
@@ -127,6 +130,7 @@ export function SettingsContent({
   slackNotifications,
   apiKeys,
   webhooks,
+  templates,
 }: SettingsContentProps) {
   const scoringSettings = organization.settings?.scoring as
     | Record<string, unknown>
@@ -176,6 +180,7 @@ export function SettingsContent({
           <TabsTrigger value="slack">Slack</TabsTrigger>
           <TabsTrigger value="api-keys">API Keys</TabsTrigger>
           <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
         </TabsList>
 
         <TabsContent value="organization">
@@ -417,6 +422,10 @@ export function SettingsContent({
 
         <TabsContent value="webhooks">
           <WebhookSettings webhooks={webhooks} userRole={userRole} />
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <TemplateSettings templates={templates} userRole={userRole} />
         </TabsContent>
       </Tabs>
     </div>
