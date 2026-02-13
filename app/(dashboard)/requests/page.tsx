@@ -9,27 +9,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { StatusBadge } from "@/components/requests/StatusBadge"
-import { PriorityBadge } from "@/components/requests/PriorityBadge"
-import { VoteBadge } from "@/components/requests/VoteBadge"
+import { BulkRequestTable } from "@/components/requests/BulkRequestTable"
 import { getVoteSummariesByRequestIds } from "@/lib/db/queries/votes"
 import { Plus } from "lucide-react"
-
-function formatDate(date: Date): string {
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
-}
 
 export default async function RequestsPage() {
   const session = await requireAuth()
@@ -45,7 +27,6 @@ export default async function RequestsPage() {
 
   const { requests, total } = await listFeatureRequests(orgId)
   const voteSummaries = await getVoteSummariesByRequestIds(requests.map((r) => r.id))
-  const voteMap = new Map(voteSummaries.map((v) => [v.requestId, v]))
 
   return (
     <div className="space-y-6">
@@ -83,54 +64,27 @@ export default async function RequestsPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="py-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Votes</TableHead>
-                <TableHead>Quality</TableHead>
-                <TableHead>Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {requests.map((request) => (
-                <TableRow key={request.id}>
-                  <TableCell className="font-medium">
-                    <Link
-                      href={`/requests/${request.id}`}
-                      className="hover:underline"
-                    >
-                      {request.title}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={request.status} />
-                  </TableCell>
-                  <TableCell>
-                    <PriorityBadge score={request.priorityScore} />
-                  </TableCell>
-                  <TableCell>
-                    <VoteBadge
-                      averageScore={voteMap.get(request.id)?.averageScore ?? 0}
-                      voteCount={voteMap.get(request.id)?.voteCount ?? 0}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {request.qualityScore !== null
-                      ? `${request.qualityScore}%`
-                      : "--"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatDate(request.createdAt)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+        <BulkRequestTable
+          requests={requests.map((r) => ({
+            id: r.id,
+            title: r.title,
+            status: r.status,
+            priorityScore: r.priorityScore,
+            qualityScore: r.qualityScore,
+            complexity: r.complexity,
+            tags: r.tags,
+            createdAt: r.createdAt.toISOString(),
+          }))}
+          voteSummaries={voteSummaries.map((v) => ({
+            requestId: v.requestId,
+            averageScore: v.averageScore,
+            voteCount: v.voteCount,
+          }))}
+          columns={["quality"]}
+          statusActions={[
+            { label: "Move to Backlog", targetStatus: "IN_BACKLOG" },
+          ]}
+        />
       )}
     </div>
   )
