@@ -10,6 +10,9 @@ import { getSlackNotifications } from "@/lib/db/queries/slack"
 import { getApiKeysByOrg } from "@/lib/db/queries/api-keys"
 import { getWebhooksByOrg } from "@/lib/db/queries/webhooks"
 import { getAllTemplates, seedDefaultTemplates } from "@/lib/db/queries/templates"
+import { getEmailPreferences } from "@/lib/db/queries/email-preferences"
+import type { NotificationType } from "@/lib/types/database"
+import { NOTIFICATION_TYPES } from "@/lib/types/database"
 import "@/lib/auth/types"
 import { SettingsContent } from "./SettingsContent"
 
@@ -27,7 +30,7 @@ export default async function SettingsPage() {
 
   await seedDefaultTemplates(orgId)
 
-  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, apiKeys, webhookSubscriptions, allTemplates] = await Promise.all([
+  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, apiKeys, webhookSubscriptions, allTemplates, emailPrefs] = await Promise.all([
     getOrganizationById(orgId),
     getOrganizationUsers(orgId),
     getRepositoriesByOrgId(orgId),
@@ -44,6 +47,7 @@ export default async function SettingsPage() {
     getApiKeysByOrg(orgId),
     getWebhooksByOrg(orgId),
     getAllTemplates(orgId),
+    getEmailPreferences(session.user.id, orgId),
   ])
 
   if (!organization) {
@@ -218,6 +222,14 @@ export default async function SettingsPage() {
         isActive: t.isActive,
         sortOrder: t.sortOrder,
       }))}
+      emailPreferences={
+        Object.fromEntries(
+          NOTIFICATION_TYPES.map((type) => {
+            const pref = emailPrefs.find((p) => p.notificationType === type)
+            return [type, pref ? pref.emailEnabled : true]
+          })
+        ) as Record<NotificationType, boolean>
+      }
     />
   )
 }

@@ -1,9 +1,15 @@
 exports.up = (pgm) => {
-  pgm.createTable('request_templates', {
+  pgm.createTable('email_preferences', {
     id: {
       type: 'uuid',
       primaryKey: true,
       default: pgm.func('gen_random_uuid()'),
+    },
+    user_id: {
+      type: 'uuid',
+      notNull: true,
+      references: 'users(id)',
+      onDelete: 'CASCADE',
     },
     organization_id: {
       type: 'uuid',
@@ -11,36 +17,14 @@ exports.up = (pgm) => {
       references: 'organizations(id)',
       onDelete: 'CASCADE',
     },
-    name: {
+    notification_type: {
       type: 'text',
       notNull: true,
     },
-    description: {
-      type: 'text',
-    },
-    category: {
-      type: 'text',
-      notNull: true,
-    },
-    icon: {
-      type: 'text',
-    },
-    default_title: {
-      type: 'text',
-    },
-    prompt_hints: {
-      type: 'jsonb',
-      default: pgm.func("'[]'::jsonb"),
-    },
-    is_active: {
+    email_enabled: {
       type: 'boolean',
       notNull: true,
       default: true,
-    },
-    sort_order: {
-      type: 'integer',
-      notNull: true,
-      default: 0,
     },
     created_at: {
       type: 'timestamptz',
@@ -54,16 +38,20 @@ exports.up = (pgm) => {
     },
   });
 
-  pgm.createIndex('request_templates', ['organization_id', 'is_active']);
+  pgm.addConstraint('email_preferences', 'uq_email_preferences_user_type', {
+    unique: ['user_id', 'organization_id', 'notification_type'],
+  });
+
+  pgm.createIndex('email_preferences', ['user_id', 'organization_id']);
 
   pgm.sql(`
-    CREATE TRIGGER trg_request_templates_updated_at
-    BEFORE UPDATE ON request_templates
+    CREATE TRIGGER trg_email_preferences_updated_at
+    BEFORE UPDATE ON email_preferences
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
   `);
 };
 
 exports.down = (pgm) => {
-  pgm.dropTable('request_templates');
+  pgm.dropTable('email_preferences');
 };
