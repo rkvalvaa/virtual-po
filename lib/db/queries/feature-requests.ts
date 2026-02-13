@@ -6,6 +6,22 @@ import type {
   Complexity,
 } from '@/lib/types/database';
 
+export interface SearchFilters {
+  search?: string;
+  statuses?: RequestStatus[];
+  tags?: string[];
+  complexities?: Complexity[];
+  dateFrom?: string;
+  dateTo?: string;
+  priorityMin?: number;
+  priorityMax?: number;
+  requesterId?: string;
+  sortBy?: 'created_at' | 'priority_score' | 'quality_score' | 'updated_at';
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+}
+
 export async function createFeatureRequest(
   orgId: string,
   requesterId: string,
@@ -197,4 +213,93 @@ export async function updateAssessmentData(
     ]
   );
   return mapRow<FeatureRequest>(result.rows[0]);
+}
+
+export async function searchFeatureRequests(
+  orgId: string,
+  filters: SearchFilters = {}
+): Promise<{ requests: FeatureRequest[]; total: number }> {
+  const conditions: string[] = ['organization_id = $1'];
+  const values: unknown[] = [orgId];
+  let paramIndex = 2;
+
+  if (filters.search) {
+    conditions.push(`search_vector @@ plainto_tsquery('english', $${paramIndex++})`);
+    values.push(filters.search);
+  }
+
+  if (filters.statuses && filters.statuses.length > 0) {
+    conditions.push(`status = ANY($${paramIndex++})`);
+    values.push(filters.statuses);
+  }
+
+  if (filters.tags && filters.tags.length > 0) {
+    conditions.push(`tags && $${paramIndex++}`);
+    values.push(filters.tags);
+  }
+
+  if (filters.complexities && filters.complexities.length > 0) {
+    conditions.push(`complexity = ANY($${paramIndex++})`);
+    values.push(filters.complexities);
+  }
+
+  if (filters.dateFrom) {
+    conditions.push(`created_at >= $${paramIndex++}`);
+    values.push(filters.dateFrom);
+  }
+
+  if (filters.dateTo) {
+    conditions.push(`created_at <= $${paramIndex++}`);
+    values.push(filters.dateTo);
+  }
+
+  if (filters.priorityMin !== undefined) {
+    conditions.push(`priority_score >= $${paramIndex++}`);
+    values.push(filters.priorityMin);
+  }
+
+  if (filters.priorityMax !== undefined) {
+    conditions.push(`priority_score <= $${paramIndex++}`);
+    values.push(filters.priorityMax);
+  }
+
+  if (filters.requesterId) {
+    conditions.push(`requester_id = $${paramIndex++}`);
+    values.push(filters.requesterId);
+  }
+
+  const whereClause = conditions.join(' AND ');
+
+  const countResult = await query(
+    `SELECT COUNT(*) AS total FROM feature_requests WHERE ${whereClause}`,
+    values
+  );
+  const total = parseInt(countResult.rows[0].total, 10);
+
+  const sortBy = filters.sortBy ?? 'created_at';
+  const sortOrder = filters.sortOrder ?? 'desc';
+  const limit = filters.limit ?? 50;
+  const offset = filters.offset ?? 0;
+
+  // Build ORDER BY with text search rank when searching
+  let orderByClause: string;
+  if (filters.search) {
+    orderByClause = `ts_rank(search_vector, plainto_tsquery('english', $${paramIndex++})) DESC, ${sortBy} ${sortOrder}`;
+    values.push(filters.search);
+  } else {
+    orderByClause = `${sortBy} ${sortOrder}`;
+  }
+
+  const dataResult = await query(
+    `SELECT * FROM feature_requests
+     WHERE ${whereClause}
+     ORDER BY ${orderByClause}
+     LIMIT $${paramIndex++} OFFSET $${paramIndex}`,
+    [...values, limit, offset]
+  );
+
+  return {
+    requests: mapRows<FeatureRequest>(dataResult.rows),
+    total,
+  };
 }

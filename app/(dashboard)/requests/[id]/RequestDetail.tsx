@@ -18,6 +18,7 @@ import { QualityIndicator } from "@/components/chat/QualityIndicator"
 import { JiraSyncButton } from "@/components/requests/JiraSyncButton"
 import { LinearSyncButton } from "@/components/requests/LinearSyncButton"
 import { VoteWidget } from "@/components/requests/VoteWidget"
+import { ActivityTimeline } from "@/components/requests/ActivityTimeline"
 import { ArrowLeft } from "lucide-react"
 
 interface RequestDetailProps {
@@ -105,6 +106,14 @@ interface RequestDetailProps {
     voteCount: number
     averageScore: number
   }
+  activities: Array<{
+    id: string
+    action: string
+    entityType: string | null
+    metadata: Record<string, unknown>
+    userName: string | null
+    createdAt: string
+  }>
 }
 
 function formatDate(dateStr: string): string {
@@ -149,6 +158,7 @@ export function RequestDetail({
   currentVote,
   votes,
   voteSummary,
+  activities,
 }: RequestDetailProps) {
   return (
     <div className="space-y-6">
@@ -220,6 +230,14 @@ export function RequestDetail({
             {comments.length > 0 && (
               <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-xs">
                 {comments.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="activity">
+            Activity
+            {activities.length > 0 && (
+              <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-xs">
+                {activities.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -312,6 +330,11 @@ export function RequestDetail({
         {/* Discussion Tab */}
         <TabsContent value="discussion" className="space-y-6">
           <CommentThread comments={comments} requestId={request.id} />
+        </TabsContent>
+
+        {/* Activity Tab */}
+        <TabsContent value="activity" className="space-y-6">
+          <ActivityTimeline activities={activities} />
         </TabsContent>
       </Tabs>
     </div>
