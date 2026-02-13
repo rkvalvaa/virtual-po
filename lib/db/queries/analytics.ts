@@ -1,5 +1,10 @@
 import { query } from '@/lib/db/pool';
 
+export interface DateRange {
+  from: string;
+  to: string;
+}
+
 export interface DashboardSummary {
   totalRequests: number;
   pendingReview: number;
@@ -33,7 +38,17 @@ export interface TopRequesterRow {
   count: number;
 }
 
-export async function getDashboardSummary(orgId: string): Promise<DashboardSummary> {
+export async function getDashboardSummary(
+  orgId: string,
+  dateRange?: DateRange
+): Promise<DashboardSummary> {
+  const params: unknown[] = [orgId];
+  let dateFilter = '';
+  if (dateRange) {
+    dateFilter = ` AND created_at >= $2 AND created_at <= $3`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT
        COUNT(*) AS total_requests,
@@ -42,8 +57,8 @@ export async function getDashboardSummary(orgId: string): Promise<DashboardSumma
        COUNT(*) FILTER (WHERE status = 'COMPLETED') AS completed,
        ROUND(AVG(quality_score) FILTER (WHERE quality_score IS NOT NULL)) AS avg_quality_score
      FROM feature_requests
-     WHERE organization_id = $1`,
-    [orgId]
+     WHERE organization_id = $1${dateFilter}`,
+    params
   );
 
   const row = result.rows[0];
@@ -56,14 +71,24 @@ export async function getDashboardSummary(orgId: string): Promise<DashboardSumma
   };
 }
 
-export async function getStatusDistribution(orgId: string): Promise<StatusDistributionRow[]> {
+export async function getStatusDistribution(
+  orgId: string,
+  dateRange?: DateRange
+): Promise<StatusDistributionRow[]> {
+  const params: unknown[] = [orgId];
+  let dateFilter = '';
+  if (dateRange) {
+    dateFilter = ` AND created_at >= $2 AND created_at <= $3`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT status, COUNT(*) AS count
      FROM feature_requests
-     WHERE organization_id = $1
+     WHERE organization_id = $1${dateFilter}
      GROUP BY status
      ORDER BY count DESC`,
-    [orgId]
+    params
   );
 
   return result.rows.map((row) => ({
@@ -72,16 +97,25 @@ export async function getStatusDistribution(orgId: string): Promise<StatusDistri
   }));
 }
 
-export async function getRequestVolumeByMonth(orgId: string): Promise<RequestVolumeRow[]> {
+export async function getRequestVolumeByMonth(
+  orgId: string,
+  dateRange?: DateRange
+): Promise<RequestVolumeRow[]> {
+  const params: unknown[] = [orgId];
+  let dateFilter = ' AND created_at >= NOW() - INTERVAL \'12 months\'';
+  if (dateRange) {
+    dateFilter = ` AND created_at >= $2 AND created_at <= $3`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month,
             COUNT(*) AS count
      FROM feature_requests
-     WHERE organization_id = $1
-       AND created_at >= NOW() - INTERVAL '12 months'
+     WHERE organization_id = $1${dateFilter}
      GROUP BY DATE_TRUNC('month', created_at)
      ORDER BY month ASC`,
-    [orgId]
+    params
   );
 
   return result.rows.map((row) => ({
@@ -90,7 +124,17 @@ export async function getRequestVolumeByMonth(orgId: string): Promise<RequestVol
   }));
 }
 
-export async function getPriorityDistribution(orgId: string): Promise<PriorityDistributionRow[]> {
+export async function getPriorityDistribution(
+  orgId: string,
+  dateRange?: DateRange
+): Promise<PriorityDistributionRow[]> {
+  const params: unknown[] = [orgId];
+  let dateFilter = '';
+  if (dateRange) {
+    dateFilter = ` AND created_at >= $2 AND created_at <= $3`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT
        CASE
@@ -101,11 +145,11 @@ export async function getPriorityDistribution(orgId: string): Promise<PriorityDi
        END AS band,
        COUNT(*) AS count
      FROM feature_requests
-     WHERE organization_id = $1
+     WHERE organization_id = $1${dateFilter}
      GROUP BY band
      ORDER BY
        CASE band WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 WHEN 'Low' THEN 3 ELSE 4 END`,
-    [orgId]
+    params
   );
 
   return result.rows.map((row) => ({
@@ -114,13 +158,23 @@ export async function getPriorityDistribution(orgId: string): Promise<PriorityDi
   }));
 }
 
-export async function getAverageTimeToDecision(orgId: string): Promise<AverageTimeToDecision> {
+export async function getAverageTimeToDecision(
+  orgId: string,
+  dateRange?: DateRange
+): Promise<AverageTimeToDecision> {
+  const params: unknown[] = [orgId];
+  let dateFilter = '';
+  if (dateRange) {
+    dateFilter = ` AND d.created_at >= $2 AND d.created_at <= $3`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT ROUND(AVG(EXTRACT(EPOCH FROM (d.created_at - fr.created_at)) / 86400)::numeric, 1) AS avg_days
      FROM decisions d
      JOIN feature_requests fr ON d.request_id = fr.id
-     WHERE fr.organization_id = $1`,
-    [orgId]
+     WHERE fr.organization_id = $1${dateFilter}`,
+    params
   );
 
   const row = result.rows[0];
@@ -131,17 +185,25 @@ export async function getAverageTimeToDecision(orgId: string): Promise<AverageTi
 
 export async function getTopRequesters(
   orgId: string,
-  limit = 5
+  limit = 5,
+  dateRange?: DateRange
 ): Promise<TopRequesterRow[]> {
+  const params: unknown[] = [orgId, limit];
+  let dateFilter = '';
+  if (dateRange) {
+    dateFilter = ` AND fr.created_at >= $3 AND fr.created_at <= $4`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT u.id AS user_id, u.name, COUNT(*) AS count
      FROM feature_requests fr
      JOIN users u ON fr.requester_id = u.id
-     WHERE fr.organization_id = $1
+     WHERE fr.organization_id = $1${dateFilter}
      GROUP BY u.id, u.name
      ORDER BY count DESC
      LIMIT $2`,
-    [orgId, limit]
+    params
   );
 
   return result.rows.map((row) => ({
@@ -167,7 +229,17 @@ export interface EstimateAccuracySummary {
   byComplexity: EstimateAccuracyRow[];
 }
 
-export async function getEstimateAccuracySummary(orgId: string): Promise<EstimateAccuracySummary> {
+export async function getEstimateAccuracySummary(
+  orgId: string,
+  dateRange?: DateRange
+): Promise<EstimateAccuracySummary> {
+  const params: unknown[] = [orgId];
+  let dateFilter = '';
+  if (dateRange) {
+    dateFilter = ` AND created_at >= $2 AND created_at <= $3`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT
        COUNT(*) AS total,
@@ -177,9 +249,9 @@ export async function getEstimateAccuracySummary(orgId: string): Promise<Estimat
      FROM feature_requests
      WHERE complexity IS NOT NULL
        AND actual_complexity IS NOT NULL
-       AND organization_id = $1
+       AND organization_id = $1${dateFilter}
      GROUP BY complexity`,
-    [orgId]
+    params
   );
 
   let totalCompared = 0;
@@ -217,8 +289,16 @@ export interface StakeholderEngagementRow {
 
 export async function getStakeholderEngagement(
   orgId: string,
-  limit = 10
+  limit = 10,
+  dateRange?: DateRange
 ): Promise<StakeholderEngagementRow[]> {
+  const params: unknown[] = [orgId, limit];
+  let dateFilter = '';
+  if (dateRange) {
+    dateFilter = ` AND fr.created_at >= $3 AND fr.created_at <= $4`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT
        u.id AS user_id,
@@ -232,10 +312,11 @@ export async function getStakeholderEngagement(
      JOIN feature_requests fr ON fr.requester_id = u.id AND fr.organization_id = $1
      LEFT JOIN comments c ON c.author_id = u.id
      LEFT JOIN stakeholder_votes sv ON sv.user_id = u.id
+     WHERE 1=1${dateFilter}
      GROUP BY u.id, u.name
      ORDER BY (COUNT(DISTINCT fr.id) + COUNT(DISTINCT c.id) + COUNT(DISTINCT sv.id)) DESC
      LIMIT $2`,
-    [orgId, limit]
+    params
   );
 
   return result.rows.map((row) => ({
@@ -255,7 +336,17 @@ export interface TimeToDecisionTrendRow {
   decisionCount: number;
 }
 
-export async function getTimeToDecisionTrend(orgId: string): Promise<TimeToDecisionTrendRow[]> {
+export async function getTimeToDecisionTrend(
+  orgId: string,
+  dateRange?: DateRange
+): Promise<TimeToDecisionTrendRow[]> {
+  const params: unknown[] = [orgId];
+  let dateFilter = ' AND d.created_at >= NOW() - INTERVAL \'12 months\'';
+  if (dateRange) {
+    dateFilter = ` AND d.created_at >= $2 AND d.created_at <= $3`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT
        TO_CHAR(DATE_TRUNC('month', d.created_at), 'YYYY-MM') AS month,
@@ -263,11 +354,10 @@ export async function getTimeToDecisionTrend(orgId: string): Promise<TimeToDecis
        COUNT(*) AS decision_count
      FROM decisions d
      JOIN feature_requests fr ON d.request_id = fr.id
-     WHERE fr.organization_id = $1
-       AND d.created_at >= NOW() - INTERVAL '12 months'
+     WHERE fr.organization_id = $1${dateFilter}
      GROUP BY DATE_TRUNC('month', d.created_at)
      ORDER BY month ASC`,
-    [orgId]
+    params
   );
 
   return result.rows.map((row) => ({
@@ -285,7 +375,17 @@ export interface ConfidenceTrendRow {
   assessmentCount: number;
 }
 
-export async function getConfidenceTrend(orgId: string): Promise<ConfidenceTrendRow[]> {
+export async function getConfidenceTrend(
+  orgId: string,
+  dateRange?: DateRange
+): Promise<ConfidenceTrendRow[]> {
+  const params: unknown[] = [orgId];
+  let dateFilter = ' AND updated_at >= NOW() - INTERVAL \'12 months\'';
+  if (dateRange) {
+    dateFilter = ` AND updated_at >= $2 AND updated_at <= $3`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT
        TO_CHAR(DATE_TRUNC('month', updated_at), 'YYYY-MM') AS month,
@@ -295,11 +395,10 @@ export async function getConfidenceTrend(orgId: string): Promise<ConfidenceTrend
        COUNT(*) AS assessment_count
      FROM feature_requests
      WHERE assessment_data IS NOT NULL
-       AND organization_id = $1
-       AND updated_at >= NOW() - INTERVAL '12 months'
+       AND organization_id = $1${dateFilter}
      GROUP BY DATE_TRUNC('month', updated_at)
      ORDER BY month ASC`,
-    [orgId]
+    params
   );
 
   return result.rows.map((row) => ({
@@ -323,8 +422,16 @@ export interface TopVotedRequestRow {
 
 export async function getTopVotedRequests(
   orgId: string,
-  limit = 10
+  limit = 10,
+  dateRange?: DateRange
 ): Promise<TopVotedRequestRow[]> {
+  const params: unknown[] = [orgId, limit];
+  let dateFilter = '';
+  if (dateRange) {
+    dateFilter = ` AND sv.created_at >= $3 AND sv.created_at <= $4`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT
        fr.id AS request_id,
@@ -334,11 +441,11 @@ export async function getTopVotedRequests(
        fr.status
      FROM feature_requests fr
      JOIN stakeholder_votes sv ON sv.request_id = fr.id
-     WHERE fr.organization_id = $1
+     WHERE fr.organization_id = $1${dateFilter}
      GROUP BY fr.id, fr.title, fr.status
      ORDER BY average_score DESC, vote_count DESC
      LIMIT $2`,
-    [orgId, limit]
+    params
   );
 
   return result.rows.map((row) => ({
@@ -357,7 +464,17 @@ export interface VoteTrendRow {
   uniqueVoters: number;
 }
 
-export async function getVoteTrend(orgId: string): Promise<VoteTrendRow[]> {
+export async function getVoteTrend(
+  orgId: string,
+  dateRange?: DateRange
+): Promise<VoteTrendRow[]> {
+  const params: unknown[] = [orgId];
+  let dateFilter = ' AND sv.created_at >= NOW() - INTERVAL \'12 months\'';
+  if (dateRange) {
+    dateFilter = ` AND sv.created_at >= $2 AND sv.created_at <= $3`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT
        TO_CHAR(DATE_TRUNC('month', sv.created_at), 'YYYY-MM') AS month,
@@ -366,11 +483,10 @@ export async function getVoteTrend(orgId: string): Promise<VoteTrendRow[]> {
        COUNT(DISTINCT sv.user_id)::int AS unique_voters
      FROM stakeholder_votes sv
      JOIN feature_requests fr ON sv.request_id = fr.id
-     WHERE fr.organization_id = $1
-       AND sv.created_at >= NOW() - INTERVAL '12 months'
+     WHERE fr.organization_id = $1${dateFilter}
      GROUP BY DATE_TRUNC('month', sv.created_at)
      ORDER BY month ASC`,
-    [orgId]
+    params
   );
 
   return result.rows.map((row) => ({
@@ -389,15 +505,27 @@ export interface VoteSummaryStats {
   totalRequestsCount: number;
 }
 
-export async function getVoteSummaryStats(orgId: string): Promise<VoteSummaryStats> {
+export async function getVoteSummaryStats(
+  orgId: string,
+  dateRange?: DateRange
+): Promise<VoteSummaryStats> {
+  const params: unknown[] = [orgId];
+  let svDateFilter = '';
+  let plainDateFilter = '';
+  if (dateRange) {
+    svDateFilter = ` AND sv.created_at >= $2 AND sv.created_at <= $3`;
+    plainDateFilter = ` AND created_at >= $2 AND created_at <= $3`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT
-       (SELECT COUNT(*)::int FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.organization_id = $1) AS total_votes,
-       (SELECT COUNT(DISTINCT sv.user_id)::int FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.organization_id = $1) AS unique_voters,
-       (SELECT COALESCE(ROUND(AVG(sv.vote_value)::numeric, 1), 0)::float FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.organization_id = $1) AS avg_score,
-       (SELECT COUNT(DISTINCT sv.request_id)::int FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.organization_id = $1) AS voted_requests_count,
-       (SELECT COUNT(*)::int FROM feature_requests WHERE organization_id = $1) AS total_requests_count`,
-    [orgId]
+       (SELECT COUNT(*)::int FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.organization_id = $1${svDateFilter}) AS total_votes,
+       (SELECT COUNT(DISTINCT sv.user_id)::int FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.organization_id = $1${svDateFilter}) AS unique_voters,
+       (SELECT COALESCE(ROUND(AVG(sv.vote_value)::numeric, 1), 0)::float FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.organization_id = $1${svDateFilter}) AS avg_score,
+       (SELECT COUNT(DISTINCT sv.request_id)::int FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.organization_id = $1${svDateFilter}) AS voted_requests_count,
+       (SELECT COUNT(*)::int FROM feature_requests WHERE organization_id = $1${plainDateFilter}) AS total_requests_count`,
+    params
   );
 
   const row = result.rows[0];
@@ -415,15 +543,25 @@ export interface DecisionBreakdownRow {
   count: number;
 }
 
-export async function getDecisionBreakdown(orgId: string): Promise<DecisionBreakdownRow[]> {
+export async function getDecisionBreakdown(
+  orgId: string,
+  dateRange?: DateRange
+): Promise<DecisionBreakdownRow[]> {
+  const params: unknown[] = [orgId];
+  let dateFilter = '';
+  if (dateRange) {
+    dateFilter = ` AND d.created_at >= $2 AND d.created_at <= $3`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT d.decision, COUNT(*)::int AS count
      FROM decisions d
      JOIN feature_requests fr ON d.request_id = fr.id
-     WHERE fr.organization_id = $1
+     WHERE fr.organization_id = $1${dateFilter}
      GROUP BY d.decision
      ORDER BY count DESC`,
-    [orgId]
+    params
   );
 
   return result.rows.map((row) => ({
@@ -438,21 +576,63 @@ export interface DecisionOutcomeDistributionRow {
 }
 
 export async function getDecisionOutcomeDistribution(
-  orgId: string
+  orgId: string,
+  dateRange?: DateRange
 ): Promise<DecisionOutcomeDistributionRow[]> {
+  const params: unknown[] = [orgId];
+  let dateFilter = '';
+  if (dateRange) {
+    dateFilter = ` AND d.created_at >= $2 AND d.created_at <= $3`;
+    params.push(dateRange.from, dateRange.to);
+  }
+
   const result = await query(
     `SELECT d.outcome, COUNT(*) AS count
      FROM decisions d
      JOIN feature_requests fr ON d.request_id = fr.id
      WHERE fr.organization_id = $1
-       AND d.outcome IS NOT NULL
+       AND d.outcome IS NOT NULL${dateFilter}
      GROUP BY d.outcome
      ORDER BY count DESC`,
-    [orgId]
+    params
   );
 
   return result.rows.map((row) => ({
     outcome: row.outcome,
     count: parseInt(row.count, 10),
   }));
+}
+
+// --- Per-User Dashboard Stats ---
+
+export interface UserDashboardStats {
+  myRequestsCount: number;
+  myPendingCount: number;
+  myCompletedCount: number;
+  myAvgQualityScore: number | null;
+  myVotesCount: number;
+}
+
+export async function getUserDashboardStats(
+  orgId: string,
+  userId: string
+): Promise<UserDashboardStats> {
+  const result = await query(
+    `SELECT
+       (SELECT COUNT(*)::int FROM feature_requests WHERE organization_id = $1 AND requester_id = $2) AS my_requests_count,
+       (SELECT COUNT(*)::int FROM feature_requests WHERE organization_id = $1 AND requester_id = $2 AND status IN ('DRAFT', 'INTAKE_IN_PROGRESS', 'PENDING_ASSESSMENT', 'UNDER_REVIEW', 'NEEDS_INFO')) AS my_pending_count,
+       (SELECT COUNT(*)::int FROM feature_requests WHERE organization_id = $1 AND requester_id = $2 AND status = 'COMPLETED') AS my_completed_count,
+       (SELECT ROUND(AVG(quality_score)::numeric, 1) FROM feature_requests WHERE organization_id = $1 AND requester_id = $2 AND quality_score IS NOT NULL) AS my_avg_quality_score,
+       (SELECT COUNT(*)::int FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.organization_id = $1 AND sv.user_id = $2) AS my_votes_count`,
+    [orgId, userId]
+  );
+
+  const row = result.rows[0];
+  return {
+    myRequestsCount: row.my_requests_count,
+    myPendingCount: row.my_pending_count,
+    myCompletedCount: row.my_completed_count,
+    myAvgQualityScore: row.my_avg_quality_score != null ? parseFloat(row.my_avg_quality_score) : null,
+    myVotesCount: row.my_votes_count,
+  };
 }
