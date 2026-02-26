@@ -456,6 +456,7 @@ export const ACTIVITY_ACTIONS = [
   'TAG_REMOVED',
   'REQUEST_CREATED',
   'REQUEST_UPDATED',
+  'SECURITY_REVIEW_COMPLETED',
 ] as const;
 export type ActivityAction = typeof ACTIVITY_ACTIONS[number];
 
