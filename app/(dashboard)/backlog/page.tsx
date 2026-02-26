@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { ExportButton } from "@/components/shared/ExportButton"
 import "@/lib/auth/types"
 
 export default async function BacklogPage() {
@@ -51,14 +52,20 @@ export default async function BacklogPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight">Backlog</h1>
-          <Badge variant="secondary">{activeCount}</Badge>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight">Backlog</h1>
+            <Badge variant="secondary">{activeCount}</Badge>
+          </div>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Approved requests and work in progress
+          </p>
         </div>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Approved requests and work in progress
-        </p>
+        <ExportButton
+          exportUrl="/api/export/backlog"
+          filename="backlog.csv"
+        />
       </div>
 
       {allRequests.length === 0 ? (

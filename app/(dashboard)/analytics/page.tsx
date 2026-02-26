@@ -15,10 +15,14 @@ import {
   getVoteTrend,
   getVoteSummaryStats,
   getDecisionBreakdown,
+  getUserDashboardStats,
 } from "@/lib/db/queries/analytics"
+import type { DateRange } from "@/lib/db/queries/analytics"
 import { DashboardCharts } from "./DashboardCharts"
 import { AdvancedCharts } from "./AdvancedCharts"
 import { VoteAnalytics } from "./VoteAnalytics"
+import { DateRangeFilter } from "@/components/analytics/DateRangeFilter"
+import { MyStatsCard } from "@/components/analytics/MyStatsCard"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -28,9 +32,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ExportButton } from "@/components/shared/ExportButton"
 import "@/lib/auth/types"
 
-export default async function AnalyticsPage() {
+interface AnalyticsPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps) {
   const session = await requireAuth()
   const orgId = session.user.orgId
 
@@ -41,6 +50,12 @@ export default async function AnalyticsPage() {
       </div>
     )
   }
+
+  const params = await searchParams
+  const from = typeof params.from === 'string' ? params.from : undefined
+  const to = typeof params.to === 'string' ? params.to : undefined
+  const dateRange: DateRange | undefined =
+    from && to ? { from, to } : undefined
 
   const [
     summary,
@@ -58,32 +73,44 @@ export default async function AnalyticsPage() {
     voteTrend,
     voteSummaryStats,
     decisionBreakdown,
+    userStats,
   ] = await Promise.all([
-    getDashboardSummary(orgId),
-    getStatusDistribution(orgId),
-    getRequestVolumeByMonth(orgId),
-    getPriorityDistribution(orgId),
-    getAverageTimeToDecision(orgId),
-    getTopRequesters(orgId),
-    getEstimateAccuracySummary(orgId),
-    getStakeholderEngagement(orgId),
-    getTimeToDecisionTrend(orgId),
-    getConfidenceTrend(orgId),
-    getDecisionOutcomeDistribution(orgId),
-    getTopVotedRequests(orgId),
-    getVoteTrend(orgId),
-    getVoteSummaryStats(orgId),
-    getDecisionBreakdown(orgId),
+    getDashboardSummary(orgId, dateRange),
+    getStatusDistribution(orgId, dateRange),
+    getRequestVolumeByMonth(orgId, dateRange),
+    getPriorityDistribution(orgId, dateRange),
+    getAverageTimeToDecision(orgId, dateRange),
+    getTopRequesters(orgId, 5, dateRange),
+    getEstimateAccuracySummary(orgId, dateRange),
+    getStakeholderEngagement(orgId, 10, dateRange),
+    getTimeToDecisionTrend(orgId, dateRange),
+    getConfidenceTrend(orgId, dateRange),
+    getDecisionOutcomeDistribution(orgId, dateRange),
+    getTopVotedRequests(orgId, 10, dateRange),
+    getVoteTrend(orgId, dateRange),
+    getVoteSummaryStats(orgId, dateRange),
+    getDecisionBreakdown(orgId, dateRange),
+    getUserDashboardStats(orgId, session.user.id),
   ])
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Overview of feature request activity and metrics
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Overview of feature request activity and metrics
+          </p>
+        </div>
+        <ExportButton
+          exportUrl="/api/export/analytics"
+          filename="analytics.csv"
+        />
       </div>
+
+      <DateRangeFilter />
+
+      <MyStatsCard stats={userStats} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

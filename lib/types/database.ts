@@ -443,3 +443,33 @@ export interface EmailPreference {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export const ACTIVITY_ACTIONS = [
+  'STATUS_CHANGED',
+  'COMMENT_ADDED',
+  'DECISION_MADE',
+  'VOTE_CAST',
+  'ASSESSMENT_COMPLETED',
+  'EPIC_CREATED',
+  'STORY_CREATED',
+  'TAG_ADDED',
+  'TAG_REMOVED',
+  'REQUEST_CREATED',
+  'REQUEST_UPDATED',
+] as const;
+export type ActivityAction = typeof ACTIVITY_ACTIONS[number];
+
+export const ACTIVITY_ENTITY_TYPES = ['REQUEST', 'COMMENT', 'DECISION', 'VOTE', 'EPIC', 'STORY'] as const;
+export type ActivityEntityType = typeof ACTIVITY_ENTITY_TYPES[number];
+
+export interface ActivityLog {
+  id: string;
+  organizationId: string;
+  requestId: string | null;
+  userId: string | null;
+  action: ActivityAction;
+  entityType: ActivityEntityType | null;
+  entityId: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+}

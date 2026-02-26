@@ -7,6 +7,7 @@ import { getCommentsWithAuthorByRequestId } from "@/lib/db/queries/comments"
 import { findSimilarByKeywords } from "@/lib/db/queries/outcomes"
 import { getIntegrationByType } from "@/lib/db/queries/jira-sync"
 import { getVoteByUser, getVotesByRequest, getVoteSummary } from "@/lib/db/queries/votes"
+import { getActivityByRequest } from "@/lib/db/queries/activity-log"
 import { RequestDetail } from "./RequestDetail"
 import "@/lib/auth/types"
 
@@ -32,7 +33,7 @@ export default async function RequestDetailPage({
 
   const keywordCount = keywords.length
 
-  const [epic, decisions, comments, similarResults, jiraIntegration, linearIntegration, currentVote, allVotes, voteSummary] = await Promise.all([
+  const [epic, decisions, comments, similarResults, jiraIntegration, linearIntegration, currentVote, allVotes, voteSummary, activities] = await Promise.all([
     getEpicByRequestId(request.id),
     getDecisionsByRequestId(request.id),
     getCommentsWithAuthorByRequestId(request.id),
@@ -48,6 +49,7 @@ export default async function RequestDetailPage({
     getVoteByUser(request.id, session.user.id),
     getVotesByRequest(request.id),
     getVoteSummary(request.id),
+    getActivityByRequest(request.id),
   ])
   const stories = epic ? await getStoriesByEpicId(epic.id) : []
 
@@ -142,6 +144,14 @@ export default async function RequestDetailPage({
         voteCount: voteSummary.voteCount,
         averageScore: voteSummary.averageScore,
       }}
+      activities={activities.map((a) => ({
+        id: a.id,
+        action: a.action,
+        entityType: a.entityType ?? null,
+        metadata: a.metadata,
+        userName: a.userName ?? null,
+        createdAt: a.createdAt.toISOString(),
+      }))}
     />
   )
 }
