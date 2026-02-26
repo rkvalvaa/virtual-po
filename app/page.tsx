@@ -7,6 +7,7 @@ import {
   BarChart3,
   FileText,
   Shield,
+  ShieldAlert,
   Zap,
   Users,
   ArrowRight,
@@ -38,6 +39,14 @@ const features = [
       "Automatically generate well-structured epics with INVEST-compliant user stories and Given/When/Then acceptance criteria.",
     color: "text-violet-600 dark:text-violet-400",
     bg: "bg-violet-100 dark:bg-violet-950/60",
+  },
+  {
+    icon: ShieldAlert,
+    title: "Security Triage",
+    description:
+      "Automated ISO 27001-aligned security classification flags PII, auth, payments, and compliance concerns for specialist review.",
+    color: "text-red-600 dark:text-red-400",
+    bg: "bg-red-100 dark:bg-red-950/60",
   },
   {
     icon: Shield,
@@ -82,9 +91,16 @@ const steps = [
   },
   {
     number: 3,
+    title: "Secure",
+    description:
+      "A dedicated Security Agent scans for PII, auth, payments, and compliance concerns — tagging issues for security review per ISO 27001.",
+    gradient: "from-red-500 to-rose-600",
+  },
+  {
+    number: 4,
     title: "Deliver",
     description:
-      "Structured epics and user stories are generated automatically with acceptance criteria, ready for your development team.",
+      "Structured epics and user stories are generated automatically with acceptance criteria and security tags, ready for your development team.",
     gradient: "from-emerald-500 to-teal-600",
   },
 ] as const;
@@ -122,13 +138,28 @@ const agents = [
   },
   {
     badge: "Agent 3",
+    title: "Security Agent",
+    description:
+      "Scans feature requests for security implications and auto-tags work requiring specialist review.",
+    features: [
+      "ISO 27001-aligned triage",
+      "PII & auth detection",
+      "Compliance classification",
+    ],
+    accent: "border-t-red-500",
+    badgeClass:
+      "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
+    checkColor: "text-red-500",
+  },
+  {
+    badge: "Agent 4",
     title: "Output Agent",
     description:
       "Generates well-structured epics, user stories, and acceptance criteria for development teams.",
     features: [
       "INVEST-compliant stories",
       "Given/When/Then criteria",
-      "Technical notes included",
+      "Security tags included",
     ],
     accent: "border-t-emerald-500",
     badgeClass:
@@ -193,11 +224,11 @@ export default function Home() {
               How It Works
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              From idea to actionable backlog in three steps
+              From idea to security-reviewed, actionable backlog in four steps
             </p>
           </div>
 
-          <div className="mt-16 grid gap-8 md:grid-cols-3">
+          <div className="mt-16 grid gap-8 md:grid-cols-4">
             {steps.map((step, i) => (
               <div key={step.number} className="relative text-center">
                 <div
@@ -272,15 +303,15 @@ export default function Home() {
               AI Pipeline
             </Badge>
             <h2 className="text-3xl font-bold tracking-tight text-foreground">
-              Three Specialized AI Agents
+              Four Specialized AI Agents
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              A coordinated pipeline that processes requests from intake to
-              delivery
+              A coordinated pipeline that processes requests from intake through
+              security review to delivery
             </p>
           </div>
 
-          <div className="mt-16 grid gap-6 md:grid-cols-3">
+          <div className="mt-16 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {agents.map((agent, i) => (
               <Card
                 key={agent.title}

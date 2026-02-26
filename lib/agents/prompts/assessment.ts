@@ -78,4 +78,8 @@ When calling \`save_assessment\`, include in the \`assessmentData\` object:
 - Be thorough but concise. Provide enough rationale for reviewers to understand your reasoning without excessive prose.
 - Calibrate scores against the historical data and current backlog. A score of 80+ should be genuinely exceptional.
 - When intake data is thin on a dimension, lower your confidence and note what additional information would improve the assessment.
-- Do not inflate scores. Be honest and balanced in your evaluation.`;
+- Do not inflate scores. Be honest and balanced in your evaluation.
+
+## Security Review
+
+After this assessment completes, a **Security Agent** will automatically analyze the feature request for security implications (PII, authentication, authorization, payments, compliance, etc.) per ISO 27001 best practices. Requests with security concerns will be tagged with \`security\` and specific sub-tags (e.g., \`security:pii\`, \`security:auth\`) so they can be picked up by security engineers and DevOps teams during implementation. You do not need to perform this analysis — focus on the dimensions above.`;

@@ -21,7 +21,7 @@ export type Complexity = typeof COMPLEXITY_VALUES[number];
 export const USER_ROLES = ['STAKEHOLDER', 'REVIEWER', 'ADMIN'] as const;
 export type UserRole = typeof USER_ROLES[number];
 
-export const AGENT_TYPES = ['INTAKE', 'ASSESSMENT', 'OUTPUT', 'GENERAL'] as const;
+export const AGENT_TYPES = ['INTAKE', 'ASSESSMENT', 'OUTPUT', 'SECURITY', 'GENERAL'] as const;
 export type AgentType = typeof AGENT_TYPES[number];
 
 export const DECISION_TYPES = ['APPROVE', 'REJECT', 'DEFER', 'REQUEST_INFO'] as const;
@@ -329,6 +329,7 @@ export const WEBHOOK_EVENTS = [
   'request.updated',
   'request.status_changed',
   'assessment.completed',
+  'security_review.completed',
   'decision.made',
   'epic.created',
   'story.created',
@@ -403,6 +404,7 @@ export const NOTIFICATION_TYPES = [
   'COMMENT_ADDED',
   'VOTE_RECEIVED',
   'ASSESSMENT_COMPLETE',
+  'SECURITY_REVIEW_COMPLETE',
   'REVIEW_NEEDED',
 ] as const;
 export type NotificationType = typeof NOTIFICATION_TYPES[number];
@@ -444,6 +446,29 @@ export interface EmailPreference {
   updatedAt: Date;
 }
 
+export const SECURITY_SEVERITIES = ['critical', 'high', 'medium', 'low', 'none'] as const;
+export type SecuritySeverity = typeof SECURITY_SEVERITIES[number];
+
+export interface SecurityReviewCategory {
+  id: string;
+  severity: string;
+  reasoning: string;
+  recommendations: string[];
+}
+
+export interface SecurityReview {
+  id: string;
+  requestId: string;
+  organizationId: string;
+  categories: SecurityReviewCategory[];
+  overallSeverity: SecuritySeverity;
+  summary: string;
+  recommendations: string[];
+  requiresSecurityReview: boolean;
+  gaps: string[];
+  createdAt: Date;
+}
+
 export const ACTIVITY_ACTIONS = [
   'STATUS_CHANGED',
   'COMMENT_ADDED',
@@ -454,12 +479,13 @@ export const ACTIVITY_ACTIONS = [
   'STORY_CREATED',
   'TAG_ADDED',
   'TAG_REMOVED',
+  'SECURITY_REVIEW_COMPLETED',
   'REQUEST_CREATED',
   'REQUEST_UPDATED',
 ] as const;
 export type ActivityAction = typeof ACTIVITY_ACTIONS[number];
 
-export const ACTIVITY_ENTITY_TYPES = ['REQUEST', 'COMMENT', 'DECISION', 'VOTE', 'EPIC', 'STORY'] as const;
+export const ACTIVITY_ENTITY_TYPES = ['REQUEST', 'COMMENT', 'DECISION', 'VOTE', 'EPIC', 'STORY', 'SECURITY_REVIEW'] as const;
 export type ActivityEntityType = typeof ACTIVITY_ENTITY_TYPES[number];
 
 export interface ActivityLog {

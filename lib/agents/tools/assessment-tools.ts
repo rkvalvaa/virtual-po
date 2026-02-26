@@ -248,6 +248,7 @@ export function createAssessmentTools(requestId: string, orgId: string, userId: 
           priorityScore,
           complexity,
           status: 'UNDER_REVIEW',
+          securityReviewPending: true,
         };
       },
     }),
