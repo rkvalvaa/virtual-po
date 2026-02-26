@@ -14,6 +14,7 @@ import {
   TagIcon,
   PlusCircle,
   Pencil,
+  ShieldCheck,
 } from "lucide-react"
 import type { ActivityAction } from "@/lib/types/database"
 
@@ -67,6 +68,7 @@ const ACTION_CONFIG: Record<ActivityAction, { icon: typeof ArrowRightLeft; label
   TAG_REMOVED: { icon: TagIcon, label: "Tag removed", color: "text-red-400" },
   REQUEST_CREATED: { icon: PlusCircle, label: "Request created", color: "text-green-600" },
   REQUEST_UPDATED: { icon: Pencil, label: "Request updated", color: "text-yellow-500" },
+  SECURITY_REVIEW_COMPLETED: { icon: ShieldCheck, label: "Security review completed", color: "text-emerald-600" },
 }
 
 function getActionDescription(activity: ActivityEntry): string {

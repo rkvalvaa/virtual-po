@@ -482,6 +482,7 @@ export const ACTIVITY_ACTIONS = [
   'SECURITY_REVIEW_COMPLETED',
   'REQUEST_CREATED',
   'REQUEST_UPDATED',
+  'SECURITY_REVIEW_COMPLETED',
 ] as const;
 export type ActivityAction = typeof ACTIVITY_ACTIONS[number];
 
