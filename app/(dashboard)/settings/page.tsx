@@ -7,6 +7,7 @@ import { getIntegrationByType, getJiraSyncHistory } from "@/lib/db/queries/jira-
 import { getLinearSyncHistory } from "@/lib/db/queries/linear-sync"
 import { getGitHubSyncHistory } from "@/lib/db/queries/github-sync"
 import { getSlackNotifications } from "@/lib/db/queries/slack"
+import { getTeamsNotifications } from "@/lib/db/queries/teams"
 import { getApiKeysByOrg } from "@/lib/db/queries/api-keys"
 import { getWebhooksByOrg } from "@/lib/db/queries/webhooks"
 import { getAllTemplates, seedDefaultTemplates } from "@/lib/db/queries/templates"
@@ -30,7 +31,7 @@ export default async function SettingsPage() {
 
   await seedDefaultTemplates(orgId)
 
-  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, apiKeys, webhookSubscriptions, allTemplates, emailPrefs] = await Promise.all([
+  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, teamsIntegration, teamsNotifications, apiKeys, webhookSubscriptions, allTemplates, emailPrefs] = await Promise.all([
     getOrganizationById(orgId),
     getOrganizationUsers(orgId),
     getRepositoriesByOrgId(orgId),
@@ -44,6 +45,8 @@ export default async function SettingsPage() {
     getGitHubSyncHistory(orgId),
     getIntegrationByType(orgId, "SLACK"),
     getSlackNotifications(orgId),
+    getIntegrationByType(orgId, "TEAMS"),
+    getTeamsNotifications(orgId),
     getApiKeysByOrg(orgId),
     getWebhooksByOrg(orgId),
     getAllTemplates(orgId),
@@ -189,6 +192,23 @@ export default async function SettingsPage() {
       slackNotifications={slackNotifications.map((n) => ({
         id: n.id,
         channelName: n.channelName,
+        eventType: n.eventType,
+        isActive: n.isActive,
+      }))}
+      teamsIntegration={
+        teamsIntegration
+          ? {
+              id: teamsIntegration.id,
+              webhookUrl: (teamsIntegration.config.webhookUrl as string) ?? "",
+              isActive: teamsIntegration.isActive,
+              connectedAt: teamsIntegration.createdAt.toISOString(),
+            }
+          : null
+      }
+      teamsNotifications={teamsNotifications.map((n) => ({
+        id: n.id,
+        channelName: n.channelName,
+        webhookUrl: n.webhookUrl,
         eventType: n.eventType,
         isActive: n.isActive,
       }))}

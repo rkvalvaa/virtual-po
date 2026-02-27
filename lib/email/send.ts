@@ -23,6 +23,7 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   COMMENT_ADDED: 'New Comment',
   VOTE_RECEIVED: 'New Vote',
   ASSESSMENT_COMPLETE: 'Assessment Complete',
+  SECURITY_REVIEW_COMPLETE: 'Security Review Complete',
   REVIEW_NEEDED: 'Review Needed',
 };
 

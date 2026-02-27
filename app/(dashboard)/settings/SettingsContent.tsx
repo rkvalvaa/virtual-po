@@ -30,6 +30,8 @@ import { GitHubIssuesSettings } from "@/components/settings/GitHubIssuesSettings
 import type { GitHubIssuesSettingsProps } from "@/components/settings/GitHubIssuesSettings"
 import { SlackSettings } from "@/components/settings/SlackSettings"
 import type { SlackSettingsProps } from "@/components/settings/SlackSettings"
+import { TeamsSettings } from "@/components/settings/TeamsSettings"
+import type { TeamsSettingsProps } from "@/components/settings/TeamsSettings"
 import { ApiKeySettings } from "@/components/settings/ApiKeySettings"
 import type { ApiKeySettingsProps } from "@/components/settings/ApiKeySettings"
 import { WebhookSettings } from "@/components/settings/WebhookSettings"
@@ -94,6 +96,8 @@ interface SettingsContentProps {
   githubSyncHistory: GitHubIssuesSettingsProps["syncHistory"]
   slackIntegration: SlackSettingsProps["integration"]
   slackNotifications: SlackSettingsProps["notifications"]
+  teamsIntegration: TeamsSettingsProps["integration"]
+  teamsNotifications: TeamsSettingsProps["notifications"]
   apiKeys: ApiKeySettingsProps["apiKeys"]
   webhooks: WebhookSettingsProps["webhooks"]
   templates: TemplateSettingsProps["templates"]
@@ -131,6 +135,8 @@ export function SettingsContent({
   githubSyncHistory,
   slackIntegration,
   slackNotifications,
+  teamsIntegration,
+  teamsNotifications,
   apiKeys,
   webhooks,
   templates,
@@ -182,6 +188,7 @@ export function SettingsContent({
           <TabsTrigger value="linear">Linear</TabsTrigger>
           <TabsTrigger value="github-issues">GitHub Issues</TabsTrigger>
           <TabsTrigger value="slack">Slack</TabsTrigger>
+          <TabsTrigger value="teams">Teams</TabsTrigger>
           <TabsTrigger value="api-keys">API Keys</TabsTrigger>
           <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
@@ -417,6 +424,14 @@ export function SettingsContent({
           <SlackSettings
             integration={slackIntegration}
             notifications={slackNotifications}
+            userRole={userRole}
+          />
+        </TabsContent>
+
+        <TabsContent value="teams">
+          <TeamsSettings
+            integration={teamsIntegration}
+            notifications={teamsNotifications}
             userRole={userRole}
           />
         </TabsContent>
