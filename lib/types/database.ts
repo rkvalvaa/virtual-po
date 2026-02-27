@@ -436,6 +436,19 @@ export interface SlackNotification {
   createdAt: Date;
 }
 
+export const TEAMS_EVENT_TYPES = ['REQUEST_CREATED', 'STATUS_CHANGED', 'DECISION_MADE', 'ASSESSMENT_COMPLETE', 'REVIEW_NEEDED'] as const;
+export type TeamsEventType = typeof TEAMS_EVENT_TYPES[number];
+
+export interface TeamsNotification {
+  id: string;
+  organizationId: string;
+  channelName: string;
+  webhookUrl: string;
+  eventType: TeamsEventType;
+  isActive: boolean;
+  createdAt: Date;
+}
+
 export interface EmailPreference {
   id: string;
   userId: string;
