@@ -13,6 +13,10 @@ import {
   ArrowRight,
   CheckCircle2,
   Sparkles,
+  Ticket,
+  Layers,
+  Github,
+  MessagesSquare,
 } from "lucide-react";
 
 const features = [
@@ -168,6 +172,54 @@ const agents = [
   },
 ] as const;
 
+const integrations = [
+  {
+    icon: Ticket,
+    name: "Jira",
+    badge: "Two-Way Sync",
+    badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+    description: "Push epics and stories to Jira, import existing issues back.",
+    color: "text-blue-600 dark:text-blue-400",
+    bg: "bg-blue-100 dark:bg-blue-950/60",
+  },
+  {
+    icon: Layers,
+    name: "Linear",
+    badge: "Two-Way Sync",
+    badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+    description: "Sync projects and issues with Linear teams and workflows.",
+    color: "text-violet-600 dark:text-violet-400",
+    bg: "bg-violet-100 dark:bg-violet-950/60",
+  },
+  {
+    icon: Github,
+    name: "GitHub Issues",
+    badge: "Two-Way Sync",
+    badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+    description: "Create issues from epics and stories, link to projects.",
+    color: "text-gray-800 dark:text-gray-300",
+    bg: "bg-gray-100 dark:bg-gray-800/60",
+  },
+  {
+    icon: MessageSquare,
+    name: "Slack",
+    badge: "Notifications",
+    badgeClass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+    description: "Channel notifications, slash commands, and approval workflows.",
+    color: "text-emerald-600 dark:text-emerald-400",
+    bg: "bg-emerald-100 dark:bg-emerald-950/60",
+  },
+  {
+    icon: MessagesSquare,
+    name: "Microsoft Teams",
+    badge: "Notifications",
+    badgeClass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+    description: "Channel notifications and request submission from Teams.",
+    color: "text-sky-600 dark:text-sky-400",
+    bg: "bg-sky-100 dark:bg-sky-950/60",
+  },
+] as const;
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-background">
@@ -287,6 +339,54 @@ export default function Home() {
                 <CardContent>
                   <p className="text-sm leading-relaxed text-muted-foreground">
                     {feature.description}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Integrations */}
+      <section className="border-t bg-muted/50 py-24 sm:py-32">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="text-center">
+            <Badge className="mb-4 border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
+              Integrations
+            </Badge>
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">
+              Works With Your Tools
+            </h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              Seamlessly connect with the project management and communication
+              tools your team already uses
+            </p>
+          </div>
+
+          <div className="mt-16 grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+            {integrations.map((integration) => (
+              <Card
+                key={integration.name}
+                className="group text-center transition-shadow hover:shadow-md"
+              >
+                <CardContent className="pt-6">
+                  <div
+                    className={`mx-auto flex size-12 items-center justify-center rounded-lg ${integration.bg}`}
+                  >
+                    <integration.icon
+                      className={`size-6 ${integration.color}`}
+                    />
+                  </div>
+                  <h3 className="mt-4 font-semibold text-foreground">
+                    {integration.name}
+                  </h3>
+                  <span
+                    className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${integration.badgeClass}`}
+                  >
+                    {integration.badge}
+                  </span>
+                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                    {integration.description}
                   </p>
                 </CardContent>
               </Card>
