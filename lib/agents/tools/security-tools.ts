@@ -8,6 +8,7 @@ import {
   getHighestSeverity,
   type SecuritySeverity,
 } from '@/config/security-categories';
+import { logActivity } from '@/lib/db/queries/activity-log';
 
 export function createSecurityTools(requestId: string, orgId: string) {
   return {
@@ -108,6 +109,22 @@ export function createSecurityTools(requestId: string, orgId: string) {
           requiresSecurityReview,
           gaps,
         });
+
+        try {
+          await logActivity({
+            organizationId: orgId,
+            requestId,
+            userId: null,
+            action: 'SECURITY_REVIEW_COMPLETED',
+            entityType: 'SECURITY_REVIEW',
+            entityId: review.id,
+            metadata: {
+              overallSeverity: computedSeverity === 'none' ? overallSeverity : computedSeverity,
+              requiresSecurityReview,
+              categoriesMatched: validatedCategories.length,
+            },
+          });
+        } catch { /* activity logging is non-critical */ }
 
         return {
           saved: true,

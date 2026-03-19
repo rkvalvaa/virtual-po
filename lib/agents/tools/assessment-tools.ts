@@ -12,6 +12,7 @@ import { getGitHubToken, getRepoTree, getFileContent } from '@/lib/github/client
 import { getActiveRepositoriesForOrg } from '@/lib/db/queries/repositories';
 import { getActiveObjectives, getKeyResultsByObjectiveId } from '@/lib/db/queries/okrs';
 import { getCurrentQuarterCapacity } from '@/lib/db/queries/capacity';
+import { logActivity } from '@/lib/db/queries/activity-log';
 
 export function createAssessmentTools(requestId: string, orgId: string, userId: string) {
   return {
@@ -242,6 +243,27 @@ export function createAssessmentTools(requestId: string, orgId: string, userId: 
         });
 
         await updateFeatureRequestStatus(requestId, 'UNDER_REVIEW');
+
+        try {
+          await logActivity({
+            organizationId: orgId,
+            requestId,
+            userId,
+            action: 'ASSESSMENT_COMPLETED',
+            entityType: 'REQUEST',
+            entityId: requestId,
+            metadata: { businessScore, technicalScore, riskScore, priorityScore, complexity },
+          });
+          await logActivity({
+            organizationId: orgId,
+            requestId,
+            userId,
+            action: 'STATUS_CHANGED',
+            entityType: 'REQUEST',
+            entityId: requestId,
+            metadata: { from: 'PENDING_ASSESSMENT', to: 'UNDER_REVIEW' },
+          });
+        } catch { /* activity logging is non-critical */ }
 
         return {
           saved: true,
