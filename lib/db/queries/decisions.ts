@@ -28,3 +28,13 @@ export async function getDecisionsByRequestId(
   );
   return mapRows<Decision>(result.rows);
 }
+
+export async function getDecisionById(
+  decisionId: string
+): Promise<Decision | null> {
+  const result = await query(
+    `SELECT * FROM decisions WHERE id = $1`,
+    [decisionId]
+  );
+  return result.rows.length > 0 ? mapRow<Decision>(result.rows[0]) : null;
+}

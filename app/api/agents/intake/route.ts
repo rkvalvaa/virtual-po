@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const tools = createIntakeTools(requestId, session.user.orgId);
+  const tools = createIntakeTools(requestId, session.user.orgId, session.user.id);
 
   const result = streamText({
     model: anthropic('claude-sonnet-4-5-20250929'),

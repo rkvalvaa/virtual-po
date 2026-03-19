@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/auth/session";
 import { getFeatureRequestById } from "@/lib/db/queries/feature-requests";
 import { upsertVote, deleteVote, getVoteByUser } from "@/lib/db/queries/votes";
 import { notifyRequestOwner } from "@/lib/db/queries/notifications";
+import { logActivity } from "@/lib/db/queries/activity-log";
 import "@/lib/auth/types";
 
 export async function submitVote(
@@ -29,6 +30,17 @@ export async function submitVote(
   // Check if this is a new vote (not an update) before notifying
   const existingVote = await getVoteByUser(requestId, session.user.id);
   await upsertVote(requestId, session.user.id, voteValue, rationale);
+
+  try {
+    await logActivity({
+      organizationId: request.organizationId,
+      requestId,
+      userId: session.user.id,
+      action: 'VOTE_CAST',
+      entityType: 'VOTE',
+      metadata: { value: voteValue, rationale, isUpdate: !!existingVote },
+    });
+  } catch { /* activity logging is non-critical */ }
 
   if (!existingVote) {
     await notifyRequestOwner({
@@ -61,6 +73,18 @@ export async function removeVote(requestId: string) {
   }
 
   await deleteVote(requestId, session.user.id);
+
+  try {
+    await logActivity({
+      organizationId: request.organizationId,
+      requestId,
+      userId: session.user.id,
+      action: 'VOTE_CAST',
+      entityType: 'VOTE',
+      metadata: { removed: true },
+    });
+  } catch { /* activity logging is non-critical */ }
+
   revalidatePath(`/requests/${requestId}`);
   revalidatePath("/requests");
   revalidatePath("/review");

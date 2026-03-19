@@ -12,6 +12,7 @@ import {
 import { createDecision } from "@/lib/db/queries/decisions";
 import { createComment } from "@/lib/db/queries/comments";
 import { notifyRequestOwner, notifyUser, getOrgUserIds } from "@/lib/db/queries/notifications";
+import { logActivity } from "@/lib/db/queries/activity-log";
 import "@/lib/auth/types";
 
 const DECISION_STATUS_MAP: Record<DecisionType, RequestStatus> = {
@@ -48,8 +49,20 @@ export async function submitDecision(
     );
   }
 
-  await createDecision(requestId, session.user.id, decision, rationale);
+  const decisionRecord = await createDecision(requestId, session.user.id, decision, rationale);
   await updateFeatureRequestStatus(requestId, targetStatus);
+
+  try {
+    await logActivity({
+      organizationId: request.organizationId,
+      requestId,
+      userId: session.user.id,
+      action: 'DECISION_MADE',
+      entityType: 'DECISION',
+      entityId: decisionRecord.id,
+      metadata: { decision, rationale, targetStatus },
+    });
+  } catch { /* activity logging is non-critical */ }
 
   // Notify the request owner about the decision
   await notifyRequestOwner({
@@ -90,6 +103,18 @@ export async function addComment(
     content,
     parentId
   );
+
+  try {
+    await logActivity({
+      organizationId: request.organizationId,
+      requestId,
+      userId: session.user.id,
+      action: 'COMMENT_ADDED',
+      entityType: 'COMMENT',
+      entityId: comment.id,
+      metadata: { preview: content.slice(0, 100) },
+    });
+  } catch { /* activity logging is non-critical */ }
 
   // Notify the request owner about the new comment
   await notifyRequestOwner({
@@ -137,6 +162,18 @@ export async function transitionStatus(
   }
 
   await updateFeatureRequestStatus(requestId, targetStatus);
+
+  try {
+    await logActivity({
+      organizationId: request.organizationId,
+      requestId,
+      userId: session.user.id,
+      action: 'STATUS_CHANGED',
+      entityType: 'REQUEST',
+      entityId: requestId,
+      metadata: { from: request.status, to: targetStatus },
+    });
+  } catch { /* activity logging is non-critical */ }
 
   // Notify the request owner about the status change
   await notifyRequestOwner({

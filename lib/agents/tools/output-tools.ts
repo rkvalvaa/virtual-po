@@ -2,8 +2,9 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { getFeatureRequestById } from '@/lib/db/queries/feature-requests';
 import { createEpic, createUserStory } from '@/lib/db/queries/epics';
+import { logActivity } from '@/lib/db/queries/activity-log';
 
-export function createOutputTools(requestId: string) {
+export function createOutputTools(requestId: string, orgId: string) {
   return {
     get_intake_data: tool({
       description: 'Retrieve the intake data and summary for this feature request',
@@ -59,6 +60,19 @@ export function createOutputTools(requestId: string) {
           successCriteria,
           technicalNotes,
         });
+
+        try {
+          await logActivity({
+            organizationId: orgId,
+            requestId,
+            userId: null,
+            action: 'EPIC_CREATED',
+            entityType: 'EPIC',
+            entityId: epic.id,
+            metadata: { title },
+          });
+        } catch { /* activity logging is non-critical */ }
+
         return { saved: true, epicId: epic.id };
       },
     }),
@@ -88,6 +102,19 @@ export function createOutputTools(requestId: string) {
           priority,
           storyPoints,
         });
+
+        try {
+          await logActivity({
+            organizationId: orgId,
+            requestId,
+            userId: null,
+            action: 'STORY_CREATED',
+            entityType: 'STORY',
+            entityId: story.id,
+            metadata: { title, epicId },
+          });
+        } catch { /* activity logging is non-critical */ }
+
         return { saved: true, storyId: story.id, title };
       },
     }),

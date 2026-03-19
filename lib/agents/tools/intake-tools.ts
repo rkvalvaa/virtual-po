@@ -9,6 +9,7 @@ import {
 import { query } from '@/lib/db/pool';
 import { mapRows } from '@/lib/db/mappers';
 import type { FeatureRequest } from '@/lib/types/database';
+import { logActivity } from '@/lib/db/queries/activity-log';
 
 const INTAKE_SECTIONS = [
   'problem_statement',
@@ -20,7 +21,7 @@ const INTAKE_SECTIONS = [
   'constraints',
 ] as const;
 
-export function createIntakeTools(requestId: string, orgId: string) {
+export function createIntakeTools(requestId: string, orgId: string, userId: string) {
   return {
     save_intake_progress: tool({
       description:
@@ -108,6 +109,18 @@ export function createIntakeTools(requestId: string, orgId: string) {
           intakeComplete: true,
         });
         await updateFeatureRequestStatus(requestId, 'PENDING_ASSESSMENT');
+
+        try {
+          await logActivity({
+            organizationId: orgId,
+            requestId,
+            userId,
+            action: 'STATUS_CHANGED',
+            entityType: 'REQUEST',
+            entityId: requestId,
+            metadata: { from: 'INTAKE_IN_PROGRESS', to: 'PENDING_ASSESSMENT', intakeComplete: true },
+          });
+        } catch { /* activity logging is non-critical */ }
 
         return { completed: true, nextStatus: 'PENDING_ASSESSMENT' };
       },
