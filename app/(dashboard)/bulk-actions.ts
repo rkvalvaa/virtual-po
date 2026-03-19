@@ -9,6 +9,7 @@ import {
   updateFeatureRequestStatus,
   updateFeatureRequest,
 } from "@/lib/db/queries/feature-requests"
+import { logActivity } from "@/lib/db/queries/activity-log"
 import type { RequestStatus, UserRole } from "@/lib/types/database"
 import "@/lib/auth/types"
 
@@ -39,6 +40,17 @@ export async function bulkUpdateStatus(
       continue
     }
     await updateFeatureRequestStatus(id, targetStatus)
+    try {
+      await logActivity({
+        organizationId: request.organizationId,
+        requestId: id,
+        userId: session.user.id,
+        action: 'STATUS_CHANGED',
+        entityType: 'REQUEST',
+        entityId: id,
+        metadata: { from: request.status, to: targetStatus, bulk: true },
+      });
+    } catch { /* activity logging is non-critical */ }
     results.push({ id, success: true })
   }
 
@@ -62,6 +74,17 @@ export async function bulkAddTags(requestIds: string[], tags: string[]) {
     const existingTags = request.tags ?? []
     const merged = [...new Set([...existingTags, ...tags])]
     await updateFeatureRequest(id, { tags: merged })
+    try {
+      await logActivity({
+        organizationId: request.organizationId,
+        requestId: id,
+        userId: session.user.id,
+        action: 'TAG_ADDED',
+        entityType: 'REQUEST',
+        entityId: id,
+        metadata: { tags, bulk: true },
+      });
+    } catch { /* activity logging is non-critical */ }
   }
 
   revalidatePath("/requests")
@@ -83,6 +106,17 @@ export async function bulkRemoveTags(requestIds: string[], tags: string[]) {
     if (!request || request.organizationId !== session.user.orgId) continue
     const filtered = (request.tags ?? []).filter((t) => !tagSet.has(t))
     await updateFeatureRequest(id, { tags: filtered })
+    try {
+      await logActivity({
+        organizationId: request.organizationId,
+        requestId: id,
+        userId: session.user.id,
+        action: 'TAG_REMOVED',
+        entityType: 'REQUEST',
+        entityId: id,
+        metadata: { tags, bulk: true },
+      });
+    } catch { /* activity logging is non-critical */ }
   }
 
   revalidatePath("/requests")

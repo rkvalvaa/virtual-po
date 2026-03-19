@@ -65,7 +65,7 @@ export async function POST(
     );
   }
 
-  const tools = createOutputTools(requestId);
+  const tools = createOutputTools(requestId, session.user.orgId);
 
   const systemPrompt = `${OUTPUT_SYSTEM_PROMPT}
 
