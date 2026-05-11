@@ -19,7 +19,7 @@ import { JiraSyncButton } from "@/components/requests/JiraSyncButton"
 import { LinearSyncButton } from "@/components/requests/LinearSyncButton"
 import { VoteWidget } from "@/components/requests/VoteWidget"
 import { ActivityTimeline } from "@/components/requests/ActivityTimeline"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, FileDown } from "lucide-react"
 
 interface RequestDetailProps {
   request: {
@@ -162,13 +162,21 @@ export function RequestDetail({
 }: RequestDetailProps) {
   return (
     <div className="space-y-6">
-      {/* Back button */}
-      <Button variant="ghost" size="sm" asChild>
-        <Link href="/requests">
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          Back to Requests
-        </Link>
-      </Button>
+      {/* Back button + actions */}
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/requests">
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            Back to Requests
+          </Link>
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <a href={`/api/export/requests/${request.id}/pdf`} download>
+            <FileDown className="mr-1 h-4 w-4" />
+            Download PDF
+          </a>
+        </Button>
+      </div>
 
       {/* Header */}
       <div className="space-y-2">
