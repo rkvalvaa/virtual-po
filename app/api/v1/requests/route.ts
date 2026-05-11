@@ -81,10 +81,21 @@ export async function POST(req: Request) {
     return errorResponse('title is required', 'INVALID_PARAMETER', 400, rlHeaders);
   }
 
-  // Use a placeholder requester ID for API-created requests (no user session)
+  // API-created requests are attributed to the user who created the API key.
+  // Without a creator we cannot satisfy the requester_id FK, so refuse the
+  // write and surface the misconfiguration to the caller.
+  if (!auth.createdBy) {
+    return errorResponse(
+      'API key has no associated creator and cannot create requests. Re-issue the key.',
+      'API_KEY_MISCONFIGURED',
+      500,
+      rlHeaders
+    );
+  }
+
   const featureRequest = await createFeatureRequest(
     auth.orgId,
-    '00000000-0000-0000-0000-000000000000', // API requester placeholder
+    auth.createdBy,
     body.title.trim()
   );
 

@@ -3,9 +3,11 @@ import { GET, POST } from './route'
 import {
   hasDb,
   createTestOrg,
+  createTestUser,
   createTestApiKey,
   cleanupTestOrg,
   type TestOrg,
+  type TestUser,
 } from '@/test/db-helpers'
 
 function makeRequest(
@@ -29,17 +31,21 @@ function makeRequest(
 
 describe.skipIf(!hasDb())('/api/v1/requests', () => {
   let org: TestOrg
+  let creator: TestUser
   let readKey: string
   let writeKey: string
+  let orphanedWriteKey: string // write key with createdBy=null
 
   beforeAll(async () => {
     org = await createTestOrg('v1-requests-test')
-    readKey = (await createTestApiKey(org, ['read'])).key
-    writeKey = (await createTestApiKey(org, ['write'])).key
+    creator = await createTestUser(org, 'ADMIN')
+    readKey = (await createTestApiKey(org, ['read'], creator.id)).key
+    writeKey = (await createTestApiKey(org, ['write'], creator.id)).key
+    orphanedWriteKey = (await createTestApiKey(org, ['write'], null)).key
   })
 
   afterAll(async () => {
-    await cleanupTestOrg(org)
+    await cleanupTestOrg(org, [creator.id])
   })
 
   beforeEach(async () => {
@@ -77,8 +83,8 @@ describe.skipIf(!hasDb())('/api/v1/requests', () => {
   describe('GET — listing and filtering', () => {
     it('should return all requests in the org', async () => {
       const { createFeatureRequest } = await import('@/lib/db/queries/feature-requests')
-      await createFeatureRequest(org.id, '00000000-0000-0000-0000-000000000000', 'A')
-      await createFeatureRequest(org.id, '00000000-0000-0000-0000-000000000000', 'B')
+      await createFeatureRequest(org.id, creator.id, 'A')
+      await createFeatureRequest(org.id, creator.id, 'B')
 
       const res = await GET(makeRequest({ apiKey: readKey }))
       const body = await res.json()
@@ -89,8 +95,8 @@ describe.skipIf(!hasDb())('/api/v1/requests', () => {
     it('should filter by ?status=DRAFT', async () => {
       const { createFeatureRequest } = await import('@/lib/db/queries/feature-requests')
       const { query } = await import('@/lib/db/pool')
-      const a = await createFeatureRequest(org.id, '00000000-0000-0000-0000-000000000000', 'A')
-      await createFeatureRequest(org.id, '00000000-0000-0000-0000-000000000000', 'B')
+      const a = await createFeatureRequest(org.id, creator.id, 'A')
+      await createFeatureRequest(org.id, creator.id, 'B')
       await query(`UPDATE feature_requests SET status = 'UNDER_REVIEW' WHERE id = $1`, [a.id])
 
       const res = await GET(makeRequest({
@@ -199,7 +205,19 @@ describe.skipIf(!hasDb())('/api/v1/requests', () => {
       const body = await res.json()
       expect(body.data.title).toBe('Add dark mode') // trimmed
       expect(body.data.organizationId).toBe(org.id)
+      expect(body.data.requesterId).toBe(creator.id) // attributed to key creator
       expect(body.data.status).toBe('DRAFT')
+    })
+
+    it('should return 500 when the API key has no creator attribution', async () => {
+      const res = await POST(makeRequest({
+        method: 'POST',
+        apiKey: orphanedWriteKey,
+        body: { title: 'Cannot attribute' },
+      }))
+      expect(res.status).toBe(500)
+      const body = await res.json()
+      expect(body.code).toBe('API_KEY_MISCONFIGURED')
     })
 
     it('should store summary when provided', async () => {
