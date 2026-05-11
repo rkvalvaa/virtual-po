@@ -16,11 +16,13 @@ import {
   getVoteSummaryStats,
   getDecisionBreakdown,
   getUserDashboardStats,
+  getBacklogBurndown,
 } from "@/lib/db/queries/analytics"
 import type { DateRange } from "@/lib/db/queries/analytics"
 import { DashboardCharts } from "./DashboardCharts"
 import { AdvancedCharts } from "./AdvancedCharts"
 import { VoteAnalytics } from "./VoteAnalytics"
+import { BurndownChart } from "@/components/analytics/BurndownChart"
 import { DateRangeFilter } from "@/components/analytics/DateRangeFilter"
 import { MyStatsCard } from "@/components/analytics/MyStatsCard"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -74,6 +76,7 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
     voteSummaryStats,
     decisionBreakdown,
     userStats,
+    burndown,
   ] = await Promise.all([
     getDashboardSummary(orgId, dateRange),
     getStatusDistribution(orgId, dateRange),
@@ -91,6 +94,7 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
     getVoteSummaryStats(orgId, dateRange),
     getDecisionBreakdown(orgId, dateRange),
     getUserDashboardStats(orgId, session.user.id),
+    getBacklogBurndown(orgId, dateRange),
   ])
 
   return (
@@ -191,6 +195,8 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
         requestVolume={requestVolume}
         priorityDistribution={priorityDistribution}
       />
+
+      <BurndownChart data={burndown} />
 
       {topRequesters.length > 0 && (
         <Card>
