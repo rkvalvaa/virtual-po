@@ -154,6 +154,23 @@ After completing each major feature or significant change, review for:
 - **Component tests** for interactive UI components
 - **Name tests descriptively** — `it('should reject feature request when user lacks REVIEWER role')`
 
+### Dependency Maintenance
+
+Keeping dependencies current is part of the standard workflow, not a one-off chore.
+
+- **Run `npm audit` at the start of every session and before every PR.** If it reports vulnerabilities, address them before merging unrelated work — security patches do not wait for a "dependency PR".
+- **Prefer `npm audit fix` for non-breaking patches.** Commit the resulting `package-lock.json` change in its own commit (or as part of the current PR if the fix is trivial and related).
+- **`npm audit fix --force` is NEVER automatic.** It can pull in major-version bumps. Always read what it wants to do first, then handle breaking changes explicitly (see below).
+- **Run `npm outdated` periodically** (at least once per feature branch) to surface non-security version drift. Update minor/patch versions freely; queue majors for deliberate review.
+- **Handling breaking changes — required process:**
+  1. **Read the changelog / migration guide** for the affected package before upgrading. Do not blindly accept a major bump.
+  2. **Assess blast radius** — which files import from the package? Which features depend on it? Are there codemods available (e.g., Next.js, React)?
+  3. **Upgrade in an isolated branch** (`chore/upgrade-<package>-<version>`), one major bump per PR. Do not bundle a major upgrade with unrelated feature work.
+  4. **Verify locally** — `npm run lint`, `npm run build`, `npm run test`, and exercise the affected features in the dev server.
+  5. **Document the migration** in the PR description: what broke, what was changed, what to watch for in production.
+- **Critical/High severity vulnerabilities block merges.** Moderate/Low can be tracked as Linear issues if a fix requires a breaking change that needs scheduling.
+- **AI SDK and Next.js majors** are particularly sensitive — both have aggressive release cadences and the codebase depends on stable behavior (streaming, App Router, Server Actions). Always read the upgrade guide for these two before touching versions.
+
 ---
 
 ## Conventions
