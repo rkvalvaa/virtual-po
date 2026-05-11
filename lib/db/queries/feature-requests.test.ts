@@ -3,6 +3,7 @@ import {
   createFeatureRequest,
   getFeatureRequestById,
   listFeatureRequests,
+  findSimilarRequests,
 } from './feature-requests'
 import {
   hasDb,
@@ -153,6 +154,74 @@ describe.skipIf(!hasDb())('feature-requests queries', () => {
         expect(result.requests).toEqual([])
       } finally {
         await cleanupTestOrg(emptyOrg)
+      }
+    })
+  })
+
+  describe('findSimilarRequests', () => {
+    it('should return an empty array for empty or whitespace title', async () => {
+      expect(await findSimilarRequests(org.id, '')).toEqual([])
+      expect(await findSimilarRequests(org.id, '   ')).toEqual([])
+    })
+
+    it('should find requests with similar titles', async () => {
+      await createFeatureRequest(org.id, alice.id, 'Add dark mode toggle')
+      await createFeatureRequest(org.id, alice.id, 'Improve onboarding flow')
+
+      const results = await findSimilarRequests(org.id, 'Add dark mode')
+      expect(results.length).toBeGreaterThan(0)
+      expect(results[0].title).toBe('Add dark mode toggle')
+      expect(results[0].similarity).toBeGreaterThan(0.3)
+    })
+
+    it('should order results by similarity descending', async () => {
+      // Exact match should score highest; the partial-overlap match lower.
+      // Use a low threshold so the partial match clears it.
+      await createFeatureRequest(org.id, alice.id, 'Dark mode toggle')
+      await createFeatureRequest(org.id, alice.id, 'Dark mode preferences')
+
+      const results = await findSimilarRequests(org.id, 'Dark mode toggle', { threshold: 0.1 })
+      expect(results.length).toBeGreaterThanOrEqual(2)
+      expect(results[0].similarity).toBeGreaterThanOrEqual(results[1].similarity)
+      expect(results[0].title).toBe('Dark mode toggle')
+    })
+
+    it('should respect the threshold and exclude weak matches', async () => {
+      await createFeatureRequest(org.id, alice.id, 'Dark mode toggle')
+      await createFeatureRequest(org.id, alice.id, 'Refactor payment gateway')
+
+      const results = await findSimilarRequests(org.id, 'Dark mode toggle', { threshold: 0.5 })
+      expect(results.every((r) => r.similarity >= 0.5)).toBe(true)
+      expect(results.some((r) => r.title === 'Refactor payment gateway')).toBe(false)
+    })
+
+    it('should respect the limit option', async () => {
+      for (let i = 0; i < 6; i++) {
+        await createFeatureRequest(org.id, alice.id, `Dark mode variant ${i}`)
+      }
+      const results = await findSimilarRequests(org.id, 'Dark mode', { limit: 3 })
+      expect(results.length).toBeLessThanOrEqual(3)
+    })
+
+    it('should exclude a specific request id when excludeId is provided', async () => {
+      const a = await createFeatureRequest(org.id, alice.id, 'Dark mode toggle')
+      await createFeatureRequest(org.id, alice.id, 'Dark mode preferences')
+
+      const results = await findSimilarRequests(org.id, 'Dark mode toggle', { excludeId: a.id })
+      expect(results.some((r) => r.id === a.id)).toBe(false)
+    })
+
+    it('should isolate results to the given organization', async () => {
+      const otherOrg = await createTestOrg('fr-similar-isolation')
+      const otherUser = await createTestUser(otherOrg)
+      try {
+        await createFeatureRequest(otherOrg.id, otherUser.id, 'Dark mode in other org')
+        await createFeatureRequest(org.id, alice.id, 'Add dark mode')
+
+        const results = await findSimilarRequests(org.id, 'Dark mode')
+        expect(results.every((r) => r.title !== 'Dark mode in other org')).toBe(true)
+      } finally {
+        await cleanupTestOrg(otherOrg, [otherUser.id])
       }
     })
   })

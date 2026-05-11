@@ -97,6 +97,54 @@ export async function listFeatureRequests(
   };
 }
 
+export interface SimilarRequest {
+  id: string;
+  title: string;
+  status: RequestStatus;
+  similarity: number;
+  createdAt: Date;
+}
+
+/**
+ * Find feature requests whose titles are trigram-similar to the given title.
+ *
+ * Uses Postgres `pg_trgm` similarity scoring (0..1) backed by a GIN index on
+ * `feature_requests.title`. Returns rows sorted by descending similarity,
+ * scoped to the given organization, with the source request itself excluded
+ * if `excludeId` is provided.
+ */
+export async function findSimilarRequests(
+  orgId: string,
+  title: string,
+  options: { threshold?: number; limit?: number; excludeId?: string } = {}
+): Promise<SimilarRequest[]> {
+  const trimmed = title.trim();
+  if (trimmed.length === 0) return [];
+
+  const threshold = options.threshold ?? 0.3;
+  const limit = options.limit ?? 5;
+  const excludeId = options.excludeId ?? null;
+
+  const result = await query(
+    `SELECT id, title, status, created_at, similarity(title, $2) AS sim
+     FROM feature_requests
+     WHERE organization_id = $1
+       AND ($4::uuid IS NULL OR id <> $4)
+       AND similarity(title, $2) > $3
+     ORDER BY sim DESC, created_at DESC
+     LIMIT $5`,
+    [orgId, trimmed, threshold, excludeId, limit]
+  );
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    status: row.status,
+    similarity: parseFloat(row.sim),
+    createdAt: row.created_at,
+  }));
+}
+
 export async function updateFeatureRequest(
   id: string,
   data: Partial<FeatureRequest>
