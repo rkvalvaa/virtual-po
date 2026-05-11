@@ -17,7 +17,7 @@ export function hashApiKey(key: string): string {
 
 export async function validateApiKey(
   req: Request
-): Promise<{ orgId: string; scopes: string[] } | null> {
+): Promise<{ orgId: string; scopes: string[]; createdBy: string | null } | null> {
   const authHeader = req.headers.get('authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return null;
@@ -49,6 +49,7 @@ export async function validateApiKey(
   return {
     orgId: apiKey.organizationId,
     scopes: apiKey.scopes,
+    createdBy: apiKey.createdBy,
   };
 }
 
