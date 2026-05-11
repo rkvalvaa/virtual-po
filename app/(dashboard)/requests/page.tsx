@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card"
 import { BulkRequestTable } from "@/components/requests/BulkRequestTable"
 import { SearchFilterBar } from "@/components/requests/SearchFilterBar"
+import { Pagination } from "@/components/shared/Pagination"
 import { getVoteSummariesByRequestIds } from "@/lib/db/queries/votes"
 import { Plus } from "lucide-react"
 import { ExportButton } from "@/components/shared/ExportButton"
@@ -99,7 +100,10 @@ export default async function RequestsPage({
 
   const params = await searchParams
   const filters = parseSearchParams(params)
+  const PAGE_SIZE = 25
+  filters.limit = PAGE_SIZE
   const { requests, total } = await searchFeatureRequests(orgId, filters)
+  const currentOffset = filters.offset ?? 0
   const voteSummaries =
     requests.length > 0
       ? await getVoteSummariesByRequestIds(requests.map((r) => r.id))
@@ -167,27 +171,32 @@ export default async function RequestsPage({
           )}
         </Card>
       ) : (
-        <BulkRequestTable
-          requests={requests.map((r) => ({
-            id: r.id,
-            title: r.title,
-            status: r.status,
-            priorityScore: r.priorityScore,
-            qualityScore: r.qualityScore,
-            complexity: r.complexity,
-            tags: r.tags,
-            createdAt: r.createdAt.toISOString(),
-          }))}
-          voteSummaries={voteSummaries.map((v) => ({
-            requestId: v.requestId,
-            averageScore: v.averageScore,
-            voteCount: v.voteCount,
-          }))}
-          columns={["quality"]}
-          statusActions={[
-            { label: "Move to Backlog", targetStatus: "IN_BACKLOG" },
-          ]}
-        />
+        <>
+          <BulkRequestTable
+            requests={requests.map((r) => ({
+              id: r.id,
+              title: r.title,
+              status: r.status,
+              priorityScore: r.priorityScore,
+              qualityScore: r.qualityScore,
+              complexity: r.complexity,
+              tags: r.tags,
+              createdAt: r.createdAt.toISOString(),
+            }))}
+            voteSummaries={voteSummaries.map((v) => ({
+              requestId: v.requestId,
+              averageScore: v.averageScore,
+              voteCount: v.voteCount,
+            }))}
+            columns={["quality"]}
+            statusActions={[
+              { label: "Move to Backlog", targetStatus: "IN_BACKLOG" },
+            ]}
+          />
+          <Suspense>
+            <Pagination total={total} limit={PAGE_SIZE} offset={currentOffset} />
+          </Suspense>
+        </>
       )}
     </div>
   )
