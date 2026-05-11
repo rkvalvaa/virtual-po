@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth/session";
 import { signOut } from "@/auth";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { KeyboardShortcuts } from "@/components/layout/KeyboardShortcuts";
 import { getNotificationsByUser, getUnreadCount } from "@/lib/db/queries/notifications";
 import "@/lib/auth/types";
 
@@ -50,6 +51,7 @@ export default async function DashboardLayout({
       <main className="min-h-screen px-4 py-8 sm:px-6 md:ml-64 lg:px-8">
         {children}
       </main>
+      <KeyboardShortcuts />
     </div>
   );
 }

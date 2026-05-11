@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
+import { FOCUS_SEARCH_EVENT } from "@/components/layout/KeyboardShortcuts"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -48,6 +49,18 @@ export function SearchFilterBar() {
     searchParams.get("search") ?? ""
   )
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Listen for the global "focus-search" event dispatched by the Cmd/Ctrl+K
+  // keyboard shortcut so power users can jump to this input from anywhere.
+  useEffect(() => {
+    function onFocusSearch() {
+      searchInputRef.current?.focus()
+      searchInputRef.current?.select()
+    }
+    window.addEventListener(FOCUS_SEARCH_EVENT, onFocusSearch)
+    return () => window.removeEventListener(FOCUS_SEARCH_EVENT, onFocusSearch)
+  }, [])
 
   const selectedStatuses = searchParams.getAll("status") as RequestStatus[]
   const selectedComplexities = searchParams.getAll(
@@ -145,6 +158,7 @@ export function SearchFilterBar() {
         <div className="relative flex-1 min-w-[200px]">
           <Search className="text-muted-foreground absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2" />
           <Input
+            ref={searchInputRef}
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             placeholder="Search requests..."
