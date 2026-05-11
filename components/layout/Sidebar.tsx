@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
+import { ThemeToggle } from "@/components/layout/ThemeToggle"
 import {
   FileText,
   ClipboardCheck,
@@ -117,7 +118,10 @@ export function Sidebar({ user, signOutAction, notificationBell }: SidebarProps)
           <Link href="/" className="text-lg font-bold tracking-tight">
             VPO
           </Link>
-          {notificationBell}
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            {notificationBell}
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto py-4">
           <NavLinks pathname={pathname} />
@@ -152,6 +156,7 @@ export function Sidebar({ user, signOutAction, notificationBell }: SidebarProps)
           </SheetContent>
         </Sheet>
         <span className="ml-3 flex-1 text-lg font-bold tracking-tight">VPO</span>
+        <ThemeToggle />
         {notificationBell}
       </div>
     </>
