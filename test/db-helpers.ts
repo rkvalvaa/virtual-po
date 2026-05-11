@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import { query } from '@/lib/db/pool'
-import type { UserRole } from '@/lib/types/database'
+import { generateApiKey } from '@/lib/api/auth'
+import type { UserRole, ApiKeyScope } from '@/lib/types/database'
 
 /**
  * Skip a vitest describe/it block when DATABASE_URL is not configured.
@@ -78,6 +79,27 @@ export async function createTestRequest(
     [org.id, requester.id, title],
   )
   return { id: result.rows[0].id }
+}
+
+export interface TestApiKey {
+  /** Plaintext API key — pass this in the `Authorization: Bearer ...` header. */
+  key: string
+  id: string
+}
+
+export async function createTestApiKey(
+  org: TestOrg,
+  scopes: ApiKeyScope[] = ['read'],
+  createdBy: string | null = null,
+): Promise<TestApiKey> {
+  const { key, hash, prefix } = generateApiKey()
+  const result = await query<{ id: string }>(
+    `INSERT INTO api_keys (organization_id, name, key_hash, key_prefix, scopes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id`,
+    [org.id, `test-key-${randomSuffix()}`, hash, prefix, scopes, createdBy],
+  )
+  return { key, id: result.rows[0].id }
 }
 
 /**
