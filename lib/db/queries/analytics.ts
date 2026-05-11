@@ -135,18 +135,23 @@ export async function getPriorityDistribution(
     params.push(dateRange.from, dateRange.to);
   }
 
+  // ORDER BY wraps a subquery because Postgres does not allow referencing
+  // a SELECT alias inside a CASE expression in the outer ORDER BY (it looks
+  // up `band` as a column on feature_requests, not the alias).
   const result = await query(
-    `SELECT
-       CASE
-         WHEN priority_score >= 75 THEN 'High'
-         WHEN priority_score >= 50 THEN 'Medium'
-         WHEN priority_score IS NOT NULL THEN 'Low'
-         ELSE 'Unscored'
-       END AS band,
-       COUNT(*) AS count
-     FROM feature_requests
-     WHERE organization_id = $1${dateFilter}
-     GROUP BY band
+    `SELECT band, count FROM (
+       SELECT
+         CASE
+           WHEN priority_score >= 75 THEN 'High'
+           WHEN priority_score >= 50 THEN 'Medium'
+           WHEN priority_score IS NOT NULL THEN 'Low'
+           ELSE 'Unscored'
+         END AS band,
+         COUNT(*) AS count
+       FROM feature_requests
+       WHERE organization_id = $1${dateFilter}
+       GROUP BY 1
+     ) bands
      ORDER BY
        CASE band WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 WHEN 'Low' THEN 3 ELSE 4 END`,
     params
