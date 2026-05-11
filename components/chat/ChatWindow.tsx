@@ -84,6 +84,7 @@ export function ChatWindow({ requestId }: ChatWindowProps) {
           <Button
             type="submit"
             size="icon"
+            aria-label="Send"
             disabled={isStreaming || !input.trim()}
           >
             <Send />
