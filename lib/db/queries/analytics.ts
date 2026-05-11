@@ -608,6 +608,111 @@ export async function getDecisionOutcomeDistribution(
   }));
 }
 
+// --- Burndown ---
+
+export interface BurndownPoint {
+  day: string; // YYYY-MM-DD
+  openCount: number;
+  idealCount: number;
+}
+
+/**
+ * Daily burndown of the open backlog over a date range.
+ *
+ * "Open" = a feature request that has been created but has not yet
+ * transitioned to status COMPLETED (per the activity_log). Replies on
+ * STATUS_CHANGED events with metadata.to = 'COMPLETED' to determine when a
+ * request was completed.
+ *
+ * Returns one point per day in the range with both the actual open count
+ * and the ideal linear-burndown count (interpolated from the starting count
+ * down to zero across the range).
+ *
+ * When no date range is provided, the previous 30 days are used.
+ */
+export async function getBacklogBurndown(
+  orgId: string,
+  dateRange?: DateRange
+): Promise<BurndownPoint[]> {
+  const now = new Date();
+  const defaultFrom = new Date(now);
+  defaultFrom.setDate(defaultFrom.getDate() - 30);
+  const fromStr = dateRange?.from ?? defaultFrom.toISOString().slice(0, 10);
+  const toStr = dateRange?.to ?? now.toISOString().slice(0, 10);
+
+  // 1. Starting count = requests created before the range that had NOT
+  //    transitioned to COMPLETED before the range start.
+  const startResult = await query(
+    `SELECT COUNT(*)::int AS count
+     FROM feature_requests fr
+     WHERE fr.organization_id = $1
+       AND fr.created_at < $2::date
+       AND NOT EXISTS (
+         SELECT 1 FROM activity_log al
+         WHERE al.organization_id = $1
+           AND al.entity_id = fr.id
+           AND al.action = 'STATUS_CHANGED'
+           AND al.metadata->>'to' = 'COMPLETED'
+           AND al.created_at < $2::date
+       )`,
+    [orgId, fromStr]
+  );
+  const startingCount = startResult.rows[0]?.count ?? 0;
+
+  // 2. Per-day deltas within the range: +1 for each request created that
+  //    day, -1 for each STATUS_CHANGED→COMPLETED event that day.
+  const eventsResult = await query(
+    `SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day, SUM(delta)::int AS delta
+     FROM (
+       SELECT DATE(created_at) AS day, 1 AS delta
+       FROM feature_requests
+       WHERE organization_id = $1
+         AND created_at >= $2::date
+         AND created_at < ($3::date + INTERVAL '1 day')
+       UNION ALL
+       SELECT DATE(created_at) AS day, -1 AS delta
+       FROM activity_log
+       WHERE organization_id = $1
+         AND action = 'STATUS_CHANGED'
+         AND metadata->>'to' = 'COMPLETED'
+         AND created_at >= $2::date
+         AND created_at < ($3::date + INTERVAL '1 day')
+     ) events
+     GROUP BY day`,
+    [orgId, fromStr, toStr]
+  );
+  const deltasByDay = new Map<string, number>();
+  for (const row of eventsResult.rows) {
+    deltasByDay.set(row.day, row.delta);
+  }
+
+  // 3. Walk day-by-day in JS to compute running open count + ideal line.
+  const startDate = new Date(fromStr + 'T00:00:00Z');
+  const endDate = new Date(toStr + 'T00:00:00Z');
+  const totalDays = Math.max(
+    1,
+    Math.round((endDate.getTime() - startDate.getTime()) / 86400000) + 1
+  );
+
+  const points: BurndownPoint[] = [];
+  let openCount = startingCount;
+  for (let i = 0; i < totalDays; i++) {
+    const d = new Date(startDate);
+    d.setUTCDate(d.getUTCDate() + i);
+    const dayStr = d.toISOString().slice(0, 10);
+    openCount += deltasByDay.get(dayStr) ?? 0;
+    // Ideal: linear interpolation from startingCount down to 0.
+    const denom = Math.max(1, totalDays - 1);
+    const idealCount = Math.max(
+      0,
+      Math.round(startingCount * (1 - i / denom))
+    );
+    points.push({ day: dayStr, openCount, idealCount });
+  }
+
+  return points;
+}
+
 // --- Per-User Dashboard Stats ---
 
 export interface UserDashboardStats {
