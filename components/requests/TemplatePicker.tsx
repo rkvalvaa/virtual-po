@@ -1,7 +1,11 @@
 "use client"
 
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { SimilarRequestsPanel } from "@/components/requests/SimilarRequestsPanel"
 import { Bug, Sparkles, TrendingUp, Plug, FileText } from "lucide-react"
 
 interface Template {
@@ -16,8 +20,8 @@ interface Template {
 
 interface TemplatePickerProps {
   templates: Template[]
-  onSelect: (template: Template) => void
-  onSkip: () => void
+  onSelect: (template: Template, titleOverride?: string) => void
+  onSkip: (titleOverride?: string) => void
 }
 
 const ICON_MAP: Record<string, React.ReactNode> = {
@@ -36,14 +40,34 @@ const CATEGORY_COLORS: Record<string, string> = {
 }
 
 export function TemplatePicker({ templates, onSelect, onSkip }: TemplatePickerProps) {
+  const [title, setTitle] = useState("")
+  const trimmedTitle = title.trim()
+  const titleOverride = trimmedTitle.length > 0 ? trimmedTitle : undefined
+
   return (
-    <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
+    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center py-8">
       <div className="w-full max-w-3xl space-y-6">
         <div className="text-center">
           <h2 className="text-2xl font-bold tracking-tight">What type of request?</h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            Choose a template to get started, or skip to start from scratch.
+            Give it a working title — we&apos;ll check for similar existing requests.
           </p>
+        </div>
+
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="request-title" className="text-sm">
+              Working title (optional)
+            </Label>
+            <Input
+              id="request-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Add dark mode toggle"
+              autoComplete="off"
+            />
+          </div>
+          <SimilarRequestsPanel title={title} />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -51,7 +75,7 @@ export function TemplatePicker({ templates, onSelect, onSkip }: TemplatePickerPr
             <Card
               key={template.id}
               className={`cursor-pointer transition-shadow hover:shadow-md ${CATEGORY_COLORS[template.category] ?? ""}`}
-              onClick={() => onSelect(template)}
+              onClick={() => onSelect(template, titleOverride)}
             >
               <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-2">
                 <div className="text-muted-foreground">
@@ -71,7 +95,7 @@ export function TemplatePicker({ templates, onSelect, onSkip }: TemplatePickerPr
         </div>
 
         <div className="text-center">
-          <Button variant="ghost" onClick={onSkip}>
+          <Button variant="ghost" onClick={() => onSkip(titleOverride)}>
             Skip — start from scratch
           </Button>
         </div>

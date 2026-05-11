@@ -1,7 +1,11 @@
 "use server"
 
 import { requireAuth } from "@/lib/auth/session"
-import { createFeatureRequest } from "@/lib/db/queries/feature-requests"
+import {
+  createFeatureRequest,
+  findSimilarRequests,
+  type SimilarRequest,
+} from "@/lib/db/queries/feature-requests"
 import { createConversation } from "@/lib/db/queries/conversations"
 import { seedDefaultTemplates } from "@/lib/db/queries/templates"
 import { logActivity } from "@/lib/db/queries/activity-log"
@@ -43,6 +47,14 @@ export async function createNewRequest(params?: {
     conversationId: conversation.id,
     promptHints: params?.promptHints ?? [],
   }
+}
+
+export async function findSimilarToTitle(title: string): Promise<SimilarRequest[]> {
+  if (!title.trim()) return []
+  const session = await requireAuth()
+  const orgId = session.user.orgId
+  if (!orgId) return []
+  return findSimilarRequests(orgId, title)
 }
 
 export async function ensureDefaultTemplates() {

@@ -56,14 +56,16 @@ export function NewRequestContent({ templates }: NewRequestContentProps) {
     return (
       <TemplatePicker
         templates={templates}
-        onSelect={(template) =>
+        onSelect={(template, titleOverride) =>
           startRequest({
-            title: template.defaultTitle || template.name,
+            title: titleOverride || template.defaultTitle || template.name,
             templateId: template.id,
             promptHints: template.promptHints,
           })
         }
-        onSkip={() => startRequest()}
+        onSkip={(titleOverride) =>
+          startRequest(titleOverride ? { title: titleOverride } : undefined)
+        }
       />
     )
   }
