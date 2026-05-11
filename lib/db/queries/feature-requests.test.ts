@@ -175,12 +175,15 @@ describe.skipIf(!hasDb())('feature-requests queries', () => {
     })
 
     it('should order results by similarity descending', async () => {
+      // Exact match should score highest; the partial-overlap match lower.
+      // Use a low threshold so the partial match clears it.
       await createFeatureRequest(org.id, alice.id, 'Dark mode toggle')
-      await createFeatureRequest(org.id, alice.id, 'Dark theme support for the dashboard')
+      await createFeatureRequest(org.id, alice.id, 'Dark mode preferences')
 
-      const results = await findSimilarRequests(org.id, 'Dark mode toggle')
+      const results = await findSimilarRequests(org.id, 'Dark mode toggle', { threshold: 0.1 })
       expect(results.length).toBeGreaterThanOrEqual(2)
       expect(results[0].similarity).toBeGreaterThanOrEqual(results[1].similarity)
+      expect(results[0].title).toBe('Dark mode toggle')
     })
 
     it('should respect the threshold and exclude weak matches', async () => {
