@@ -1,18 +1,26 @@
 "use client"
 
 import { useState } from "react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import { CommentInput } from "@/components/review/CommentInput"
 
+export interface CommentNode {
+  id: string
+  content: string
+  authorName: string
+  parentId: string | null
+  createdAt: string
+}
+
 interface CommentThreadProps {
-  comments: Array<{
-    id: string
-    content: string
-    authorName: string
-    parentId: string | null
-    createdAt: string
-  }>
+  comments: CommentNode[]
   requestId: string
 }
+
+// Cap visual indentation at this depth — deeper replies still thread under
+// their parent, they just stop indenting further so the layout doesn't run
+// off-screen on long chains.
+const MAX_INDENT_DEPTH = 3
 
 function formatRelativeTime(dateStr: string): string {
   const now = Date.now()
@@ -30,38 +38,89 @@ function formatRelativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString()
 }
 
-function Comment({
+function countDescendants(
+  commentId: string,
+  childrenByParent: Map<string, CommentNode[]>,
+): number {
+  const direct = childrenByParent.get(commentId) ?? []
+  let total = direct.length
+  for (const child of direct) {
+    total += countDescendants(child.id, childrenByParent)
+  }
+  return total
+}
+
+function CommentItem({
   comment,
-  replies,
+  depth,
+  childrenByParent,
   requestId,
 }: {
-  comment: CommentThreadProps["comments"][number]
-  replies: CommentThreadProps["comments"]
+  comment: CommentNode
+  depth: number
+  childrenByParent: Map<string, CommentNode[]>
   requestId: string
 }) {
   const [showReply, setShowReply] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+
+  const replies = childrenByParent.get(comment.id) ?? []
+  const totalDescendants = countDescendants(comment.id, childrenByParent)
+  const hasReplies = replies.length > 0
+  const showIndent = depth < MAX_INDENT_DEPTH
 
   return (
     <div className="space-y-3">
-      <div className="space-y-1">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="font-semibold">{comment.authorName}</span>
-          <span className="text-muted-foreground text-xs">
-            {formatRelativeTime(comment.createdAt)}
-          </span>
+      <div className="flex gap-2">
+        {hasReplies && (
+          <button
+            type="button"
+            onClick={() => setCollapsed((v) => !v)}
+            className="text-muted-foreground hover:text-foreground mt-0.5 size-4 shrink-0"
+            aria-label={collapsed ? "Expand thread" : "Collapse thread"}
+            aria-expanded={!collapsed}
+          >
+            {collapsed ? (
+              <ChevronRight className="size-4" />
+            ) : (
+              <ChevronDown className="size-4" />
+            )}
+          </button>
+        )}
+        {!hasReplies && <div className="size-4 shrink-0" aria-hidden="true" />}
+
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-semibold">{comment.authorName}</span>
+            <span className="text-muted-foreground text-xs">
+              {formatRelativeTime(comment.createdAt)}
+            </span>
+          </div>
+          <p className="whitespace-pre-wrap text-sm">{comment.content}</p>
+          <div className="flex items-center gap-3 text-xs">
+            <button
+              type="button"
+              onClick={() => setShowReply((v) => !v)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              {showReply ? "Cancel" : "Reply"}
+            </button>
+            {hasReplies && collapsed && (
+              <button
+                type="button"
+                onClick={() => setCollapsed(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Show {totalDescendants}{" "}
+                {totalDescendants === 1 ? "reply" : "replies"}
+              </button>
+            )}
+          </div>
         </div>
-        <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
-        <button
-          type="button"
-          onClick={() => setShowReply(!showReply)}
-          className="text-muted-foreground hover:text-foreground text-xs"
-        >
-          {showReply ? "Cancel" : "Reply"}
-        </button>
       </div>
 
       {showReply && (
-        <div className="ml-4">
+        <div className={showIndent ? "ml-6" : "ml-0"}>
           <CommentInput
             requestId={requestId}
             parentId={comment.id}
@@ -72,18 +131,22 @@ function Comment({
         </div>
       )}
 
-      {replies.length > 0 && (
-        <div className="border-muted ml-4 space-y-3 border-l-2 pl-4">
-          {replies.map((reply) => (
-            <div key={reply.id} className="space-y-1">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-semibold">{reply.authorName}</span>
-                <span className="text-muted-foreground text-xs">
-                  {formatRelativeTime(reply.createdAt)}
-                </span>
-              </div>
-              <p className="text-sm whitespace-pre-wrap">{reply.content}</p>
-            </div>
+      {hasReplies && !collapsed && (
+        <div
+          className={
+            showIndent
+              ? "border-muted ml-4 space-y-4 border-l-2 pl-4"
+              : "space-y-4 pl-4"
+          }
+        >
+          {replies.map((child) => (
+            <CommentItem
+              key={child.id}
+              comment={child}
+              depth={depth + 1}
+              childrenByParent={childrenByParent}
+              requestId={requestId}
+            />
           ))}
         </div>
       )}
@@ -93,13 +156,13 @@ function Comment({
 
 export function CommentThread({ comments, requestId }: CommentThreadProps) {
   const topLevel = comments.filter((c) => c.parentId === null)
-  const repliesByParent = new Map<string, CommentThreadProps["comments"]>()
+  const childrenByParent = new Map<string, CommentNode[]>()
 
   for (const comment of comments) {
     if (comment.parentId) {
-      const existing = repliesByParent.get(comment.parentId) ?? []
+      const existing = childrenByParent.get(comment.parentId) ?? []
       existing.push(comment)
-      repliesByParent.set(comment.parentId, existing)
+      childrenByParent.set(comment.parentId, existing)
     }
   }
 
@@ -110,10 +173,11 @@ export function CommentThread({ comments, requestId }: CommentThreadProps) {
       {topLevel.length > 0 ? (
         <div className="space-y-6">
           {topLevel.map((comment) => (
-            <Comment
+            <CommentItem
               key={comment.id}
               comment={comment}
-              replies={repliesByParent.get(comment.id) ?? []}
+              depth={0}
+              childrenByParent={childrenByParent}
               requestId={requestId}
             />
           ))}
