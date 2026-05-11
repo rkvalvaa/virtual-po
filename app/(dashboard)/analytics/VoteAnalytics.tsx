@@ -3,8 +3,6 @@
 import Link from "next/link"
 import { Star } from "lucide-react"
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,

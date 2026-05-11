@@ -1,8 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifySlackRequest } from '@/lib/slack/verify';
 
 export async function POST(req: NextRequest) {
-  const formData = await req.formData();
-  const payloadStr = formData.get('payload') as string;
+  // Slack sends interaction payloads as form-encoded bodies whose `payload`
+  // field is a JSON string. We must verify the signature against the raw
+  // body bytes, NOT against re-stringified form data.
+  const rawBody = await req.text();
+
+  const verification = verifySlackRequest(
+    rawBody,
+    req.headers,
+    process.env.SLACK_SIGNING_SECRET,
+  );
+  if (!verification.ok) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const formData = new URLSearchParams(rawBody);
+  const payloadStr = formData.get('payload');
 
   if (!payloadStr) {
     return NextResponse.json({ error: 'No payload' }, { status: 400 });

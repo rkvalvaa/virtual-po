@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifySlackRequest } from '@/lib/slack/verify';
 
 export async function POST(req: NextRequest) {
-  const formData = await req.formData();
-  const text = ((formData.get('text') as string) ?? '').trim();
+  // Read the raw body once for signature verification, then parse it as
+  // form-encoded since Slack sends slash commands that way.
+  const rawBody = await req.text();
+
+  const verification = verifySlackRequest(
+    rawBody,
+    req.headers,
+    process.env.SLACK_SIGNING_SECRET,
+  );
+  if (!verification.ok) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const formData = new URLSearchParams(rawBody);
+  const text = (formData.get('text') ?? '').trim();
 
   // Parse subcommand
   const parts = text.split(/\s+/);
@@ -29,9 +43,9 @@ export async function POST(req: NextRequest) {
     response_type: 'ephemeral',
     text: [
       '*Virtual Product Owner Commands:*',
-      '\u2022 `/vpo submit <title>` \u2014 Submit a new feature request',
-      '\u2022 `/vpo status <id>` \u2014 Check request status',
-      '\u2022 `/vpo help` \u2014 Show this help message',
+      '• `/vpo submit <title>` — Submit a new feature request',
+      '• `/vpo status <id>` — Check request status',
+      '• `/vpo help` — Show this help message',
     ].join('\n'),
   });
 }
