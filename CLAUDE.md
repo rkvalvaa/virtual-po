@@ -28,7 +28,7 @@ npm run test     # Run tests (once configured)
 - **Migrations**: node-pg-migrate for database schema migrations
 - **AI**: Vercel AI SDK v6 (`ai` + `@ai-sdk/anthropic` + `@ai-sdk/react`) for conversational agents and streaming chat. See `reference/AGENT_SDK_RESEARCH.md` for full rationale. Claude Agent SDK reserved for Phase 2 autonomous tasks only
 - **Auth**: NextAuth.js with OAuth providers
-- **State**: Zustand (client), React Query (server state)
+- **State**: Server Components and Server Actions own server state; client state is local React state. No global store or query cache (Zustand and React Query were removed unused in PR #55)
 - **Validation**: Zod
 - **Fonts**: Geist Sans + Geist Mono via `next/font/google`
 - **Package manager**: npm

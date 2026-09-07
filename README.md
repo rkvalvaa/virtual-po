@@ -60,7 +60,7 @@ Requests flow through a structured pipeline: `DRAFT` â†’ `INTAKE_IN_PROGRESS` â†
 | Migrations | node-pg-migrate |
 | AI | Vercel AI SDK v6 (`ai` + `@ai-sdk/anthropic`) |
 | Auth | NextAuth.js v5 with GitHub/Google OAuth |
-| State | Zustand (client) + React Query (server state) |
+| State | Server Components + Server Actions; local React state on the client |
 | Validation | Zod |
 | Testing | Vitest + Testing Library |
 | Linting | ESLint 9 (flat config) |
