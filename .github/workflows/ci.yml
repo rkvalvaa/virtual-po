@@ -106,6 +106,10 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vpo_test
       AUTH_SECRET: ci-test-secret-minimum-32-characters-long
       ANTHROPIC_API_KEY: sk-ant-test-placeholder
+      # The Playwright config starts e2e/mock-anthropic.mjs as a second
+      # webServer, so agent calls never leave the runner.
+      MOCK_ANTHROPIC_PORT: 4010
+      ANTHROPIC_BASE_URL: http://localhost:4010/v1
       E2E_AUTH_TOKEN: e2e-ci-token
       AUTH_TRUST_HOST: true
       AUTH_URL: http://localhost:3000
