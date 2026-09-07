@@ -109,7 +109,7 @@ Copy `.env.example` to `.env.local` and configure:
 
 **Optional integrations** (configured via Settings UI):
 - Jira, Linear, GitHub Issues — credentials entered through the settings page
-- Slack — requires `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET`
+- Slack — requires `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET`. The Slack app needs the `users:read.email` scope so approve/reject buttons can map the clicking Slack user to a VPO account.
 
 See [.env.example](.env.example) for the full list of variables.
 

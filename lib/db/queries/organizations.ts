@@ -112,6 +112,20 @@ export async function getOrganizationUsers(
   });
 }
 
+export async function getOrganizationRole(
+  orgId: string,
+  userId: string
+): Promise<UserRole | null> {
+  const result = await query(
+    `SELECT role FROM organization_users
+     WHERE organization_id = $1 AND user_id = $2
+     LIMIT 1`,
+    [orgId, userId]
+  );
+  if (result.rows.length === 0) return null;
+  return result.rows[0].role as UserRole;
+}
+
 export async function getUserOrganizations(userId: string): Promise<Organization[]> {
   const result = await query(
     `SELECT o.*
