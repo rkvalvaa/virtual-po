@@ -15,6 +15,10 @@ vi.mock('@/auth', () => ({
   auth: () => Promise.resolve(fakeSession),
 }))
 
+function makeRequest(query = ''): Request {
+  return new Request(`http://localhost/api/export/analytics${query}`)
+}
+
 describe.skipIf(!hasDb())('/api/export/analytics', () => {
   let org: TestOrg
   let user: TestUser
@@ -38,18 +42,23 @@ describe.skipIf(!hasDb())('/api/export/analytics', () => {
 
   it('should return 401 when there is no session', async () => {
     fakeSession = null
-    const res = await GET()
+    const res = await GET(makeRequest())
     expect(res.status).toBe(401)
   })
 
   it('should return 400 when the session has no orgId', async () => {
     fakeSession = { user: { id: user.id } }
-    const res = await GET()
+    const res = await GET(makeRequest())
+    expect(res.status).toBe(400)
+  })
+
+  it('should return 400 for an unknown format', async () => {
+    const res = await GET(makeRequest('?format=xml'))
     expect(res.status).toBe(400)
   })
 
   it('should return text/csv with an analytics-prefixed filename', async () => {
-    const res = await GET()
+    const res = await GET(makeRequest())
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe('text/csv; charset=utf-8')
     expect(res.headers.get('Content-Disposition')).toMatch(
@@ -58,7 +67,7 @@ describe.skipIf(!hasDb())('/api/export/analytics', () => {
   })
 
   it('should include Summary, Status Distribution, and Priority Distribution sections', async () => {
-    const res = await GET()
+    const res = await GET(makeRequest())
     const csv = await res.text()
     expect(csv).toContain('Summary')
     expect(csv).toContain('Status Distribution')
@@ -66,7 +75,7 @@ describe.skipIf(!hasDb())('/api/export/analytics', () => {
   })
 
   it('should include the standard Summary metric labels', async () => {
-    const res = await GET()
+    const res = await GET(makeRequest())
     const csv = await res.text()
     expect(csv).toContain('Total Requests')
     expect(csv).toContain('Pending Review')
@@ -77,7 +86,7 @@ describe.skipIf(!hasDb())('/api/export/analytics', () => {
   })
 
   it('should separate sections with a blank CRLF', async () => {
-    const res = await GET()
+    const res = await GET(makeRequest())
     const csv = await res.text()
     // Each section is joined with '\r\n\r\n'.
     expect(csv).toContain('\r\n\r\n')
@@ -89,8 +98,26 @@ describe.skipIf(!hasDb())('/api/export/analytics', () => {
     await createFeatureRequest(org.id, user.id, 'two')
     await createFeatureRequest(org.id, user.id, 'three')
 
-    const res = await GET()
+    const res = await GET(makeRequest())
     const csv = await res.text()
     expect(csv).toMatch(/Total Requests,3/)
+  })
+
+  it('should return a PDF with the right Content-Type and Content-Disposition', async () => {
+    const res = await GET(makeRequest('?format=pdf'))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('application/pdf')
+    expect(res.headers.get('Content-Disposition')).toMatch(
+      /attachment; filename="analytics-\d{4}-\d{2}-\d{2}\.pdf"/,
+    )
+  })
+
+  it('should return PDF body bytes starting with the PDF magic header', async () => {
+    const res = await GET(makeRequest('?format=pdf'))
+    const buffer = await res.arrayBuffer()
+    const bytes = new Uint8Array(buffer)
+    const header = new TextDecoder().decode(bytes.slice(0, 5))
+    expect(header).toBe('%PDF-')
+    expect(bytes.length).toBeGreaterThan(500)
   })
 })

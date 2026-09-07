@@ -110,10 +110,18 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
             Overview of feature request activity and metrics
           </p>
         </div>
-        <ExportButton
-          exportUrl="/api/export/analytics"
-          filename="analytics.csv"
-        />
+        <div className="flex gap-2">
+          <ExportButton
+            exportUrl="/api/export/analytics"
+            filename="analytics.csv"
+            label="Export CSV"
+          />
+          <ExportButton
+            exportUrl="/api/export/analytics?format=pdf"
+            filename="analytics.pdf"
+            label="Export PDF"
+          />
+        </div>
       </div>
 
       <DateRangeFilter />

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateRequestPDF } from './pdf'
+import { generateRequestPDF, generateAnalyticsPDF, type AnalyticsPDFInput } from './pdf'
 import type { FeatureRequest } from '@/lib/types/database'
 
 function makeRequest(
@@ -80,5 +80,75 @@ describe('generateRequestPDF', () => {
     const bigBytes = generateRequestPDF(big)
     const smallBytes = generateRequestPDF(small)
     expect(bigBytes.length).toBeGreaterThan(smallBytes.length)
+  })
+})
+
+function makeAnalyticsInput(overrides: Partial<AnalyticsPDFInput> = {}): AnalyticsPDFInput {
+  return {
+    orgName: 'Acme Inc',
+    dateRange: { from: '2026-01-01', to: '2026-02-01' },
+    summary: {
+      totalRequests: 10,
+      pendingReview: 3,
+      inBacklog: 4,
+      completed: 3,
+      avgQualityScore: 72,
+    },
+    statusDistribution: [
+      { status: 'UNDER_REVIEW', count: 3 },
+      { status: 'COMPLETED', count: 3 },
+    ],
+    priorityDistribution: [
+      { band: 'High', count: 2 },
+      { band: 'Medium', count: 5 },
+    ],
+    timeToDecision: { avgDays: 4.2 },
+    topRequesters: [{ userId: 'u1', name: 'Jane Doe', count: 5 }],
+    decisionBreakdown: [{ decision: 'APPROVED', count: 6 }],
+    voteSummary: {
+      totalVotes: 20,
+      uniqueVoters: 8,
+      avgScore: 3.5,
+      votedRequestsCount: 5,
+      totalRequestsCount: 10,
+    },
+    ...overrides,
+  }
+}
+
+describe('generateAnalyticsPDF', () => {
+  it('should produce a non-empty Uint8Array starting with the PDF header', () => {
+    const bytes = generateAnalyticsPDF(makeAnalyticsInput())
+    expect(bytes).toBeInstanceOf(Uint8Array)
+    expect(bytes.length).toBeGreaterThan(500)
+    expect(pdfHeader(bytes).startsWith('%PDF-')).toBe(true)
+  })
+
+  it('should handle empty datasets without throwing', () => {
+    const bytes = generateAnalyticsPDF(
+      makeAnalyticsInput({
+        dateRange: undefined,
+        statusDistribution: [],
+        priorityDistribution: [],
+        topRequesters: [],
+        decisionBreakdown: [],
+        summary: {
+          totalRequests: 0,
+          pendingReview: 0,
+          inBacklog: 0,
+          completed: 0,
+          avgQualityScore: null,
+        },
+        timeToDecision: { avgDays: null },
+        voteSummary: {
+          totalVotes: 0,
+          uniqueVoters: 0,
+          avgScore: 0,
+          votedRequestsCount: 0,
+          totalRequestsCount: 0,
+        },
+      }),
+    )
+    expect(pdfHeader(bytes).startsWith('%PDF-')).toBe(true)
   })
 })
