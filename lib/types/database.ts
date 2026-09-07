@@ -241,6 +241,9 @@ export interface Attachment {
   mimeType: string;
   size: number;
   url: string;
+  /** Vercel Blob pathname. Null only for rows predating blob storage. */
+  storageKey: string | null;
+  uploadedBy: string | null;
   createdAt: Date;
 }
 

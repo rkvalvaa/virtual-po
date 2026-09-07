@@ -9,6 +9,7 @@ import { getIntegrationByType } from "@/lib/db/queries/jira-sync"
 import { getVoteByUser, getVotesByRequest, getVoteSummary } from "@/lib/db/queries/votes"
 import { getActivityByRequest } from "@/lib/db/queries/activity-log"
 import { listCustomFieldDefinitions } from "@/lib/db/queries/custom-fields"
+import { listAttachmentsByRequest } from "@/lib/db/queries/attachments"
 import { canAccess } from "@/lib/auth/rbac"
 import {
   getActiveWorkflow,
@@ -50,7 +51,7 @@ export default async function RequestDetailPage({
 
   const keywordCount = keywords.length
 
-  const [epic, decisions, comments, similarResults, jiraIntegration, linearIntegration, currentVote, allVotes, voteSummary, activities, customFieldDefinitions, approvalWorkflow, approvals] = await Promise.all([
+  const [epic, decisions, comments, similarResults, jiraIntegration, linearIntegration, currentVote, allVotes, voteSummary, activities, customFieldDefinitions, attachments, approvalWorkflow, approvals] = await Promise.all([
     getEpicByRequestId(request.id),
     getDecisionsByRequestId(request.id),
     getCommentsWithAuthorByRequestId(request.id),
@@ -70,6 +71,7 @@ export default async function RequestDetailPage({
     session.user.orgId
       ? listCustomFieldDefinitions(session.user.orgId)
       : Promise.resolve([]),
+    listAttachmentsByRequest(request.id),
     session.user.orgId
       ? getActiveWorkflow(session.user.orgId)
       : Promise.resolve(null),
@@ -154,6 +156,17 @@ export default async function RequestDetailPage({
         request.requesterId === session.user.id ||
         canAccess(session.user.role as UserRole, "REVIEWER")
       }
+      attachments={attachments.map((a) => ({
+        id: a.id,
+        filename: a.filename,
+        mimeType: a.mimeType,
+        size: a.size,
+        uploaderName: a.uploaderName,
+        createdAt: a.createdAt.toISOString(),
+        canDelete:
+          a.uploadedBy === session.user.id ||
+          canAccess(session.user.role as UserRole, "ADMIN"),
+      }))}
       epic={
         epic
           ? {
