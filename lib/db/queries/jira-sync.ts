@@ -39,6 +39,26 @@ export async function upsertIntegration(
   return mapRow<Integration>(result.rows[0]);
 }
 
+/**
+ * Look up the active Slack integration for a workspace by its Slack team id
+ * (`team_id` on slash-command and event payloads). Slack payloads carry no
+ * organization id, so this is how `/vpo` commands resolve the org before
+ * touching the database further. Relies on `teamId` in `config` (JSONB),
+ * captured when the workspace connects Slack — see `connectSlack`.
+ */
+export async function getIntegrationBySlackTeamId(
+  teamId: string
+): Promise<Integration | null> {
+  const result = await query(
+    `SELECT * FROM integrations
+     WHERE type = 'SLACK' AND is_active = true AND config->>'teamId' = $1
+     LIMIT 1`,
+    [teamId]
+  );
+  if (result.rows.length === 0) return null;
+  return mapRow<Integration>(result.rows[0]);
+}
+
 export async function deactivateIntegration(id: string): Promise<void> {
   await query(
     `UPDATE integrations

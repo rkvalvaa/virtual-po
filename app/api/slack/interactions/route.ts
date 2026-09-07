@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifySlackRequest } from '@/lib/slack/verify';
-import { getSlackClientFromIntegration } from '@/lib/slack/client';
-import { getIntegrationByType } from '@/lib/db/queries/jira-sync';
+import { resolveSlackUser } from '@/lib/slack/resolve-user';
 import { getFeatureRequestById } from '@/lib/db/queries/feature-requests';
-import { getUserByEmail } from '@/lib/db/queries/users';
-import { getOrganizationRole } from '@/lib/db/queries/organizations';
 import { canAccess } from '@/lib/auth/rbac';
 import { applyDecision } from '@/lib/decisions/apply';
 import type { DecisionType } from '@/lib/types/database';
@@ -100,26 +97,20 @@ async function handleDecisionAction(
 
   // The bot token lives on the org that owns the request, which is also the
   // only org whose members may act on it.
-  const integration = await getIntegrationByType(request.organizationId, 'SLACK');
-  if (!integration) {
-    return ephemeral(':warning: Slack is not connected for this workspace.');
-  }
-
-  let email: string | null;
-  try {
-    email = await getSlackClientFromIntegration(integration).getUserEmail(actor.id);
-  } catch {
-    return ephemeral(':warning: Could not read your Slack profile.');
-  }
-
-  const user = email ? await getUserByEmail(email) : null;
-  if (!user) {
+  const resolution = await resolveSlackUser(request.organizationId, actor.id);
+  if (!resolution.ok) {
+    if (resolution.reason === 'no_integration') {
+      return ephemeral(':warning: Slack is not connected for this workspace.');
+    }
+    if (resolution.reason === 'profile_lookup_failed') {
+      return ephemeral(':warning: Could not read your Slack profile.');
+    }
     return ephemeral(
       ':no_entry: No VPO account matches your Slack email. Ask an admin to invite you.',
     );
   }
 
-  const role = await getOrganizationRole(request.organizationId, user.id);
+  const { user, role } = resolution;
   if (!role || !canAccess(role, 'REVIEWER')) {
     return ephemeral(':no_entry: You need the REVIEWER role to decide on requests.');
   }
