@@ -39,6 +39,15 @@ export async function getOrganizationBySlug(slug: string): Promise<Organization 
   return mapRow<Organization>(result.rows[0]);
 }
 
+/**
+ * Every organization. Only the cron sweep uses this — it has no session to
+ * scope by, and it must consider each org's own cycle schedule.
+ */
+export async function listOrganizations(): Promise<Organization[]> {
+  const result = await query(`SELECT * FROM organizations ORDER BY created_at`);
+  return mapRows<Organization>(result.rows);
+}
+
 export async function updateOrganization(
   id: string,
   data: Partial<Pick<Organization, 'name' | 'settings'>>

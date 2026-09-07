@@ -579,3 +579,19 @@ export interface RequestApproval {
   rationale: string | null;
   createdAt: Date;
 }
+
+// Recurring review cycles (CCT-83)
+export const REVIEW_CYCLE_TRIGGERS = ['CRON', 'MANUAL'] as const;
+export type ReviewCycleTrigger = typeof REVIEW_CYCLE_TRIGGERS[number];
+
+export interface ReviewCycle {
+  id: string;
+  organizationId: string;
+  startedAt: Date;
+  requeuedCount: number;
+  /** Ids of the requests this run moved DEFERRED -> UNDER_REVIEW. */
+  requeuedRequestIds: string[];
+  triggeredBy: ReviewCycleTrigger;
+  /** Null for CRON runs and for a MANUAL run whose admin was deleted. */
+  triggeredByUserId: string | null;
+}
