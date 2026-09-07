@@ -42,6 +42,7 @@ function StarRating({
           key={star}
           type="button"
           disabled={readonly}
+          aria-label={readonly ? undefined : `Rate ${star} of 5`}
           className={`${readonly ? "cursor-default" : "cursor-pointer"} transition-colors`}
           onMouseEnter={() => !readonly && setHovered(star)}
           onMouseLeave={() => !readonly && setHovered(0)}
