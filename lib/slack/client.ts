@@ -70,6 +70,12 @@ export function createSlackClient(config: SlackClientConfig) {
       }
       return data.user?.profile?.email ?? null;
     },
+
+    /** Workspace (team) id for the bot token, used to key the integration by `team_id`. */
+    async getTeamId(): Promise<string> {
+      const result = await api<{ team_id: string }>('auth.test');
+      return result.team_id;
+    },
   };
 }
 

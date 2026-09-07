@@ -11,7 +11,7 @@ import {
   upsertSlackNotification,
   deleteSlackNotification,
 } from "@/lib/db/queries/slack"
-import { getSlackClientFromIntegration } from "@/lib/slack/client"
+import { createSlackClient, getSlackClientFromIntegration } from "@/lib/slack/client"
 import { canAccess } from "@/lib/auth/rbac"
 import { SLACK_EVENT_TYPES } from "@/lib/types/database"
 import type { SlackEventType } from "@/lib/types/database"
@@ -43,10 +43,16 @@ export async function connectSlack(
   }
 
   try {
+    // Slash-command and event payloads carry a Slack team_id but no org id,
+    // so we resolve the workspace by storing its team id alongside the
+    // token. auth.test also doubles as a credential check.
+    const teamId = await createSlackClient({ botToken }).getTeamId()
+
     await upsertIntegration(orgId, "SLACK", "Slack", {
       botToken,
       signingSecret,
       appId,
+      teamId,
     })
 
     revalidatePath("/settings")
