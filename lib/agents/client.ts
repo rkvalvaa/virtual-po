@@ -14,3 +14,9 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 export const anthropic = createAnthropic({
   baseURL: process.env.ANTHROPIC_BASE_URL,
 });
+
+/**
+ * Model every agent route runs on. One place to change; pricing for it lives
+ * in `lib/agents/pricing.ts` and must be kept in step.
+ */
+export const AGENT_MODEL = 'claude-opus-5';

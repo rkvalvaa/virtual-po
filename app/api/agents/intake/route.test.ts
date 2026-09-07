@@ -39,6 +39,7 @@ vi.mock('ai', async () => {
 
 vi.mock('@/lib/agents/client', () => ({
   anthropic: (model: string) => ({ id: `anthropic:${model}`, modelId: model }),
+  AGENT_MODEL: 'claude-opus-5',
 }))
 
 function makePost(body: unknown, opts: { invalidJson?: boolean } = {}): Request {

@@ -21,11 +21,15 @@ describe('estimateCostUsd', () => {
     expect(estimateCostUsd(SONNET, 0, 0)).toBe(0)
   })
 
-  it('should fall back to Sonnet rates for an unknown model', () => {
-    expect(estimateCostUsd('some-future-model', 1_000_000, 1_000_000)).toBe(18)
+  it('should fall back to Opus 5 rates for an unknown model', () => {
+    expect(estimateCostUsd('some-future-model', 1_000_000, 1_000_000)).toBe(30)
   })
 
-  it('should list Sonnet 4.5 at $3/$15 per MTok', () => {
+  it('should list Opus 5 at $5/$25 per MTok', () => {
+    expect(MODEL_PRICING_USD_PER_MTOK['claude-opus-5']).toEqual({ input: 5, output: 25 })
+  })
+
+  it('should keep Sonnet 4.5 at $3/$15 per MTok for historical usage rows', () => {
     expect(MODEL_PRICING_USD_PER_MTOK[SONNET]).toEqual({ input: 3, output: 15 })
   })
 })

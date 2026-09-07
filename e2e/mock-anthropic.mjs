@@ -14,7 +14,7 @@ const PORT = Number(process.env.MOCK_ANTHROPIC_PORT ?? 4010);
 /** Keep in sync with the expectation in e2e/intake.spec.ts. */
 const REPLY = "Thanks. What problem does this solve for users?";
 
-const MODEL = "claude-sonnet-4-5-20250929";
+const MODEL = "claude-opus-5";
 const USAGE = { input_tokens: 12, output_tokens: 11 };
 
 /** Split into a few deltas so the client exercises real streaming assembly. */
