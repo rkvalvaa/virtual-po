@@ -8,6 +8,9 @@ import { findSimilarByKeywords } from "@/lib/db/queries/outcomes"
 import { getIntegrationByType } from "@/lib/db/queries/jira-sync"
 import { getVoteByUser, getVotesByRequest, getVoteSummary } from "@/lib/db/queries/votes"
 import { getActivityByRequest } from "@/lib/db/queries/activity-log"
+import { listCustomFieldDefinitions } from "@/lib/db/queries/custom-fields"
+import { canAccess } from "@/lib/auth/rbac"
+import type { UserRole } from "@/lib/types/database"
 import { RequestDetail } from "./RequestDetail"
 import "@/lib/auth/types"
 
@@ -33,7 +36,7 @@ export default async function RequestDetailPage({
 
   const keywordCount = keywords.length
 
-  const [epic, decisions, comments, similarResults, jiraIntegration, linearIntegration, currentVote, allVotes, voteSummary, activities] = await Promise.all([
+  const [epic, decisions, comments, similarResults, jiraIntegration, linearIntegration, currentVote, allVotes, voteSummary, activities, customFieldDefinitions] = await Promise.all([
     getEpicByRequestId(request.id),
     getDecisionsByRequestId(request.id),
     getCommentsWithAuthorByRequestId(request.id),
@@ -50,6 +53,9 @@ export default async function RequestDetailPage({
     getVotesByRequest(request.id),
     getVoteSummary(request.id),
     getActivityByRequest(request.id),
+    session.user.orgId
+      ? listCustomFieldDefinitions(session.user.orgId)
+      : Promise.resolve([]),
   ])
   const stories = epic ? await getStoriesByEpicId(epic.id) : []
 
@@ -72,9 +78,22 @@ export default async function RequestDetailPage({
         actualComplexity: request.actualComplexity,
         actualEffortDays: request.actualEffortDays,
         lessonsLearned: request.lessonsLearned,
+        customFields: request.customFields,
         createdAt: request.createdAt.toISOString(),
         updatedAt: request.updatedAt.toISOString(),
       }}
+      customFieldDefinitions={customFieldDefinitions.map((f) => ({
+        id: f.id,
+        name: f.name,
+        key: f.key,
+        type: f.type,
+        options: f.options,
+        required: f.required,
+      }))}
+      canEditCustomFields={
+        request.requesterId === session.user.id ||
+        canAccess(session.user.role as UserRole, "REVIEWER")
+      }
       epic={
         epic
           ? {

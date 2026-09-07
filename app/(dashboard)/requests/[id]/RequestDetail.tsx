@@ -19,6 +19,8 @@ import { JiraSyncButton } from "@/components/requests/JiraSyncButton"
 import { LinearSyncButton } from "@/components/requests/LinearSyncButton"
 import { VoteWidget } from "@/components/requests/VoteWidget"
 import { ActivityTimeline } from "@/components/requests/ActivityTimeline"
+import { CustomFieldsCard } from "@/components/requests/CustomFieldsCard"
+import type { CustomFieldsCardProps } from "@/components/requests/CustomFieldsCard"
 import { ArrowLeft, FileDown } from "lucide-react"
 
 interface RequestDetailProps {
@@ -39,9 +41,12 @@ interface RequestDetailProps {
     actualComplexity: string | null
     actualEffortDays: number | null
     lessonsLearned: string | null
+    customFields: Record<string, string | number | null>
     createdAt: string
     updatedAt: string
   }
+  customFieldDefinitions: CustomFieldsCardProps["definitions"]
+  canEditCustomFields: boolean
   epic: {
     id: string
     title: string
@@ -142,6 +147,8 @@ function renderIntakeValue(value: unknown): string {
 
 export function RequestDetail({
   request,
+  customFieldDefinitions,
+  canEditCustomFields,
   epic,
   stories,
   decisions,
@@ -275,6 +282,15 @@ export function RequestDetail({
                 <QualityIndicator score={request.qualityScore} />
               </CardContent>
             </Card>
+          )}
+
+          {customFieldDefinitions.length > 0 && (
+            <CustomFieldsCard
+              requestId={request.id}
+              definitions={customFieldDefinitions}
+              values={request.customFields}
+              canEdit={canEditCustomFields}
+            />
           )}
 
           {Object.keys(request.intakeData).length > 0 && (

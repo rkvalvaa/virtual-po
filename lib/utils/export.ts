@@ -1,4 +1,5 @@
-import type { FeatureRequest } from '@/lib/types/database';
+import type { CustomFieldDefinition, FeatureRequest } from '@/lib/types/database';
+import { formatCustomFieldValue } from '@/lib/utils/custom-fields';
 
 /**
  * Escape a CSV cell value: wrap in quotes if it contains commas,
@@ -24,9 +25,13 @@ export function generateCSV(headers: string[], rows: string[][]): string {
 
 /**
  * Format feature requests into export-ready CSV rows.
- * Columns: Title, Status, Priority Score, Quality Score, Complexity, Tags, Created At, Updated At
+ * Columns: Title, Status, Priority Score, Quality Score, Complexity, Tags, Created At, Updated At,
+ * followed by one column per custom field definition (header = field name).
  */
-export function formatRequestsForExport(requests: FeatureRequest[]): {
+export function formatRequestsForExport(
+  requests: FeatureRequest[],
+  definitions: CustomFieldDefinition[] = []
+): {
   headers: string[];
   rows: string[][];
 } {
@@ -39,6 +44,7 @@ export function formatRequestsForExport(requests: FeatureRequest[]): {
     'Tags',
     'Created At',
     'Updated At',
+    ...definitions.map((d) => d.name),
   ];
 
   const rows = requests.map((r) => [
@@ -50,6 +56,7 @@ export function formatRequestsForExport(requests: FeatureRequest[]): {
     r.tags.length > 0 ? r.tags.join('; ') : '',
     r.createdAt.toISOString(),
     r.updatedAt.toISOString(),
+    ...definitions.map((d) => formatCustomFieldValue(r.customFields?.[d.key])),
   ]);
 
   return { headers, rows };

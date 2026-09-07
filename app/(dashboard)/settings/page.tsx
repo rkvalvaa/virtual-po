@@ -11,6 +11,7 @@ import { getTeamsNotifications } from "@/lib/db/queries/teams"
 import { getApiKeysByOrg } from "@/lib/db/queries/api-keys"
 import { getWebhooksByOrg } from "@/lib/db/queries/webhooks"
 import { getAllTemplates, seedDefaultTemplates } from "@/lib/db/queries/templates"
+import { listCustomFieldDefinitions } from "@/lib/db/queries/custom-fields"
 import { getEmailPreferences } from "@/lib/db/queries/email-preferences"
 import type { NotificationType } from "@/lib/types/database"
 import { NOTIFICATION_TYPES } from "@/lib/types/database"
@@ -31,7 +32,7 @@ export default async function SettingsPage() {
 
   await seedDefaultTemplates(orgId)
 
-  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, teamsIntegration, teamsNotifications, apiKeys, webhookSubscriptions, allTemplates, emailPrefs] = await Promise.all([
+  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, teamsIntegration, teamsNotifications, apiKeys, webhookSubscriptions, allTemplates, customFieldDefinitions, emailPrefs] = await Promise.all([
     getOrganizationById(orgId),
     getOrganizationUsers(orgId),
     getRepositoriesByOrgId(orgId),
@@ -50,6 +51,7 @@ export default async function SettingsPage() {
     getApiKeysByOrg(orgId),
     getWebhooksByOrg(orgId),
     getAllTemplates(orgId),
+    listCustomFieldDefinitions(orgId),
     getEmailPreferences(session.user.id, orgId),
   ])
 
@@ -241,6 +243,14 @@ export default async function SettingsPage() {
         promptHints: t.promptHints,
         isActive: t.isActive,
         sortOrder: t.sortOrder,
+      }))}
+      customFields={customFieldDefinitions.map((f) => ({
+        id: f.id,
+        name: f.name,
+        key: f.key,
+        type: f.type,
+        options: f.options,
+        required: f.required,
       }))}
       emailPreferences={
         Object.fromEntries(

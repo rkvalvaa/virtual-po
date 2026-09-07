@@ -86,6 +86,28 @@ export interface FeatureRequest {
   linearIssueUrl: string | null;
   githubIssueNumber: number | null;
   githubIssueUrl: string | null;
+  customFields: CustomFieldValues;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export const CUSTOM_FIELD_TYPES = ['TEXT', 'NUMBER', 'SELECT', 'DATE'] as const;
+export type CustomFieldType = typeof CUSTOM_FIELD_TYPES[number];
+
+/** Custom field values on a request, keyed by CustomFieldDefinition.key. */
+export type CustomFieldValues = Record<string, string | number | null>;
+
+export interface CustomFieldDefinition {
+  id: string;
+  organizationId: string;
+  name: string;
+  /** Slug derived from `name` on create; immutable afterwards. */
+  key: string;
+  type: CustomFieldType;
+  /** Allowed values for SELECT fields; empty for every other type. */
+  options: string[];
+  required: boolean;
+  sortOrder: number;
   createdAt: Date;
   updatedAt: Date;
 }
