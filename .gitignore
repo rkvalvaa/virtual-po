@@ -43,3 +43,5 @@ next-env.d.ts
 
 #MCP
 .mcp.json
+# Claude Code local state and agent worktrees
+.claude/
