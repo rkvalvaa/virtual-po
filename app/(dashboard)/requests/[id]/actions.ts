@@ -4,23 +4,16 @@ import { revalidatePath } from "next/cache";
 import type { DecisionType, RequestStatus, UserRole } from "@/lib/types/database";
 import { requireAuth } from "@/lib/auth/session";
 import { canAccess } from "@/lib/auth/rbac";
-import { canTransition, getAvailableActions } from "@/lib/utils/workflow";
+import { getAvailableActions } from "@/lib/utils/workflow";
 import {
   getFeatureRequestById,
   updateFeatureRequestStatus,
 } from "@/lib/db/queries/feature-requests";
-import { createDecision } from "@/lib/db/queries/decisions";
+import { applyDecision } from "@/lib/decisions/apply";
 import { createComment } from "@/lib/db/queries/comments";
 import { notifyRequestOwner, notifyUser, getOrgUserIds } from "@/lib/db/queries/notifications";
 import { logActivity } from "@/lib/db/queries/activity-log";
 import "@/lib/auth/types";
-
-const DECISION_STATUS_MAP: Record<DecisionType, RequestStatus> = {
-  APPROVE: "APPROVED",
-  REJECT: "REJECTED",
-  DEFER: "DEFERRED",
-  REQUEST_INFO: "NEEDS_INFO",
-};
 
 export async function submitDecision(
   requestId: string,
@@ -33,47 +26,12 @@ export async function submitDecision(
     throw new Error("Insufficient permissions: REVIEWER role required");
   }
 
-  const request = await getFeatureRequestById(requestId);
-  if (!request) {
-    throw new Error("Feature request not found");
-  }
-  if (request.organizationId !== session.user.orgId) {
-    throw new Error("Feature request not found");
-  }
-
-  const targetStatus = DECISION_STATUS_MAP[decision];
-
-  if (!canTransition(request.status, targetStatus)) {
-    throw new Error(
-      `Cannot transition from ${request.status} to ${targetStatus}`
-    );
-  }
-
-  const decisionRecord = await createDecision(requestId, session.user.id, decision, rationale);
-  await updateFeatureRequestStatus(requestId, targetStatus);
-
-  try {
-    await logActivity({
-      organizationId: request.organizationId,
-      requestId,
-      userId: session.user.id,
-      action: 'DECISION_MADE',
-      entityType: 'DECISION',
-      entityId: decisionRecord.id,
-      metadata: { decision, rationale, targetStatus },
-    });
-  } catch { /* activity logging is non-critical */ }
-
-  // Notify the request owner about the decision
-  await notifyRequestOwner({
-    organizationId: request.organizationId,
-    requesterId: request.requesterId,
-    type: "DECISION_MADE",
-    title: `Request ${decision.toLowerCase()}d`,
-    message: `"${request.title}" was ${decision.toLowerCase()}d. ${rationale}`,
-    link: `/requests/${requestId}`,
+  await applyDecision({
     requestId,
-    actorId: session.user.id,
+    organizationId: session.user.orgId,
+    userId: session.user.id,
+    decision,
+    rationale,
   });
 
   revalidatePath("/requests/" + requestId);

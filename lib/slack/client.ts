@@ -50,6 +50,26 @@ export function createSlackClient(config: SlackClientConfig) {
     async addReaction(channel: string, timestamp: string, name: string): Promise<void> {
       await api('reactions.add', { channel, timestamp, name });
     },
+
+    /**
+     * Look up the email on a Slack user's profile, used to match them to a VPO
+     * account. Requires the `users:read.email` scope. `users.info` is a
+     * GET-style method, so arguments go in the query string rather than a JSON
+     * body. Returns null when the profile has no email visible to the app.
+     */
+    async getUserEmail(slackUserId: string): Promise<string | null> {
+      const url = `https://slack.com/api/users.info?user=${encodeURIComponent(slackUserId)}`;
+      const response = await fetch(url, { headers });
+      const data = await response.json() as {
+        ok: boolean;
+        error?: string;
+        user?: { profile?: { email?: string } };
+      };
+      if (!data.ok) {
+        throw new Error(`Slack API error on users.info: ${data.error ?? 'Unknown error'}`);
+      }
+      return data.user?.profile?.email ?? null;
+    },
   };
 }
 
