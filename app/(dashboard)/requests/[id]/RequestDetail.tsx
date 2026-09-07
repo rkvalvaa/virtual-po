@@ -22,6 +22,8 @@ import { VoteWidget } from "@/components/requests/VoteWidget"
 import { ActivityTimeline } from "@/components/requests/ActivityTimeline"
 import { CustomFieldsCard } from "@/components/requests/CustomFieldsCard"
 import type { CustomFieldsCardProps } from "@/components/requests/CustomFieldsCard"
+import { AttachmentsCard } from "@/components/requests/AttachmentsCard"
+import type { AttachmentView } from "@/components/requests/AttachmentsCard"
 import { ArrowLeft, FileDown } from "lucide-react"
 
 interface RequestDetailProps {
@@ -48,6 +50,7 @@ interface RequestDetailProps {
   }
   customFieldDefinitions: CustomFieldsCardProps["definitions"]
   canEditCustomFields: boolean
+  attachments: AttachmentView[]
   epic: {
     id: string
     title: string
@@ -153,6 +156,7 @@ export function RequestDetail({
   request,
   customFieldDefinitions,
   canEditCustomFields,
+  attachments,
   epic,
   stories,
   decisions,
@@ -309,6 +313,8 @@ export function RequestDetail({
               canEdit={canEditCustomFields}
             />
           )}
+
+          <AttachmentsCard requestId={request.id} attachments={attachments} />
 
           {Object.keys(request.intakeData).length > 0 && (
             <div className="space-y-4">

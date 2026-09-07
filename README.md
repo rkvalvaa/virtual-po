@@ -197,7 +197,16 @@ Rate limiting: 100 requests/minute per organization. Rate limit headers (`X-Rate
 2. Import the project in [Vercel](https://vercel.com)
 3. Add environment variables in the Vercel dashboard
 4. Set up a PostgreSQL database (Vercel Postgres, Neon, Supabase, etc.)
-5. Deploy — migrations run automatically via the build step
+5. Connect a Vercel Blob store for file attachments (see below)
+6. Deploy — migrations run automatically via the build step
+
+### Attachments
+
+Feature request attachments are stored in a **private** [Vercel Blob](https://vercel.com/docs/vercel-blob) store. Connecting a Blob store to the project sets `BLOB_READ_WRITE_TOKEN` automatically; set it by hand for local development or self-hosting.
+
+Blobs are never public. Files are read back only through `GET /api/attachments/[id]`, which checks the session and that the attachment's request belongs to the caller's organization, then streams the blob with `Cache-Control: private, no-store`. Uploads are limited to 10 MB and an allowlist of types (images, PDF, text, CSV, Markdown, Word, Excel); filenames are sanitized before they become blob pathnames.
+
+With the token unset, uploads fail with "File storage is not configured" and downloads return 404 — the rest of the app is unaffected.
 
 ### Self-Hosted
 
