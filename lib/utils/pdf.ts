@@ -1,5 +1,14 @@
 import jsPDF from "jspdf"
 import type { FeatureRequest } from "@/lib/types/database"
+import type {
+  DashboardSummary,
+  StatusDistributionRow,
+  PriorityDistributionRow,
+  AverageTimeToDecision,
+  TopRequesterRow,
+  DecisionBreakdownRow,
+  VoteSummaryStats,
+} from "@/lib/db/queries/analytics"
 
 /**
  * Layout constants in mm (jsPDF defaults to mm with format A4).
@@ -148,6 +157,184 @@ export function generateRequestPDF(
 
   // jsPDF returns ArrayBuffer when output('arraybuffer'); wrap as Uint8Array
   // for Response compatibility.
+  const buffer = doc.output("arraybuffer") as ArrayBuffer
+  return new Uint8Array(buffer)
+}
+
+/**
+ * Draw a simple two-or-more-column table (bold header row + plain rows)
+ * starting at `startY`, handling page breaks as it goes. Returns the
+ * cursor Y position after the table so the caller can continue the layout.
+ */
+function drawTable(
+  doc: jsPDF,
+  headers: string[],
+  rows: string[][],
+  startY: number,
+): number {
+  const colWidth = CONTENT_WIDTH / headers.length
+  let y = startY
+
+  function ensureSpace(): void {
+    if (y > PAGE_HEIGHT - MARGIN_Y) {
+      doc.addPage()
+      y = MARGIN_Y
+    }
+  }
+
+  ensureSpace()
+  doc.setFontSize(9).setFont("helvetica", "bold")
+  headers.forEach((header, i) => doc.text(header, MARGIN_X + i * colWidth, y))
+  y += 5
+
+  doc.setFont("helvetica", "normal")
+  if (rows.length === 0) {
+    ensureSpace()
+    doc.setFont("helvetica", "italic")
+    doc.text("No data", MARGIN_X, y)
+    y += 5
+    return y
+  }
+
+  for (const cells of rows) {
+    ensureSpace()
+    cells.forEach((cell, i) => doc.text(cell, MARGIN_X + i * colWidth, y))
+    y += 5
+  }
+  return y
+}
+
+export interface AnalyticsPDFInput {
+  orgName: string
+  dateRange?: { from: string; to: string }
+  summary: DashboardSummary
+  statusDistribution: StatusDistributionRow[]
+  priorityDistribution: PriorityDistributionRow[]
+  timeToDecision: AverageTimeToDecision
+  topRequesters: TopRequesterRow[]
+  decisionBreakdown: DecisionBreakdownRow[]
+  voteSummary: VoteSummaryStats
+}
+
+/**
+ * Generate a PDF report for the analytics dashboard: a KPI summary block
+ * plus one simple table per dataset. No charts — this mirrors what
+ * generateRequestPDF does for a single request, just for aggregate data.
+ */
+export function generateAnalyticsPDF(input: AnalyticsPDFInput): Uint8Array {
+  const doc = new jsPDF({ unit: "mm", format: "a4" })
+  let cursorY = MARGIN_Y
+
+  function moveTo(y: number): void {
+    if (y > PAGE_HEIGHT - MARGIN_Y) {
+      doc.addPage()
+      cursorY = MARGIN_Y
+    } else {
+      cursorY = y
+    }
+  }
+
+  function heading(text: string, size = 16, gap = 8): void {
+    doc.setFontSize(size).setFont("helvetica", "bold")
+    doc.text(text, MARGIN_X, cursorY)
+    moveTo(cursorY + gap)
+  }
+
+  function row(label: string, value: string): void {
+    doc.setFontSize(10).setFont("helvetica", "bold")
+    doc.text(label, MARGIN_X, cursorY)
+    doc.setFont("helvetica", "normal")
+    doc.text(value, MARGIN_X + 60, cursorY)
+    moveTo(cursorY + 5)
+  }
+
+  heading("Analytics Report", 18, 10)
+
+  doc.setFontSize(10).setFont("helvetica", "normal")
+  doc.text(`Organization: ${input.orgName}`, MARGIN_X, cursorY)
+  moveTo(cursorY + 5)
+  doc.text(
+    input.dateRange
+      ? `Date range: ${input.dateRange.from} to ${input.dateRange.to}`
+      : "Date range: All time",
+    MARGIN_X,
+    cursorY,
+  )
+  moveTo(cursorY + 5)
+  doc.text(
+    `Generated: ${new Date().toISOString().slice(0, 10)}`,
+    MARGIN_X,
+    cursorY,
+  )
+  moveTo(cursorY + 8)
+
+  heading("Summary", 12, 6)
+  row("Total Requests", String(input.summary.totalRequests))
+  row("Pending Review", String(input.summary.pendingReview))
+  row("In Backlog", String(input.summary.inBacklog))
+  row("Completed", String(input.summary.completed))
+  row(
+    "Avg Quality Score",
+    input.summary.avgQualityScore != null ? `${input.summary.avgQualityScore}%` : "—",
+  )
+  row(
+    "Avg Time to Decision",
+    input.timeToDecision.avgDays != null ? `${input.timeToDecision.avgDays} days` : "—",
+  )
+  moveTo(cursorY + 4)
+
+  heading("Status Distribution", 12, 6)
+  cursorY = drawTable(
+    doc,
+    ["Status", "Count"],
+    input.statusDistribution.map((r) => [formatStatus(r.status), String(r.count)]),
+    cursorY,
+  )
+  moveTo(cursorY + 6)
+
+  heading("Priority Distribution", 12, 6)
+  cursorY = drawTable(
+    doc,
+    ["Priority Band", "Count"],
+    input.priorityDistribution.map((r) => [r.band, String(r.count)]),
+    cursorY,
+  )
+  moveTo(cursorY + 6)
+
+  heading("Top Requesters", 12, 6)
+  cursorY = drawTable(
+    doc,
+    ["Name", "Request Count"],
+    input.topRequesters.map((r) => [r.name, String(r.count)]),
+    cursorY,
+  )
+  moveTo(cursorY + 6)
+
+  heading("Decision Breakdown", 12, 6)
+  cursorY = drawTable(
+    doc,
+    ["Decision", "Count"],
+    input.decisionBreakdown.map((r) => [r.decision, String(r.count)]),
+    cursorY,
+  )
+  moveTo(cursorY + 6)
+
+  heading("Vote Summary", 12, 6)
+  row("Total Votes", String(input.voteSummary.totalVotes))
+  row("Unique Voters", String(input.voteSummary.uniqueVoters))
+  row("Avg Score", String(input.voteSummary.avgScore))
+  row(
+    "Voted Requests",
+    `${input.voteSummary.votedRequestsCount} / ${input.voteSummary.totalRequestsCount}`,
+  )
+
+  doc.setFontSize(8).setFont("helvetica", "italic")
+  doc.text(
+    `Generated ${new Date().toISOString().slice(0, 10)} · Virtual Product Owner`,
+    MARGIN_X,
+    PAGE_HEIGHT - 10,
+  )
+
   const buffer = doc.output("arraybuffer") as ArrayBuffer
   return new Uint8Array(buffer)
 }
