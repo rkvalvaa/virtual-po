@@ -4,7 +4,7 @@ import {
   UIMessage,
   convertToModelMessages,
 } from 'ai';
-import { anthropic } from '@/lib/agents/client';
+import { anthropic, AGENT_MODEL as MODEL } from '@/lib/agents/client';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { SECURITY_SYSTEM_PROMPT } from '@/lib/agents/prompts/security';
@@ -13,7 +13,6 @@ import { getFeatureRequestById } from '@/lib/db/queries/feature-requests';
 import { createAgentTelemetry } from '@/lib/agents/telemetry';
 import '@/lib/auth/types';
 
-const MODEL = 'claude-sonnet-4-5-20250929';
 
 export async function POST(
   req: Request,
