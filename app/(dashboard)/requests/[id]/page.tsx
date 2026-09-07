@@ -10,9 +10,23 @@ import { getVoteByUser, getVotesByRequest, getVoteSummary } from "@/lib/db/queri
 import { getActivityByRequest } from "@/lib/db/queries/activity-log"
 import { listCustomFieldDefinitions } from "@/lib/db/queries/custom-fields"
 import { canAccess } from "@/lib/auth/rbac"
-import type { UserRole } from "@/lib/types/database"
+import {
+  getActiveWorkflow,
+  listRequestApprovalsWithApprover,
+} from "@/lib/db/queries/approval-workflows"
+import { getOrganizationUsers } from "@/lib/db/queries/organizations"
+import { getApprovalState, canActOnStep } from "@/lib/approvals/engine"
+import type { RequestStatus, UserRole } from "@/lib/types/database"
+import type { ApprovalChainStep } from "@/components/review/ApprovalChain"
 import { RequestDetail } from "./RequestDetail"
 import "@/lib/auth/types"
+
+/** Statuses reached before review — no approval chain to show yet. */
+const PRE_REVIEW_STATUSES: RequestStatus[] = [
+  "DRAFT",
+  "INTAKE_IN_PROGRESS",
+  "PENDING_ASSESSMENT",
+]
 
 export default async function RequestDetailPage({
   params,
@@ -36,7 +50,7 @@ export default async function RequestDetailPage({
 
   const keywordCount = keywords.length
 
-  const [epic, decisions, comments, similarResults, jiraIntegration, linearIntegration, currentVote, allVotes, voteSummary, activities, customFieldDefinitions] = await Promise.all([
+  const [epic, decisions, comments, similarResults, jiraIntegration, linearIntegration, currentVote, allVotes, voteSummary, activities, customFieldDefinitions, approvalWorkflow, approvals] = await Promise.all([
     getEpicByRequestId(request.id),
     getDecisionsByRequestId(request.id),
     getCommentsWithAuthorByRequestId(request.id),
@@ -56,8 +70,54 @@ export default async function RequestDetailPage({
     session.user.orgId
       ? listCustomFieldDefinitions(session.user.orgId)
       : Promise.resolve([]),
+    session.user.orgId
+      ? getActiveWorkflow(session.user.orgId)
+      : Promise.resolve(null),
+    listRequestApprovalsWithApprover(request.id),
   ])
   const stories = epic ? await getStoriesByEpicId(epic.id) : []
+
+  // An active workflow with no steps is no gate at all — treat it as absent.
+  const hasApprovalChain =
+    approvalWorkflow !== null &&
+    approvalWorkflow.steps.length > 0 &&
+    !PRE_REVIEW_STATUSES.includes(request.status)
+
+  let approvalChain: ApprovalChainStep[] = []
+  if (hasApprovalChain && approvalWorkflow) {
+    const state = getApprovalState(approvalWorkflow, approvals)
+    const namedApproverIds = approvalWorkflow.steps
+      .map((s) => s.approverUserId)
+      .filter((id): id is string => id !== null)
+    const memberNames = new Map<string, string>()
+    if (namedApproverIds.length > 0 && session.user.orgId) {
+      for (const member of await getOrganizationUsers(session.user.orgId)) {
+        memberNames.set(member.userId, member.user.name ?? member.user.email)
+      }
+    }
+
+    approvalChain = state.steps.map(({ step, status }) => {
+      const approval = approvals.find((a) => a.stepId === step.id)
+      return {
+        stepId: step.id,
+        stepOrder: step.stepOrder,
+        name: step.name,
+        approverLabel: step.approverUserId
+          ? (memberNames.get(step.approverUserId) ?? "Assigned approver")
+          : step.approverRole === "ADMIN"
+            ? "Any admin"
+            : "Any reviewer",
+        status,
+        approverName: approval?.approverName ?? null,
+        decidedAt: approval?.createdAt.toISOString() ?? null,
+        rationale: approval?.rationale ?? null,
+        canAct:
+          status === "PENDING" &&
+          request.status === "UNDER_REVIEW" &&
+          canActOnStep(step, session.user.id, session.user.role as UserRole),
+      }
+    })
+  }
 
   return (
     <RequestDetail
@@ -163,6 +223,8 @@ export default async function RequestDetailPage({
         voteCount: voteSummary.voteCount,
         averageScore: voteSummary.averageScore,
       }}
+      approvalWorkflowName={hasApprovalChain ? (approvalWorkflow?.name ?? null) : null}
+      approvalChain={approvalChain}
       activities={activities.map((a) => ({
         id: a.id,
         action: a.action,
