@@ -535,3 +535,47 @@ export interface ActivityLog {
   metadata: Record<string, unknown>;
   createdAt: Date;
 }
+
+// Multi-step approval workflows (CCT-82)
+export const APPROVAL_DECISIONS = ['APPROVED', 'REJECTED'] as const;
+export type ApprovalDecision = typeof APPROVAL_DECISIONS[number];
+
+/** Roles that can be assigned as an approval step's approver. */
+export const APPROVER_ROLES = ['REVIEWER', 'ADMIN'] as const;
+export type ApproverRole = typeof APPROVER_ROLES[number];
+
+export interface ApprovalWorkflow {
+  id: string;
+  organizationId: string;
+  name: string;
+  isActive: boolean;
+  /** Requests scoring at or above this are approved without the chain. */
+  autoApproveMinPriority: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ApprovalStep {
+  id: string;
+  workflowId: string;
+  stepOrder: number;
+  name: string;
+  /** Exactly one of approverRole / approverUserId is set (DB CHECK). */
+  approverRole: ApproverRole | null;
+  approverUserId: string | null;
+  createdAt: Date;
+}
+
+export interface ApprovalWorkflowWithSteps extends ApprovalWorkflow {
+  steps: ApprovalStep[];
+}
+
+export interface RequestApproval {
+  id: string;
+  requestId: string;
+  stepId: string;
+  approverId: string;
+  decision: ApprovalDecision;
+  rationale: string | null;
+  createdAt: Date;
+}

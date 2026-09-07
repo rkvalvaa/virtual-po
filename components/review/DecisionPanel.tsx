@@ -22,6 +22,11 @@ interface DecisionPanelProps {
     userId: string
     createdAt: string
   }>
+  /**
+   * When the org runs an approval chain, APPROVE/REJECT belong to the chain —
+   * DEFER and REQUEST_INFO stay here.
+   */
+  hasApprovalChain?: boolean
 }
 
 const STATUS_TO_DECISION: Record<string, DecisionType> = {
@@ -53,16 +58,24 @@ export function DecisionPanel({
   currentStatus,
   userRole,
   decisions,
+  hasApprovalChain = false,
 }: DecisionPanelProps) {
   const router = useRouter()
   const [activeAction, setActiveAction] = useState<string | null>(null)
   const [rationale, setRationale] = useState("")
   const [isPending, setIsPending] = useState(false)
 
-  const actions = getAvailableActions(
+  const allActions = getAvailableActions(
     currentStatus as RequestStatus,
     userRole as UserRole
   )
+
+  const chainOwnsOutcome = hasApprovalChain && currentStatus === "UNDER_REVIEW"
+  const actions = chainOwnsOutcome
+    ? allActions.filter(
+        (a) => a.targetStatus !== "APPROVED" && a.targetStatus !== "REJECTED"
+      )
+    : allActions
 
   const reviewActions = actions.filter(
     (a) => STATUS_TO_DECISION[a.targetStatus]

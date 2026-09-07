@@ -4,6 +4,7 @@ import { resolveSlackUser } from '@/lib/slack/resolve-user';
 import { getFeatureRequestById } from '@/lib/db/queries/feature-requests';
 import { canAccess } from '@/lib/auth/rbac';
 import { applyDecision } from '@/lib/decisions/apply';
+import { assertNoApprovalChainBypass } from '@/lib/approvals/engine';
 import type { DecisionType } from '@/lib/types/database';
 
 interface SlackActor {
@@ -117,6 +118,7 @@ async function handleDecisionAction(
 
   const label = decision === 'APPROVE' ? 'Approved' : 'Rejected';
   try {
+    await assertNoApprovalChainBypass(request.organizationId, request.status, decision);
     await applyDecision({
       requestId,
       organizationId: request.organizationId,

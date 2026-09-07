@@ -18,6 +18,7 @@ import {
   type RawCustomFieldValues,
 } from "@/lib/utils/custom-fields";
 import { applyDecision } from "@/lib/decisions/apply";
+import { assertNoApprovalChainBypass } from "@/lib/approvals/engine";
 import { createComment } from "@/lib/db/queries/comments";
 import { notifyRequestOwner, notifyUser, getOrgUserIds } from "@/lib/db/queries/notifications";
 import { logActivity } from "@/lib/db/queries/activity-log";
@@ -33,6 +34,12 @@ export async function submitDecision(
   if (!canAccess(session.user.role as UserRole, "REVIEWER")) {
     throw new Error("Insufficient permissions: REVIEWER role required");
   }
+
+  const target = await getFeatureRequestById(requestId);
+  if (!target || target.organizationId !== session.user.orgId) {
+    throw new Error("Feature request not found");
+  }
+  await assertNoApprovalChainBypass(session.user.orgId, target.status, decision);
 
   await applyDecision({
     requestId,

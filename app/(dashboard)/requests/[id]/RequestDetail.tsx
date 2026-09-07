@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/requests/StatusBadge"
 import { PriorityBadge } from "@/components/requests/PriorityBadge"
 import { SimilarRequests } from "@/components/requests/SimilarRequests"
 import { DecisionPanel } from "@/components/review/DecisionPanel"
+import { ApprovalChain, type ApprovalChainStep } from "@/components/review/ApprovalChain"
 import { OutcomePanel } from "@/components/review/OutcomePanel"
 import { CommentThread } from "@/components/review/CommentThread"
 import { QualityIndicator } from "@/components/chat/QualityIndicator"
@@ -119,6 +120,9 @@ interface RequestDetailProps {
     userName: string | null
     createdAt: string
   }>
+  /** Null when the org has no active approval workflow with steps. */
+  approvalWorkflowName: string | null
+  approvalChain: ApprovalChainStep[]
 }
 
 function formatDate(dateStr: string): string {
@@ -166,7 +170,10 @@ export function RequestDetail({
   votes,
   voteSummary,
   activities,
+  approvalWorkflowName,
+  approvalChain,
 }: RequestDetailProps) {
+  const hasApprovalChain = approvalWorkflowName !== null && approvalChain.length > 0
   return (
     <div className="space-y-6">
       {/* Back button + actions */}
@@ -201,12 +208,22 @@ export function RequestDetail({
         </div>
       </div>
 
+      {/* Approval chain (replaces direct approve/reject while active) */}
+      {hasApprovalChain && (
+        <ApprovalChain
+          requestId={request.id}
+          workflowName={approvalWorkflowName}
+          steps={approvalChain}
+        />
+      )}
+
       {/* Decision Panel */}
       <DecisionPanel
         requestId={request.id}
         currentStatus={request.status}
         userRole={userRole}
         decisions={decisions}
+        hasApprovalChain={hasApprovalChain}
       />
 
       {/* Outcome Panel */}

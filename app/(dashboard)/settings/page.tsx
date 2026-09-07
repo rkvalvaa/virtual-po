@@ -13,6 +13,7 @@ import { getWebhooksByOrg } from "@/lib/db/queries/webhooks"
 import { getAllTemplates, seedDefaultTemplates } from "@/lib/db/queries/templates"
 import { listCustomFieldDefinitions } from "@/lib/db/queries/custom-fields"
 import { getEmailPreferences } from "@/lib/db/queries/email-preferences"
+import { listWorkflows } from "@/lib/db/queries/approval-workflows"
 import type { NotificationType } from "@/lib/types/database"
 import { NOTIFICATION_TYPES } from "@/lib/types/database"
 import "@/lib/auth/types"
@@ -32,7 +33,7 @@ export default async function SettingsPage() {
 
   await seedDefaultTemplates(orgId)
 
-  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, teamsIntegration, teamsNotifications, apiKeys, webhookSubscriptions, allTemplates, customFieldDefinitions, emailPrefs] = await Promise.all([
+  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, teamsIntegration, teamsNotifications, apiKeys, webhookSubscriptions, allTemplates, customFieldDefinitions, emailPrefs, approvalWorkflows] = await Promise.all([
     getOrganizationById(orgId),
     getOrganizationUsers(orgId),
     getRepositoriesByOrgId(orgId),
@@ -53,7 +54,12 @@ export default async function SettingsPage() {
     getAllTemplates(orgId),
     listCustomFieldDefinitions(orgId),
     getEmailPreferences(session.user.id, orgId),
+    listWorkflows(orgId),
   ])
+
+  // The settings UI edits a single chain per org; prefer the active one.
+  const approvalWorkflow =
+    approvalWorkflows.find((w) => w.isActive) ?? approvalWorkflows[0] ?? null
 
   if (!organization) {
     return (
@@ -252,6 +258,21 @@ export default async function SettingsPage() {
         options: f.options,
         required: f.required,
       }))}
+      approvalWorkflow={
+        approvalWorkflow
+          ? {
+              id: approvalWorkflow.id,
+              name: approvalWorkflow.name,
+              isActive: approvalWorkflow.isActive,
+              autoApproveMinPriority: approvalWorkflow.autoApproveMinPriority,
+              steps: approvalWorkflow.steps.map((s) => ({
+                name: s.name,
+                approverRole: s.approverRole,
+                approverUserId: s.approverUserId,
+              })),
+            }
+          : null
+      }
       emailPreferences={
         Object.fromEntries(
           NOTIFICATION_TYPES.map((type) => {

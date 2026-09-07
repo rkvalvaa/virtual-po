@@ -13,6 +13,8 @@ import { getActiveRepositoriesForOrg } from '@/lib/db/queries/repositories';
 import { getActiveObjectives, getKeyResultsByObjectiveId } from '@/lib/db/queries/okrs';
 import { getCurrentQuarterCapacity } from '@/lib/db/queries/capacity';
 import { logActivity } from '@/lib/db/queries/activity-log';
+import { maybeAutoApprove } from '@/lib/approvals/engine';
+import { log } from '@/lib/logging/logger';
 
 export function createAssessmentTools(requestId: string, orgId: string, userId: string) {
   return {
@@ -242,7 +244,7 @@ export function createAssessmentTools(requestId: string, orgId: string, userId: 
           complexity: complexity as Complexity,
         });
 
-        await updateFeatureRequestStatus(requestId, 'UNDER_REVIEW');
+        const updated = await updateFeatureRequestStatus(requestId, 'UNDER_REVIEW');
 
         try {
           await logActivity({
@@ -265,11 +267,23 @@ export function createAssessmentTools(requestId: string, orgId: string, userId: 
           });
         } catch { /* activity logging is non-critical */ }
 
+        // The only place a request gets both a priority score and UNDER_REVIEW
+        // in one go, so the auto-approve rule is evaluated here. The other
+        // entry to UNDER_REVIEW (transitionStatus: reopen from NEEDS_INFO or
+        // DEFERRED) is a deliberate human action and must not be auto-undone.
+        let autoApproved = false;
+        try {
+          autoApproved = await maybeAutoApprove(updated);
+        } catch (err) {
+          log.error('approvals.auto_approve_failed', { requestId, err });
+        }
+
         return {
           saved: true,
           priorityScore,
           complexity,
-          status: 'UNDER_REVIEW',
+          status: autoApproved ? 'APPROVED' : 'UNDER_REVIEW',
+          autoApproved,
           securityReviewPending: true,
         };
       },

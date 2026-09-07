@@ -41,6 +41,8 @@ import type { TemplateSettingsProps } from "@/components/settings/TemplateSettin
 import { CustomFieldSettings } from "@/components/settings/CustomFieldSettings"
 import type { CustomFieldSettingsProps } from "@/components/settings/CustomFieldSettings"
 import { EmailPreferencesSettings } from "@/components/settings/EmailPreferencesSettings"
+import { ApprovalSettings } from "@/components/settings/ApprovalSettings"
+import type { ApprovalSettingsProps } from "@/components/settings/ApprovalSettings"
 import type { NotificationType } from "@/lib/types/database"
 import { defaultScoringConfig } from "@/config/scoring"
 
@@ -104,6 +106,7 @@ interface SettingsContentProps {
   webhooks: WebhookSettingsProps["webhooks"]
   templates: TemplateSettingsProps["templates"]
   customFields: CustomFieldSettingsProps["customFields"]
+  approvalWorkflow: ApprovalSettingsProps["workflow"]
   emailPreferences: Record<NotificationType, boolean>
 }
 
@@ -144,6 +147,7 @@ export function SettingsContent({
   webhooks,
   templates,
   customFields,
+  approvalWorkflow,
   emailPreferences,
 }: SettingsContentProps) {
   const scoringSettings = organization.settings?.scoring as
@@ -197,6 +201,7 @@ export function SettingsContent({
           <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="custom-fields">Custom Fields</TabsTrigger>
+          <TabsTrigger value="approvals">Approvals</TabsTrigger>
           <TabsTrigger value="email">Email</TabsTrigger>
         </TabsList>
 
@@ -455,6 +460,14 @@ export function SettingsContent({
 
         <TabsContent value="custom-fields">
           <CustomFieldSettings customFields={customFields} userRole={userRole} />
+        </TabsContent>
+
+        <TabsContent value="approvals">
+          <ApprovalSettings
+            workflow={approvalWorkflow}
+            members={members}
+            userRole={userRole}
+          />
         </TabsContent>
 
         <TabsContent value="email">
