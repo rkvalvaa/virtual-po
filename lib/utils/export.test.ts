@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { generateCSV, formatRequestsForExport } from './export'
-import type { FeatureRequest } from '@/lib/types/database'
+import type { CustomFieldDefinition, CustomFieldType, FeatureRequest } from '@/lib/types/database'
 
 function makeRequest(overrides: Partial<FeatureRequest> = {}): FeatureRequest {
   return {
@@ -32,9 +32,29 @@ function makeRequest(overrides: Partial<FeatureRequest> = {}): FeatureRequest {
     linearIssueUrl: null,
     githubIssueNumber: null,
     githubIssueUrl: null,
+    customFields: {},
     createdAt: new Date('2026-01-15T10:00:00Z'),
     updatedAt: new Date('2026-02-01T12:30:00Z'),
     ...overrides,
+  }
+}
+
+function makeDefinition(
+  name: string,
+  key: string,
+  type: CustomFieldType = 'TEXT'
+): CustomFieldDefinition {
+  return {
+    id: `def-${key}`,
+    organizationId: 'org-1',
+    name,
+    key,
+    type,
+    options: [],
+    required: false,
+    sortOrder: 0,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-01T00:00:00Z'),
   }
 }
 
@@ -174,6 +194,67 @@ describe('formatRequestsForExport', () => {
     const { rows } = formatRequestsForExport([req])
     expect(rows[0][6]).toBe('2026-03-15T08:00:00.000Z')
     expect(rows[0][7]).toBe('2026-04-01T16:45:30.500Z')
+  })
+})
+
+describe('formatRequestsForExport with custom fields', () => {
+  const definitions = [
+    makeDefinition('Business Unit', 'business_unit'),
+    makeDefinition('Est Cost', 'est_cost', 'NUMBER'),
+  ]
+
+  it('should append one column per definition, in definition order', () => {
+    const { headers } = formatRequestsForExport([], definitions)
+    expect(headers).toHaveLength(10)
+    expect(headers.slice(8)).toEqual(['Business Unit', 'Est Cost'])
+  })
+
+  it('should keep the base columns unchanged when definitions are passed', () => {
+    const { headers } = formatRequestsForExport([], definitions)
+    expect(headers.slice(0, 8)).toEqual(
+      formatRequestsForExport([]).headers,
+    )
+  })
+
+  it('should fill custom field cells from the request values', () => {
+    const req = makeRequest({ customFields: { business_unit: 'Payments', est_cost: 42.5 } })
+    const { rows } = formatRequestsForExport([req], definitions)
+    expect(rows[0].slice(8)).toEqual(['Payments', '42.5'])
+  })
+
+  it('should render missing and null custom field values as empty strings', () => {
+    const req = makeRequest({ customFields: { business_unit: null } })
+    const { rows } = formatRequestsForExport([req], definitions)
+    expect(rows[0].slice(8)).toEqual(['', ''])
+  })
+
+  it('should ignore stored values that have no definition', () => {
+    const req = makeRequest({ customFields: { removed_field: 'orphan' } })
+    const { rows } = formatRequestsForExport([req], definitions)
+    expect(rows[0]).toHaveLength(10)
+    expect(rows[0]).not.toContain('orphan')
+  })
+
+  it('should keep row width equal to header width for every request', () => {
+    const reqs = [
+      makeRequest({ customFields: { business_unit: 'A' } }),
+      makeRequest({ customFields: {} }),
+    ]
+    const { headers, rows } = formatRequestsForExport(reqs, definitions)
+    for (const row of rows) {
+      expect(row).toHaveLength(headers.length)
+    }
+  })
+
+  it('should escape custom field values containing commas', () => {
+    const req = makeRequest({ customFields: { business_unit: 'Payments, EU' } })
+    const { headers, rows } = formatRequestsForExport([req], definitions)
+    expect(generateCSV(headers, rows)).toContain('"Payments, EU"')
+  })
+
+  it('should behave exactly as before when no definitions are given', () => {
+    const req = makeRequest({ customFields: { business_unit: 'Payments' } })
+    expect(formatRequestsForExport([req])).toEqual(formatRequestsForExport([req], []))
   })
 })
 

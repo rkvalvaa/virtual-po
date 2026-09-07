@@ -9,6 +9,14 @@ import {
   getFeatureRequestById,
   updateFeatureRequestStatus,
 } from "@/lib/db/queries/feature-requests";
+import {
+  listCustomFieldDefinitions,
+  updateRequestCustomFields,
+} from "@/lib/db/queries/custom-fields";
+import {
+  validateCustomFieldValues,
+  type RawCustomFieldValues,
+} from "@/lib/utils/custom-fields";
 import { applyDecision } from "@/lib/decisions/apply";
 import { createComment } from "@/lib/db/queries/comments";
 import { notifyRequestOwner, notifyUser, getOrgUserIds } from "@/lib/db/queries/notifications";
@@ -36,6 +44,60 @@ export async function submitDecision(
 
   revalidatePath("/requests/" + requestId);
   revalidatePath("/review");
+
+  return { success: true };
+}
+
+export type UpdateCustomFieldsResult =
+  | { success: true }
+  | { success: false; errors: Record<string, string> };
+
+/**
+ * Replace the custom field values on a request. Editable by the requester and
+ * by anyone with REVIEWER or higher; validation errors come back per field so
+ * the form can render them inline instead of throwing.
+ */
+export async function updateCustomFields(
+  requestId: string,
+  values: RawCustomFieldValues
+): Promise<UpdateCustomFieldsResult> {
+  const session = await requireAuth();
+  const orgId = session.user.orgId;
+  if (!orgId) {
+    throw new Error("No organization");
+  }
+
+  const request = await getFeatureRequestById(requestId);
+  if (!request || request.organizationId !== orgId) {
+    throw new Error("Feature request not found");
+  }
+
+  const isRequester = request.requesterId === session.user.id;
+  if (!isRequester && !canAccess(session.user.role as UserRole, "REVIEWER")) {
+    throw new Error("Insufficient permissions: REVIEWER role required");
+  }
+
+  const definitions = await listCustomFieldDefinitions(orgId);
+  const validation = validateCustomFieldValues(definitions, values);
+  if (!validation.ok) {
+    return { success: false, errors: validation.errors };
+  }
+
+  await updateRequestCustomFields(requestId, orgId, validation.values);
+
+  try {
+    await logActivity({
+      organizationId: orgId,
+      requestId,
+      userId: session.user.id,
+      action: "REQUEST_UPDATED",
+      entityType: "REQUEST",
+      entityId: requestId,
+      metadata: { customFields: Object.keys(validation.values) },
+    });
+  } catch { /* activity logging is non-critical */ }
+
+  revalidatePath("/requests/" + requestId);
 
   return { success: true };
 }

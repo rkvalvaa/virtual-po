@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { listFeatureRequests } from '@/lib/db/queries/feature-requests';
+import { listCustomFieldDefinitions } from '@/lib/db/queries/custom-fields';
 import { generateCSV, formatRequestsForExport } from '@/lib/utils/export';
 import '@/lib/auth/types';
 
@@ -15,12 +16,14 @@ export async function GET() {
     return NextResponse.json({ error: 'No organization found' }, { status: 400 });
   }
 
-  const [approved, inBacklog, inProgress, completed] = await Promise.all([
-    listFeatureRequests(orgId, { status: 'APPROVED', limit: 10000 }),
-    listFeatureRequests(orgId, { status: 'IN_BACKLOG', limit: 10000 }),
-    listFeatureRequests(orgId, { status: 'IN_PROGRESS', limit: 10000 }),
-    listFeatureRequests(orgId, { status: 'COMPLETED', limit: 10000 }),
-  ]);
+  const [approved, inBacklog, inProgress, completed, customFieldDefinitions] =
+    await Promise.all([
+      listFeatureRequests(orgId, { status: 'APPROVED', limit: 10000 }),
+      listFeatureRequests(orgId, { status: 'IN_BACKLOG', limit: 10000 }),
+      listFeatureRequests(orgId, { status: 'IN_PROGRESS', limit: 10000 }),
+      listFeatureRequests(orgId, { status: 'COMPLETED', limit: 10000 }),
+      listCustomFieldDefinitions(orgId),
+    ]);
 
   const allRequests = [
     ...approved.requests,
@@ -29,7 +32,7 @@ export async function GET() {
     ...completed.requests,
   ];
 
-  const { headers, rows } = formatRequestsForExport(allRequests);
+  const { headers, rows } = formatRequestsForExport(allRequests, customFieldDefinitions);
   const csv = generateCSV(headers, rows);
 
   const date = new Date().toISOString().slice(0, 10);

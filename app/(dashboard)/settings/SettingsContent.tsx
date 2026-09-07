@@ -38,6 +38,8 @@ import { WebhookSettings } from "@/components/settings/WebhookSettings"
 import type { WebhookSettingsProps } from "@/components/settings/WebhookSettings"
 import { TemplateSettings } from "@/components/settings/TemplateSettings"
 import type { TemplateSettingsProps } from "@/components/settings/TemplateSettings"
+import { CustomFieldSettings } from "@/components/settings/CustomFieldSettings"
+import type { CustomFieldSettingsProps } from "@/components/settings/CustomFieldSettings"
 import { EmailPreferencesSettings } from "@/components/settings/EmailPreferencesSettings"
 import type { NotificationType } from "@/lib/types/database"
 import { defaultScoringConfig } from "@/config/scoring"
@@ -101,6 +103,7 @@ interface SettingsContentProps {
   apiKeys: ApiKeySettingsProps["apiKeys"]
   webhooks: WebhookSettingsProps["webhooks"]
   templates: TemplateSettingsProps["templates"]
+  customFields: CustomFieldSettingsProps["customFields"]
   emailPreferences: Record<NotificationType, boolean>
 }
 
@@ -140,6 +143,7 @@ export function SettingsContent({
   apiKeys,
   webhooks,
   templates,
+  customFields,
   emailPreferences,
 }: SettingsContentProps) {
   const scoringSettings = organization.settings?.scoring as
@@ -192,6 +196,7 @@ export function SettingsContent({
           <TabsTrigger value="api-keys">API Keys</TabsTrigger>
           <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="custom-fields">Custom Fields</TabsTrigger>
           <TabsTrigger value="email">Email</TabsTrigger>
         </TabsList>
 
@@ -446,6 +451,10 @@ export function SettingsContent({
 
         <TabsContent value="templates">
           <TemplateSettings templates={templates} userRole={userRole} />
+        </TabsContent>
+
+        <TabsContent value="custom-fields">
+          <CustomFieldSettings customFields={customFields} userRole={userRole} />
         </TabsContent>
 
         <TabsContent value="email">
