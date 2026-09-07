@@ -158,7 +158,12 @@ npm run lint         # Run ESLint
 npm run test         # Run tests with Vitest
 npm run migrate:up   # Run pending database migrations
 npm run migrate:down # Rollback last migration
+npm run test:e2e     # Run the Playwright end-to-end suite
 ```
+
+## Testing
+
+Unit and component tests run with `npm test`; the database-backed ones skip themselves unless `DATABASE_URL` points at a migrated database. The end-to-end suite runs with `npm run test:e2e` and needs a little more: start a throwaway Postgres (`docker run --rm -d -p 55432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=vpo_e2e --name vpo-e2e postgres:16`), export `DATABASE_URL=postgresql://postgres:postgres@localhost:55432/vpo_e2e`, run `npm run migrate:up`, and export `E2E_AUTH_TOKEN` (any value — it enables the test-only credentials provider) plus an `AUTH_SECRET`. Playwright then boots two servers itself: `e2e/mock-anthropic.mjs`, an offline stand-in for the Anthropic Messages API, and the production build with `ANTHROPIC_BASE_URL` pointed at it, so the intake-chat spec drives a real streaming conversation without network access or an API key. Override the mock's port with `MOCK_ANTHROPIC_PORT` if 4010 is taken.
 
 ## Public API
 

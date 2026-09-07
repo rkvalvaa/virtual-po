@@ -16,7 +16,9 @@ test("stakeholder creates a request and opens its detail page", async ({
   // Creation hands off to the intake chat in place — it does not navigate to
   // /requests/[id]. The chat only calls the agent once a message is sent, so
   // stopping here keeps this slice free of LLM calls.
-  await expect(page.getByText("Intake Agent", { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole("main").getByText("Intake Agent", { exact: true }),
+  ).toBeVisible()
 
   await page.goto("/requests")
   await page.getByRole("link", { name: title }).click()

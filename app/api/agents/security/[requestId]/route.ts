@@ -4,7 +4,7 @@ import {
   UIMessage,
   convertToModelMessages,
 } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
+import { anthropic } from '@/lib/agents/client';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { SECURITY_SYSTEM_PROMPT } from '@/lib/agents/prompts/security';

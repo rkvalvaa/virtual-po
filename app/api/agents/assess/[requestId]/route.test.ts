@@ -32,7 +32,7 @@ vi.mock('ai', async () => {
   }
 })
 
-vi.mock('@ai-sdk/anthropic', () => ({
+vi.mock('@/lib/agents/client', () => ({
   anthropic: (model: string) => ({ id: `anthropic:${model}`, modelId: model }),
 }))
 

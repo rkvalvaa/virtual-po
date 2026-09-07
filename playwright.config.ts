@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test"
 
 const baseURL = "http://localhost:3000"
+const mockAnthropicPort = process.env.MOCK_ANTHROPIC_PORT ?? "4010"
 
 export default defineConfig({
   testDir: "e2e",
@@ -21,10 +22,23 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
-    command: "npm run build && npm run start",
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 300_000,
-  },
+  webServer: [
+    {
+      command: "node e2e/mock-anthropic.mjs",
+      url: `http://localhost:${mockAnthropicPort}/`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+    {
+      command: "npm run build && npm run start",
+      url: baseURL,
+      reuseExistingServer: !process.env.CI,
+      timeout: 300_000,
+      env: {
+        // The provider appends `/messages`, so the version segment belongs here.
+        ANTHROPIC_BASE_URL: `http://localhost:${mockAnthropicPort}/v1`,
+        ANTHROPIC_API_KEY: "sk-ant-e2e",
+      },
+    },
+  ],
 })
