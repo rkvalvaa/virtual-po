@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import type { NotificationType } from '@/lib/types/database';
+import { log } from '@/lib/logging/logger';
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -79,6 +80,6 @@ export async function sendNotificationEmail(params: SendNotificationEmailParams)
     });
   } catch (err) {
     // Log but don't throw — email failures shouldn't break the main flow
-    console.error('Failed to send notification email:', err);
+    log.error('email.send_failed', { type: params.type, err });
   }
 }

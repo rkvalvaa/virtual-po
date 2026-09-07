@@ -10,7 +10,10 @@ import { auth } from '@/auth';
 import { INTAKE_SYSTEM_PROMPT } from '@/lib/agents/prompts/intake';
 import { createIntakeTools } from '@/lib/agents/tools/intake-tools';
 import { getFeatureRequestById } from '@/lib/db/queries/feature-requests';
+import { createAgentTelemetry } from '@/lib/agents/telemetry';
 import '@/lib/auth/types';
+
+const MODEL = 'claude-sonnet-4-5-20250929';
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -56,11 +59,18 @@ export async function POST(req: Request) {
   const tools = createIntakeTools(requestId, session.user.orgId, session.user.id);
 
   const result = streamText({
-    model: anthropic('claude-sonnet-4-5-20250929'),
+    model: anthropic(MODEL),
     system: `${INTAKE_SYSTEM_PROMPT}\n\nCurrent request ID: ${requestId}`,
     messages: await convertToModelMessages(messages),
     tools,
     stopWhen: stepCountIs(5),
+    onFinish: createAgentTelemetry({
+      agent: 'intake',
+      model: MODEL,
+      orgId: session.user.orgId,
+      requestId,
+      userId: session.user.id,
+    }),
   });
 
   return result.toUIMessageStreamResponse();

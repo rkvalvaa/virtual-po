@@ -10,7 +10,10 @@ import { auth } from '@/auth';
 import { ASSESSMENT_SYSTEM_PROMPT } from '@/lib/agents/prompts/assessment';
 import { createAssessmentTools } from '@/lib/agents/tools/assessment-tools';
 import { getFeatureRequestById } from '@/lib/db/queries/feature-requests';
+import { createAgentTelemetry } from '@/lib/agents/telemetry';
 import '@/lib/auth/types';
+
+const MODEL = 'claude-sonnet-4-5-20250929';
 
 export async function POST(
   req: Request,
@@ -80,11 +83,18 @@ ${JSON.stringify(featureRequest.intakeData, null, 2)}
 \`\`\``;
 
   const result = streamText({
-    model: anthropic('claude-sonnet-4-5-20250929'),
+    model: anthropic(MODEL),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
     tools,
     stopWhen: stepCountIs(5),
+    onFinish: createAgentTelemetry({
+      agent: 'assessment',
+      model: MODEL,
+      orgId: session.user.orgId,
+      requestId,
+      userId: session.user.id,
+    }),
   });
 
   return result.toUIMessageStreamResponse();
