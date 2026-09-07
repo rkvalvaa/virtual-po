@@ -178,6 +178,12 @@ curl -X POST -H "Authorization: Bearer vpo_your_key_here" \
 
 Rate limiting: 100 requests/minute per organization. Rate limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`) are included in every response.
 
+## Monitoring
+
+- **Health check**: `GET /api/health` — unauthenticated probe returning `{ status, db, version, uptimeSec }`; 503 when the database is unreachable.
+- **Logs**: every log line is a single JSON object (`{ level, event, ts, ... }`) on stdout/stderr, ready to index in Vercel or any log drain. Slow queries emit `db.slow_query` above `SLOW_QUERY_MS` (default 500).
+- **Agent usage**: each agent call writes a row to the `agent_usage` table (tokens, duration, steps); the analytics dashboard summarizes it with estimated cost.
+
 ## Deployment
 
 ### Vercel (Recommended)

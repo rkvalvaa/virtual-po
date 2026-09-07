@@ -19,10 +19,12 @@ import {
   getBacklogBurndown,
 } from "@/lib/db/queries/analytics"
 import type { DateRange } from "@/lib/db/queries/analytics"
+import { getAgentUsageSummary } from "@/lib/db/queries/agent-usage"
 import { DashboardCharts } from "./DashboardCharts"
 import { AdvancedCharts } from "./AdvancedCharts"
 import { VoteAnalytics } from "./VoteAnalytics"
 import { BurndownChart } from "@/components/analytics/BurndownChart"
+import { AgentUsageCard } from "@/components/analytics/AgentUsageCard"
 import { DateRangeFilter } from "@/components/analytics/DateRangeFilter"
 import { MyStatsCard } from "@/components/analytics/MyStatsCard"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -77,6 +79,7 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
     decisionBreakdown,
     userStats,
     burndown,
+    agentUsage,
   ] = await Promise.all([
     getDashboardSummary(orgId, dateRange),
     getStatusDistribution(orgId, dateRange),
@@ -95,6 +98,7 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
     getDecisionBreakdown(orgId, dateRange),
     getUserDashboardStats(orgId, session.user.id),
     getBacklogBurndown(orgId, dateRange),
+    getAgentUsageSummary(orgId, dateRange),
   ])
 
   return (
@@ -197,6 +201,8 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
       />
 
       <BurndownChart data={burndown} />
+
+      <AgentUsageCard summary={agentUsage} />
 
       {topRequesters.length > 0 && (
         <Card>
