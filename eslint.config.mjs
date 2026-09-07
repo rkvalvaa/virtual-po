@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Agent worktrees and local Claude state; never lint them.
+    ".claude/**",
+    "playwright-report/**",
+    "test-results/**",
   ]),
 ]);
 

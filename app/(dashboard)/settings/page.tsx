@@ -14,6 +14,9 @@ import { getAllTemplates, seedDefaultTemplates } from "@/lib/db/queries/template
 import { listCustomFieldDefinitions } from "@/lib/db/queries/custom-fields"
 import { getEmailPreferences } from "@/lib/db/queries/email-preferences"
 import { listWorkflows } from "@/lib/db/queries/approval-workflows"
+import { listReviewCycles } from "@/lib/db/queries/review-cycles"
+import { getCycleProgress } from "@/lib/review-cycles/engine"
+import { parseReviewCycleConfig } from "@/lib/review-cycles/config"
 import type { NotificationType } from "@/lib/types/database"
 import { NOTIFICATION_TYPES } from "@/lib/types/database"
 import "@/lib/auth/types"
@@ -33,7 +36,7 @@ export default async function SettingsPage() {
 
   await seedDefaultTemplates(orgId)
 
-  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, teamsIntegration, teamsNotifications, apiKeys, webhookSubscriptions, allTemplates, customFieldDefinitions, emailPrefs, approvalWorkflows] = await Promise.all([
+  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, teamsIntegration, teamsNotifications, apiKeys, webhookSubscriptions, allTemplates, customFieldDefinitions, emailPrefs, approvalWorkflows, reviewCycles] = await Promise.all([
     getOrganizationById(orgId),
     getOrganizationUsers(orgId),
     getRepositoriesByOrgId(orgId),
@@ -55,7 +58,24 @@ export default async function SettingsPage() {
     listCustomFieldDefinitions(orgId),
     getEmailPreferences(session.user.id, orgId),
     listWorkflows(orgId),
+    listReviewCycles(orgId, 10),
   ])
+
+  // ponytail: one count per listed cycle, fanned out in parallel. Ten rows on
+  // an admin tab; fold into a LEFT JOIN LATERAL if the list ever grows.
+  const reviewCycleRows = await Promise.all(
+    reviewCycles.map(async (cycle) => {
+      const progress = await getCycleProgress(cycle)
+      return {
+        id: cycle.id,
+        startedAt: cycle.startedAt.toISOString(),
+        requeuedCount: cycle.requeuedCount,
+        triggeredBy: cycle.triggeredBy,
+        decided: progress.decided,
+        total: progress.total,
+      }
+    })
+  )
 
   // The settings UI edits a single chain per org; prefer the active one.
   const approvalWorkflow =
@@ -273,6 +293,8 @@ export default async function SettingsPage() {
             }
           : null
       }
+      reviewCycleConfig={parseReviewCycleConfig(organization.settings)}
+      reviewCycles={reviewCycleRows}
       emailPreferences={
         Object.fromEntries(
           NOTIFICATION_TYPES.map((type) => {

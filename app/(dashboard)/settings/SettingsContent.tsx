@@ -43,6 +43,8 @@ import type { CustomFieldSettingsProps } from "@/components/settings/CustomField
 import { EmailPreferencesSettings } from "@/components/settings/EmailPreferencesSettings"
 import { ApprovalSettings } from "@/components/settings/ApprovalSettings"
 import type { ApprovalSettingsProps } from "@/components/settings/ApprovalSettings"
+import { ReviewCycleSettings } from "@/components/settings/ReviewCycleSettings"
+import type { ReviewCycleSettingsProps } from "@/components/settings/ReviewCycleSettings"
 import type { NotificationType } from "@/lib/types/database"
 import { defaultScoringConfig } from "@/config/scoring"
 
@@ -107,6 +109,8 @@ interface SettingsContentProps {
   templates: TemplateSettingsProps["templates"]
   customFields: CustomFieldSettingsProps["customFields"]
   approvalWorkflow: ApprovalSettingsProps["workflow"]
+  reviewCycleConfig: ReviewCycleSettingsProps["config"]
+  reviewCycles: ReviewCycleSettingsProps["cycles"]
   emailPreferences: Record<NotificationType, boolean>
 }
 
@@ -148,6 +152,8 @@ export function SettingsContent({
   templates,
   customFields,
   approvalWorkflow,
+  reviewCycleConfig,
+  reviewCycles,
   emailPreferences,
 }: SettingsContentProps) {
   const scoringSettings = organization.settings?.scoring as
@@ -202,6 +208,7 @@ export function SettingsContent({
           <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="custom-fields">Custom Fields</TabsTrigger>
           <TabsTrigger value="approvals">Approvals</TabsTrigger>
+          <TabsTrigger value="review-cycles">Review Cycles</TabsTrigger>
           <TabsTrigger value="email">Email</TabsTrigger>
         </TabsList>
 
@@ -466,6 +473,14 @@ export function SettingsContent({
           <ApprovalSettings
             workflow={approvalWorkflow}
             members={members}
+            userRole={userRole}
+          />
+        </TabsContent>
+
+        <TabsContent value="review-cycles">
+          <ReviewCycleSettings
+            config={reviewCycleConfig}
+            cycles={reviewCycles}
             userRole={userRole}
           />
         </TabsContent>

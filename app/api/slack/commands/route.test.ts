@@ -35,7 +35,7 @@ const listFeatureRequestsMock = vi.fn(() =>
   })
 )
 const getFeatureRequestByIdMock = vi.fn(() => Promise.resolve(fakeRequest))
-const logActivityMock = vi.fn((..._args: unknown[]) => Promise.resolve())
+const logActivityMock = vi.fn(() => Promise.resolve())
 
 vi.mock('@/lib/db/queries/feature-requests', () => ({
   createFeatureRequest: (...args: [string, string, string]) => createFeatureRequestMock(...args),
@@ -44,7 +44,7 @@ vi.mock('@/lib/db/queries/feature-requests', () => ({
 }))
 
 vi.mock('@/lib/db/queries/activity-log', () => ({
-  logActivity: (...args: unknown[]) => logActivityMock(...args),
+  logActivity: () => logActivityMock(),
 }))
 
 vi.mock('@/lib/db/queries/jira-sync', () => ({
