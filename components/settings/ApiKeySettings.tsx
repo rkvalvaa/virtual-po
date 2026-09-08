@@ -125,7 +125,7 @@ export function ApiKeySettings({ apiKeys, userRole }: ApiKeySettingsProps) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle>API Keys</CardTitle>
             <CardDescription>

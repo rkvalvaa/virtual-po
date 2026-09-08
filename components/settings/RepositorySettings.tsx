@@ -106,7 +106,7 @@ export function RepositorySettings({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle>Repositories</CardTitle>
             <CardDescription>
@@ -151,7 +151,7 @@ export function RepositorySettings({
                       return (
                         <div
                           key={repo.id}
-                          className="flex items-center justify-between rounded-md border p-3"
+                          className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3"
                         >
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium">
@@ -205,7 +205,7 @@ export function RepositorySettings({
           {repositories.map((repo) => (
             <div
               key={repo.id}
-              className="flex items-center justify-between rounded-md border p-3"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3"
             >
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">{repo.fullName}</p>

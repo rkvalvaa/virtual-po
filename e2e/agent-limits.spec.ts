@@ -23,5 +23,5 @@ test('agent limits return explicit HTTP errors and actionable chat feedback', as
     await page.getByRole('textbox', { name: 'Message to agent' }).fill('Help with this request');
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     await expect(page.getByRole('main').getByText('Hourly AI limit reached. Please retry in one hour.', { exact: true })).toBeVisible();
-  } finally { await cleanupTestOrg(org, [user.id]); }
+  } finally { await page.goto('/'); await cleanupTestOrg(org, [user.id]); }
 });

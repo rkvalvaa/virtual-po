@@ -1,88 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
-
 /**
- * Teams Bot Framework messaging endpoint.
- * Handles incoming messages from Teams bot interactions.
- *
- * Commands:
- *   /vpo submit <title> — Create a new feature request
- *   /vpo status [id]    — Check request status
- *   /vpo help            — Show available commands
+ * Commands stay unavailable until a supported Bot Framework adapter validates
+ * tokens and maps tenant/user identities to VPO membership. Keep this route
+ * outside the proxy's machine-authentication allowlist. Never parse activities
+ * or acknowledge nonexistent requests.
  */
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json() as {
-      type?: string;
-      text?: string;
-      from?: { id: string; name: string };
-      channelData?: Record<string, unknown>;
-      serviceUrl?: string;
-      conversation?: { id: string };
-    };
-
-    // Handle Bot Framework conversation update (bot added to team)
-    if (body.type === 'conversationUpdate') {
-      return NextResponse.json({ status: 'ok' });
-    }
-
-    // Handle message activity
-    if (body.type !== 'message') {
-      return NextResponse.json({ status: 'ok' });
-    }
-
-    const text = (body.text ?? '').trim().toLowerCase();
-
-    // Parse /vpo commands
-    if (text.startsWith('/vpo') || text.startsWith('vpo')) {
-      const command = text.replace(/^\/?vpo\s*/, '');
-
-      if (command.startsWith('help') || command === '') {
-        return NextResponse.json({
-          type: 'message',
-          text: [
-            '**Virtual Product Owner — Teams Commands**',
-            '',
-            '`/vpo submit <title>` — Create a new feature request',
-            '`/vpo status` — View recent requests',
-            '`/vpo help` — Show this help message',
-          ].join('\n'),
-        });
-      }
-
-      if (command.startsWith('submit ')) {
-        const title = command.replace('submit ', '').trim();
-        if (!title) {
-          return NextResponse.json({
-            type: 'message',
-            text: 'Please provide a title: `/vpo submit My feature idea`',
-          });
-        }
-
-        // For now, return a confirmation with link to the web app
-        return NextResponse.json({
-          type: 'message',
-          text: `Feature request noted: **${title}**\n\nPlease complete the intake process in the web app to proceed.`,
-        });
-      }
-
-      if (command.startsWith('status')) {
-        return NextResponse.json({
-          type: 'message',
-          text: 'View all requests and their status in the web app.',
-        });
-      }
-
-      return NextResponse.json({
-        type: 'message',
-        text: `Unknown command: \`${command}\`. Try \`/vpo help\` for available commands.`,
-      });
-    }
-
-    return NextResponse.json({ status: 'ok' });
-  } catch {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
+export async function POST(request: Request): Promise<Response> {
+  void request;
+  return Response.json({
+    error: 'Teams bot commands are unavailable. Submit and track requests in the VPO web app.',
+    code: 'TEAMS_COMMANDS_UNAVAILABLE',
+  }, { status: 503 });
 }

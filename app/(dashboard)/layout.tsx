@@ -48,7 +48,7 @@ export default async function DashboardLayout({
           />
         }
       />
-      <main className="min-h-screen px-4 py-8 sm:px-6 md:ml-64 lg:px-8">
+      <main className="min-h-screen px-4 py-8 sm:px-6 md:ml-[256px] lg:px-8">
         {children}
       </main>
       <KeyboardShortcuts />

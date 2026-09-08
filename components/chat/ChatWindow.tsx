@@ -73,8 +73,8 @@ export function ChatWindow({ requestId, stage = "intake", initialMessages = [], 
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <ScrollArea className="flex-1 p-4">
+    <div className="flex h-full min-w-0 flex-col">
+      <ScrollArea className="min-h-0 min-w-0 flex-1 p-4">
         <div className="space-y-4">
           {messages.length === 0 && (
             <p className="text-muted-foreground py-8 text-center text-sm">
@@ -110,7 +110,7 @@ export function ChatWindow({ requestId, stage = "intake", initialMessages = [], 
               try { sessionStorage.setItem(draftKey, e.target.value) } catch { /* Storage is optional. */ }
             }}
             placeholder="Describe your feature request..."
-            className="min-h-10 flex-1 resize-none"
+            className="min-h-10 min-w-0 flex-1 resize-none"
             rows={1}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {

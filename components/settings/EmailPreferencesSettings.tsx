@@ -83,7 +83,7 @@ export function EmailPreferencesSettings({
           {NOTIFICATION_LABELS.map(({ type, label, description }) => (
             <div
               key={type}
-              className="flex items-center justify-between rounded-lg border p-4"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4"
             >
               <div className="space-y-0.5">
                 <p className="text-sm font-medium">{label}</p>

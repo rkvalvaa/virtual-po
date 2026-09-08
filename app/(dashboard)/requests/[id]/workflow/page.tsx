@@ -45,7 +45,7 @@ export default async function RequestWorkflowPage({ params }: { params: Promise<
   return <div className="mx-auto w-full max-w-6xl space-y-6">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h1 className="min-w-0 break-words text-2xl font-bold">{request.title}</h1>
-      <Button asChild variant="outline"><Link href={`/requests/${id}`}>View request and results</Link></Button>
+      <Button asChild variant="outline" className="h-auto max-w-full whitespace-normal py-2"><Link href={`/requests/${id}`}>View request and results</Link></Button>
     </div>
     <ol className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Request workflow">
       {stages.map(stage => <li key={stage.id} className="rounded-lg border p-3 text-sm">

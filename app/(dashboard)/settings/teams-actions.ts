@@ -49,7 +49,7 @@ export async function connectTeams(
 
   try {
     // Test the webhook by sending a test message
-    await postTextToTeams(webhookUrl, "Virtual Product Owner connected successfully! You will receive notifications in this channel.")
+    await postTextToTeams(webhookUrl, "Virtual Product Owner webhook connection test. Automatic notifications and bot commands are unavailable; create and track requests in the VPO web app.")
 
     await upsertIntegration(orgId, "TEAMS", "Microsoft Teams", {
       webhookUrl,
@@ -119,7 +119,7 @@ export async function testTeamsConnection(): Promise<{
     }
 
     const webhookUrl = integration.config.webhookUrl as string
-    await postTextToTeams(webhookUrl, "Connection test successful! Your Teams integration is working.")
+    await postTextToTeams(webhookUrl, "Virtual Product Owner webhook connection test. This confirms message delivery only; bot commands and automatic notifications are unavailable.")
     return { success: true }
   } catch {
     return {
@@ -181,7 +181,8 @@ export async function removeTeamsNotificationConfig(
   }
 
   try {
-    await deleteTeamsNotification(id)
+    if (!session.user.orgId) return { success: false, error: "No organization found." }
+    if (!await deleteTeamsNotification(id, session.user.orgId)) return { success: false, error: "Notification configuration not found." }
     revalidatePath("/settings")
     return { success: true }
   } catch {

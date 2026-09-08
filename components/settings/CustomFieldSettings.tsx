@@ -134,7 +134,7 @@ export function CustomFieldSettings({ customFields, userRole }: CustomFieldSetti
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle>Custom Fields</CardTitle>
             <CardDescription>

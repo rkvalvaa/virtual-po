@@ -227,7 +227,6 @@ export default async function SettingsPage() {
         teamsIntegration
           ? {
               id: teamsIntegration.id,
-              webhookUrl: (teamsIntegration.config.webhookUrl as string) ?? "",
               isActive: teamsIntegration.isActive,
               connectedAt: teamsIntegration.createdAt.toISOString(),
             }
@@ -236,7 +235,6 @@ export default async function SettingsPage() {
       teamsNotifications={teamsNotifications.map((n) => ({
         id: n.id,
         channelName: n.channelName,
-        webhookUrl: n.webhookUrl,
         eventType: n.eventType,
         isActive: n.isActive,
       }))}

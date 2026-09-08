@@ -212,9 +212,9 @@ const integrations = [
   {
     icon: MessagesSquare,
     name: "Microsoft Teams",
-    badge: "Notifications",
+    badge: "Connection preview",
     badgeClass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-    description: "Channel notifications and request submission from Teams.",
+    description: "Test a channel webhook connection. Create and track requests in the web app; Teams commands are unavailable.",
     color: "text-sky-600 dark:text-sky-400",
     bg: "bg-sky-100 dark:bg-sky-950/60",
   },

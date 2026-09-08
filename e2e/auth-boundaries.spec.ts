@@ -50,7 +50,7 @@ test('an open admin page cannot mutate after demotion, and removed members lose 
   try {
     await loginAs(page, user.email);
     await page.goto('/settings');
-    await page.getByRole('tab', { name: 'API Keys', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'API Keys', exact: true }).click();
     await page.getByRole('button', { name: 'Create API Key', exact: true }).click();
     await page.getByLabel('Name', { exact: true }).fill('Must not be created');
     // Keep the old UI and cookie: only the database membership changes.

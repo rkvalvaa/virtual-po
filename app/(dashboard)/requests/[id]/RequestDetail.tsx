@@ -181,7 +181,7 @@ export function RequestDetail({
   return (
     <div className="space-y-6">
       {/* Back button + actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Button variant="ghost" size="sm" asChild>
           <Link href="/requests">
             <ArrowLeft className="mr-1 h-4 w-4" />
@@ -209,7 +209,7 @@ export function RequestDetail({
             <Badge variant="outline">Complexity: {request.complexity}</Badge>
           )}
         </div>
-        <div className="text-muted-foreground flex gap-4 text-sm">
+        <div className="text-muted-foreground flex flex-wrap gap-4 text-sm">
           <span>Created: {formatDate(request.createdAt)}</span>
           <span>Updated: {formatDate(request.updatedAt)}</span>
         </div>
@@ -260,7 +260,8 @@ export function RequestDetail({
 
       {/* Tabs */}
       <Tabs defaultValue="overview">
-        <TabsList>
+        <div className="min-w-0 overflow-x-auto p-1">
+        <TabsList aria-label="Request details">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="assessment">Assessment</TabsTrigger>
           <TabsTrigger value="epic-stories">Epic & Stories</TabsTrigger>
@@ -281,6 +282,7 @@ export function RequestDetail({
             )}
           </TabsTrigger>
         </TabsList>
+        </div>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
