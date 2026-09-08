@@ -9,7 +9,7 @@ import { upsertTeamsNotification } from '@/lib/db/queries/teams';
 const sections = ['Organization', 'Members', 'Repositories', 'Scoring', 'OKRs', 'Capacity', 'Templates', 'Custom Fields', 'Approvals', 'Review Cycles', 'Jira', 'Linear', 'GitHub Issues', 'Slack', 'Teams', 'API Keys', 'Webhooks', 'Email'];
 async function noOverflow(page: Page) {
   const dimensions = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
-  const overflowing = await page.evaluate(() => [...document.querySelectorAll('main *')].filter(element => element.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map(element => ({ tag: element.tagName, text: element.textContent?.slice(0, 60) })));
+  const overflowing = await page.evaluate(() => [...document.querySelectorAll('body *')].filter(element => element.getBoundingClientRect().right + scrollX > innerWidth + 1).slice(0, 12).map(element => ({ tag: element.tagName, class: element.className, right: element.getBoundingClientRect().right, scrollX, text: element.textContent?.slice(0, 60) })));
   expect(dimensions.scroll, JSON.stringify(overflowing)).toBeLessThanOrEqual(dimensions.width + 1);
 }
 
