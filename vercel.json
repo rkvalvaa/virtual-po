@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/webhooks",
-      "schedule": "0 7 * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/cron/review-cycles",

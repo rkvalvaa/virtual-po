@@ -12,7 +12,7 @@ WEBHOOK_WORKER_URL=https://your-app.example CRON_SECRET=... npm run webhooks:wor
 
 Inject credentials through the host's secret manager; do not paste real secrets into shared shell history. The worker calls the application over HTTPS, refuses redirects, waits for each batch, and repeats after 60 seconds. `npm run webhooks:worker -- --once` runs one sweep and returns a failing exit code if the endpoint fails. It does not load local `.env` files.
 
-`vercel.json` includes a daily fallback sweep at 07:00 UTC. **This fallback alone does not provide prompt delivery.** For production, configure the minute scheduler or always-on worker above. On a Vercel plan supporting frequent cron jobs, change this job's schedule to `* * * * *`. Check [Vercel cron limits](https://vercel.com/docs/cron-jobs/usage-and-pricing) for the deployment plan before changing its cadence.
+`vercel.json` schedules this endpoint every minute. The linked production team (`rkvalvaa-s-team`) was verified to use Vercel Pro during the rollout preparation on 2026-09-08. Set `CRON_SECRET` before deployment so scheduled calls authenticate. If moving to a plan without minute scheduling, configure the trusted scheduler or always-on worker above; a daily sweep alone does not provide prompt delivery. Check [Vercel cron limits](https://vercel.com/docs/cron-jobs/usage-and-pricing) before changing hosting plans.
 
 Monitor scheduler failures and the age of pending deliveries. Settings → Webhooks → Deliveries shows the latest 30 deliveries, attempt outcomes, HTTP status, and retry eligibility. An eligible delivery remains pending until a worker runs; it also waits while its subscription is paused. Do not treat an empty successful sweep as evidence that all paused deliveries were sent.
 
