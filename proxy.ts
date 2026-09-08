@@ -8,7 +8,7 @@ const { auth } = NextAuth(authConfig)
 function usesMachineAuthentication(pathname: string): boolean {
   return pathname === "/api/v1" || pathname.startsWith("/api/v1/") || [
     "/api/slack/commands", "/api/slack/events", "/api/slack/interactions",
-    "/api/cron/review-cycles", "/api/health",
+    "/api/cron/review-cycles", "/api/cron/webhooks", "/api/health",
   ].includes(pathname)
 }
 

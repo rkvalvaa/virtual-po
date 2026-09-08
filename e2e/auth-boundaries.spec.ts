@@ -20,6 +20,7 @@ test('machine endpoints authenticate without browser cookies through the real pr
   });
   expect(cron.status()).toBe(200);
   expect((await request.get('/api/cron/review-cycles', { maxRedirects: 0 })).status()).toBe(401);
+  expect((await request.get('/api/cron/webhooks', { maxRedirects: 0 })).status()).toBe(401);
 
   const body = JSON.stringify({ type: 'event_callback', event: { type: 'app_mention' } });
   const timestamp = String(Math.floor(Date.now() / 1000));

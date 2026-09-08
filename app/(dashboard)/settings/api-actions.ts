@@ -15,7 +15,9 @@ import {
   updateWebhookSubscription,
   deleteWebhookSubscription as dbDeleteWebhook,
 } from "@/lib/db/queries/webhooks"
-import { dispatchWebhookEvent } from "@/lib/api/webhooks"
+import { enqueueWebhookTest, listWebhookDeliveries, processWebhookOutbox, redeliverWebhook } from "@/lib/api/webhook-outbox"
+import { query, transaction } from "@/lib/db/pool"
+import { z } from "zod"
 import { API_KEY_SCOPES, WEBHOOK_EVENTS } from "@/lib/types/database"
 import type { ApiKeyScope, WebhookEvent } from "@/lib/types/database"
 import crypto from "node:crypto"
@@ -101,7 +103,7 @@ export async function revokeApiKeyAction(
 export async function createWebhookAction(
   url: string,
   events: string[]
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; secret?: string; error?: string }> {
   const session = await requireAuth()
 
   if (!canAccess(session.user.role, "ADMIN")) {
@@ -132,7 +134,7 @@ export async function createWebhookAction(
     const secret = crypto.randomBytes(32).toString("hex")
     await createWebhookSubscription(orgId, url, secret, events as WebhookEvent[])
     revalidatePath("/settings")
-    return { success: true }
+    return { success: true, secret }
   } catch (error) {
     if (error instanceof InvalidWebhookDestination) return { success: false, error: error.message }
     return { success: false, error: "Failed to create webhook." }
@@ -216,7 +218,7 @@ export async function deleteWebhookAction(
 
 export async function testWebhookAction(
   id: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; deliveryId?: string; status?: string; error?: string }> {
   const session = await requireAuth()
 
   if (!canAccess(session.user.role, "ADMIN")) {
@@ -235,14 +237,47 @@ export async function testWebhookAction(
       return { success: false, error: "Webhook not found." }
     }
 
-    dispatchWebhookEvent(orgId, "request.created", {
-      test: true,
-      message: "This is a test webhook delivery",
-      timestamp: new Date().toISOString(),
-    })
-
-    return { success: true }
+    const deliveryId = await enqueueWebhookTest(orgId, id)
+    await processWebhookOutbox({ orgId, deliveryId, limit: 1 })
+    const delivery = (await listWebhookDeliveries(orgId, id)).find(item => item.id === deliveryId)
+    revalidatePath("/settings")
+    return { success: delivery?.status === "SUCCEEDED", deliveryId, status: delivery?.status ?? "PENDING",
+      error: delivery?.status === "SUCCEEDED" ? undefined : `Test delivery ${delivery?.status?.toLowerCase() ?? "pending"}${delivery?.httpStatus ? ` (HTTP ${delivery.httpStatus})` : ""}. View delivery history for retry status.` }
   } catch {
     return { success: false, error: "Failed to send test webhook." }
   }
+}
+
+export async function webhookDeliveryHistoryAction(subscriptionId: string) {
+  const session = await requireAuth()
+  if (session.user.role !== "ADMIN" || !session.user.orgId || !z.uuid().safeParse(subscriptionId).success) {
+    return { success: false as const, error: "Admin access and a valid webhook are required." }
+  }
+  return { success: true as const, deliveries: await listWebhookDeliveries(session.user.orgId, subscriptionId) }
+}
+
+export async function redeliverWebhookAction(deliveryId: string) {
+  const session = await requireAuth()
+  if (session.user.role !== "ADMIN" || !session.user.orgId || !z.uuid().safeParse(deliveryId).success) {
+    return { success: false, error: "Admin access and a valid delivery are required." }
+  }
+  const queued = await redeliverWebhook(session.user.orgId, deliveryId)
+  if (!queued) return { success: false, error: "Only failed or interrupted deliveries can be retried." }
+  revalidatePath("/settings")
+  return { success: true }
+}
+
+export async function rotateWebhookSecretAction(subscriptionId: string): Promise<{ success: boolean; secret?: string; error?: string }> {
+  const session = await requireAuth()
+  if (session.user.role !== "ADMIN" || !session.user.orgId || !z.uuid().safeParse(subscriptionId).success) {
+    return { success: false, error: "Only admins can rotate webhook secrets." }
+  }
+  return transaction(async () => {
+    const member = await query(`SELECT user_id FROM organization_users WHERE organization_id=$1 AND user_id=$2 AND role='ADMIN' FOR SHARE`, [session.user.orgId, session.user.id])
+    if (!member.rows.length) return { success: false, error: "Admin membership is required." }
+    const secret = crypto.randomBytes(32).toString("hex")
+    const rotated = await query('UPDATE webhook_subscriptions SET secret=$3 WHERE id=$1 AND organization_id=$2 RETURNING id', [subscriptionId, session.user.orgId, secret])
+    if (!rotated.rows.length) return { success: false, error: "Webhook not found." }
+    return { success: true, secret }
+  })
 }
