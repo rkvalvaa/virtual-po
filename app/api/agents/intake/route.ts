@@ -1,4 +1,4 @@
-import type { UIMessage } from 'ai';
+import { readAgentBody, agentErrorResponse } from '@/lib/agents/input';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { INTAKE_SYSTEM_PROMPT } from '@/lib/agents/prompts/intake';
@@ -14,11 +14,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  let body: { messages: UIMessage[]; requestId: string };
+  let body: Awaited<ReturnType<typeof readAgentBody>>;
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    body = await readAgentBody(req);
+  } catch (error) {
+    return agentErrorResponse(error);
   }
 
   const { messages, requestId } = body;

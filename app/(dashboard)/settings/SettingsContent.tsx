@@ -397,7 +397,7 @@ export function SettingsContent({
         </TabsContent>
 
         <TabsContent value="repositories">
-          <RepositorySettings repositories={repositories} />
+          <RepositorySettings repositories={repositories} userRole={userRole} />
         </TabsContent>
 
         <TabsContent value="okrs">

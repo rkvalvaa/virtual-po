@@ -6,12 +6,15 @@ import { query } from '@/lib/db/pool';
 import { createTestOrg, createTestUser, createTestRequest, cleanupTestOrg, hasDb, type TestOrg, type TestUser } from '@/test/db-helpers';
 import { createGuardedAgentStream } from './stream';
 import { getAgentMessages } from './history';
+const providerBudget = vi.hoisted(() => ({ output: 0 }));
 
 vi.mock('next/server', async () => ({ ...await vi.importActual<typeof import('next/server')>('next/server'), after: vi.fn() }));
 vi.mock('./client', () => ({
   AGENT_MODEL: 'mock',
   anthropic: () => new MockLanguageModelV3({
-    doStream: async ({ abortSignal }) => ({
+    doStream: async ({ abortSignal, maxOutputTokens }) => {
+      providerBudget.output = maxOutputTokens ?? 0;
+      return {
       stream: new ReadableStream<LanguageModelV3StreamPart>({
         start(controller) {
           controller.enqueue({ type: 'stream-start', warnings: [] });
@@ -20,7 +23,8 @@ vi.mock('./client', () => ({
           abortSignal?.addEventListener('abort', () => controller.error(new DOMException('Aborted', 'AbortError')), { once: true });
         },
       }),
-    }),
+      };
+    },
   }),
 }));
 
@@ -41,6 +45,7 @@ describe.skipIf(!hasDb())('real SDK stream cancellation', () => {
       received += new TextDecoder().decode(chunk.value);
     }
     await reader.cancel('Navigated away');
+    expect(providerBudget.output).toBe(4096);
     expect((await query('SELECT status FROM agent_runs WHERE request_id = $1', [request.id])).rows).toEqual([{ status: 'FAILED' }]);
     expect((await getAgentMessages(scope))[0]).toMatchObject({ id: 'user-1', role: 'user' });
   });

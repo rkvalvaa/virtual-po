@@ -39,6 +39,7 @@ export function ChatWindow({ requestId, stage = "intake", initialMessages = [], 
       new DefaultChatTransport({
         api: stage === "intake" ? "/api/agents/intake" : `/api/agents/${stage === "assessment" ? "assess" : stage === "output" ? "generate" : "security"}/${requestId}`,
         body: { requestId },
+        prepareSendMessagesRequest: ({ messages }) => ({ body: { requestId, messages: messages.slice(-1) } }),
       }),
     [requestId, stage]
   )
@@ -87,6 +88,7 @@ export function ChatWindow({ requestId, stage = "intake", initialMessages = [], 
           {(error || retryAvailable) && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
               Something went wrong. Please try again.
+              {error && <p className="mt-1">{readableError(error)}</p>}
               <Button variant="outline" className="ml-2" disabled={isStreaming || disabled} onClick={() => regenerate()}>Retry last message</Button>
             </div>
           )}
@@ -129,4 +131,12 @@ export function ChatWindow({ requestId, stage = "intake", initialMessages = [], 
       </div>
     </div>
   )
+}
+
+function readableError(error: Error): string {
+  try {
+    const payload = JSON.parse(error.message)
+    if (typeof payload.error === "string") return payload.error
+  } catch { /* Network and streaming errors can be plain text. */ }
+  return error.message.slice(0, 400)
 }

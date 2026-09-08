@@ -1,4 +1,4 @@
-import type { UIMessage } from 'ai';
+import { readAgentBody, agentErrorResponse, isAgentRequestId } from '@/lib/agents/input';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { SECURITY_SYSTEM_PROMPT } from '@/lib/agents/prompts/security';
@@ -19,18 +19,18 @@ export async function POST(
 
   const { requestId } = await params;
 
-  if (!requestId || typeof requestId !== 'string') {
+  if (!isAgentRequestId(requestId)) {
     return NextResponse.json(
       { error: 'requestId is required' },
       { status: 400 }
     );
   }
 
-  let body: { messages: UIMessage[] };
+  let body: Awaited<ReturnType<typeof readAgentBody>>;
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    body = await readAgentBody(req);
+  } catch (error) {
+    return agentErrorResponse(error);
   }
 
   const { messages } = body;

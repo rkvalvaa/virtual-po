@@ -36,6 +36,7 @@ interface ConnectedRepo {
 
 interface RepositorySettingsProps {
   repositories: ConnectedRepo[]
+  userRole: string
 }
 
 function formatDate(dateStr: string): string {
@@ -48,10 +49,13 @@ function formatDate(dateStr: string): string {
 
 export function RepositorySettings({
   repositories,
+  userRole,
 }: RepositorySettingsProps) {
   const [open, setOpen] = useState(false)
   const [availableRepos, setAvailableRepos] = useState<GitHubRepo[]>([])
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [mutationError, setMutationError] = useState<string | null>(null)
+  const canManage = userRole === "ADMIN"
   const [loading, setLoading] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -60,40 +64,42 @@ export function RepositorySettings({
   )
 
   async function handleOpenDialog() {
+    if (!canManage) return
     setLoading(true)
     setFetchError(null)
     setOpen(true)
 
-    const result = await fetchAvailableRepos()
-
-    if ("error" in result) {
-      setFetchError(result.error)
-      setAvailableRepos([])
-    } else {
-      setAvailableRepos(result.repos)
-    }
-
-    setLoading(false)
+    try {
+      const result = await fetchAvailableRepos()
+      if ("error" in result) {
+        setFetchError(result.error)
+        setAvailableRepos([])
+      } else {
+        setAvailableRepos(result.repos)
+      }
+    } catch { setFetchError("Unable to load repositories. Please retry.") }
+    finally { setLoading(false) }
   }
 
   function handleConnect(repo: GitHubRepo) {
     startTransition(async () => {
-      const result = await connectRepo(
-        repo.id,
-        repo.owner,
-        repo.name,
-        repo.fullName,
-        repo.defaultBranch
-      )
-      if (result.success) {
-        setOpen(false)
-      }
+      setMutationError(null)
+      try {
+        const result = await connectRepo(repo.id)
+        if (result.success) {
+          setOpen(false)
+        } else setFetchError(result.error ?? "Failed to connect repository.")
+      } catch { setFetchError("Failed to connect repository. Please retry.") }
     })
   }
 
   function handleDisconnect(repoId: string) {
     startTransition(async () => {
-      await disconnectRepo(repoId)
+      setMutationError(null)
+      try {
+        const result = await disconnectRepo(repoId)
+        if (!result.success) setMutationError(result.error ?? "Failed to disconnect repository.")
+      } catch { setMutationError("Failed to disconnect repository. Please retry.") }
     })
   }
 
@@ -109,7 +115,7 @@ export function RepositorySettings({
               Connect GitHub repositories to enable code-aware assessments.
             </CardDescription>
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
+          {canManage && <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button onClick={handleOpenDialog}>
                 Connect Repository
@@ -189,8 +195,10 @@ export function RepositorySettings({
                 )}
               </div>
             </DialogContent>
-          </Dialog>
+          </Dialog>}
         </div>
+        {!canManage && <p className="text-muted-foreground text-sm">Only organization admins can change repository connections.</p>}
+        {mutationError && <p role="alert" className="text-sm text-destructive">{mutationError}</p>}
       </CardHeader>
       {repositories.length > 0 && (
         <CardContent className="space-y-3">
@@ -206,7 +214,7 @@ export function RepositorySettings({
                   <span>Connected {formatDate(repo.connectedAt)}</span>
                 </div>
               </div>
-              <Button
+              {canManage && <Button
                 variant="outline"
                 size="sm"
                 disabled={isPending}
@@ -214,7 +222,7 @@ export function RepositorySettings({
                 className="ml-3 shrink-0"
               >
                 Disconnect
-              </Button>
+              </Button>}
             </div>
           ))}
         </CardContent>

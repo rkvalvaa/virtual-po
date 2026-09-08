@@ -2,12 +2,13 @@ import { query, transaction } from '@/lib/db/pool';
 import { mapRow } from '@/lib/db/mappers';
 import type { FeatureRequest, UserRole } from '@/lib/types/database';
 import type { ToolSet } from 'ai';
+import { AGENT_LIMITS } from './limits';
 
 export type AgentStage = 'intake' | 'assessment' | 'output' | 'security';
 export interface AgentScope { requestId: string; orgId: string; userId: string; agent: AgentStage }
 export interface AgentRunScope extends AgentScope { runId: string }
 export class AgentAccessError extends Error {
-  constructor(message: string, public status: number) { super(message); }
+  constructor(message: string, public status: number, public retryAfter?: number) { super(message); }
 }
 
 export async function lockAuthorizedRequest(scope: AgentScope): Promise<FeatureRequest> {
@@ -43,8 +44,24 @@ async function assertStage(request: FeatureRequest, agent: AgentStage): Promise<
 
 export async function beginAgentRun(scope: AgentScope): Promise<{ id: string }> {
   return transaction(async () => {
+    // Transaction-level locks coordinate every instance; use a consistent order.
+    await query("SELECT pg_advisory_xact_lock(hashtextextended('agent-user:' || $1, 0))", [scope.userId]);
+    await query("SELECT pg_advisory_xact_lock(hashtextextended('agent-org:' || $1, 0))", [scope.orgId]);
     const request = await lockAuthorizedRequest(scope);
     await assertStage(request, scope.agent);
+    const limits = await query(`SELECT
+      COUNT(*) FILTER (WHERE user_id = $1 AND created_at > clock_timestamp() - interval '1 hour')::int AS user_count,
+      COUNT(*) FILTER (WHERE organization_id = $2 AND created_at > clock_timestamp() - interval '1 hour')::int AS org_count,
+      COUNT(*) FILTER (WHERE organization_id = $2 AND status = 'RUNNING' AND expires_at > clock_timestamp())::int AS active
+      FROM agent_runs WHERE (user_id = $1 OR organization_id = $2)
+      AND (created_at > clock_timestamp() - interval '1 hour' OR (status = 'RUNNING' AND expires_at > clock_timestamp()))`, [scope.userId, scope.orgId]);
+    const usage = limits.rows[0];
+    if (usage.user_count >= AGENT_LIMITS.userRunsPerHour || usage.org_count >= AGENT_LIMITS.orgRunsPerHour) {
+      throw new AgentAccessError('Hourly AI limit reached. Please retry in one hour.', 429, 3600);
+    }
+    if (usage.active >= AGENT_LIMITS.orgConcurrentRuns) {
+      throw new AgentAccessError('Your organization already has three AI runs in progress. Retry in 30 seconds.', 429, 30);
+    }
     if (scope.agent === 'output') {
       const completed = await query(`SELECT id FROM agent_runs WHERE request_id = $1
         AND agent = 'output' AND result_complete = true`, [scope.requestId]);
@@ -57,8 +74,8 @@ export async function beginAgentRun(scope: AgentScope): Promise<{ id: string }> 
     if (scope.agent === 'intake' && request.status === 'DRAFT') {
       await query("UPDATE feature_requests SET status = 'INTAKE_IN_PROGRESS' WHERE id = $1", [scope.requestId]);
     }
-    const result = await query(`INSERT INTO agent_runs(request_id, organization_id, user_id, agent)
-      VALUES ($1, $2, $3, $4) RETURNING id`, [scope.requestId, scope.orgId, scope.userId, scope.agent]);
+    const result = await query(`INSERT INTO agent_runs(request_id, organization_id, user_id, agent, created_at, expires_at)
+      VALUES ($1, $2, $3, $4, clock_timestamp(), clock_timestamp() + interval '3 minutes') RETURNING id`, [scope.requestId, scope.orgId, scope.userId, scope.agent]);
     return { id: result.rows[0].id as string };
   });
 }

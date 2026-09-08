@@ -1,11 +1,13 @@
 import { convertToModelMessages, streamText, stepCountIs, type ToolSet, type UIMessage } from 'ai';
-import { after, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { anthropic, AGENT_MODEL } from './client';
 import { createAgentTelemetry } from './telemetry';
 import { AgentAccessError, beginAgentRun, finishAgentRun, type AgentScope } from './runs';
 import { finalizeAgentResponse } from './response';
 import { randomUUID } from 'node:crypto';
 import { prepareAgentMessages, saveAgentReply } from './history';
+import { agentErrorResponse, boundedModelHistory } from './input';
+import { AGENT_LIMITS } from './limits';
 
 export async function createGuardedAgentStream(options: {
   scope: AgentScope;
@@ -20,7 +22,7 @@ export async function createGuardedAgentStream(options: {
     runId = run.id;
     const runScope = { ...options.scope, runId: run.id };
     const history = await prepareAgentMessages(runScope, options.messages);
-    const messages = await convertToModelMessages(history, { ignoreIncompleteToolCalls: true });
+    const messages = await convertToModelMessages(boundedModelHistory(history, options.system), { ignoreIncompleteToolCalls: true });
     const finish = (status: 'SUCCEEDED' | 'FAILED') => finishAgentRun(run.id, status);
     const cancellation = new AbortController();
     const cleanup = async () => {
@@ -38,7 +40,14 @@ export async function createGuardedAgentStream(options: {
       system: options.system,
       messages,
       tools: options.createTools(run.id),
-      stopWhen: stepCountIs(5),
+      stopWhen: stepCountIs(AGENT_LIMITS.steps),
+      maxOutputTokens: AGENT_LIMITS.outputTokensPerStep,
+      prepareStep: async ({ messages }) => {
+        if (Buffer.byteLength(JSON.stringify(messages) + options.system, 'utf8') > AGENT_LIMITS.inputBytes) {
+          throw new AgentAccessError('This stage exceeded its context budget. Shorten the request details and retry.', 413);
+        }
+        return {};
+      },
       abortSignal: AbortSignal.any([options.signal, cancellation.signal, AbortSignal.timeout(120_000)]),
       onFinish: telemetry,
       onError: () => { streamFailed = true; },
@@ -46,6 +55,7 @@ export async function createGuardedAgentStream(options: {
     return finalizeAgentResponse(result.toUIMessageStreamResponse({
       originalMessages: history,
       generateMessageId: randomUUID,
+      onError: error => error instanceof AgentAccessError ? error.message : 'The AI service could not finish this stage. Your saved progress is safe; retry shortly.',
       onFinish: async ({ responseMessage, isAborted }) => {
         try {
           await saveAgentReply(runScope, responseMessage);
@@ -58,9 +68,6 @@ export async function createGuardedAgentStream(options: {
     }), cleanup, () => cancellation.abort());
   } catch (error) {
     if (runId) await finishAgentRun(runId, 'FAILED');
-    if (error instanceof AgentAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    return NextResponse.json({ error: 'Unable to start the agent. Check the request and retry.' }, { status: 400 });
+    return agentErrorResponse(error);
   }
 }
