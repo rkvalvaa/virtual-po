@@ -113,7 +113,7 @@ export function Sidebar({ user, signOutAction, notificationBell }: SidebarProps)
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r bg-background md:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[256px] flex-col border-r bg-background md:flex">
         <div className="flex h-14 items-center justify-between px-6">
           <Link href="/" className="text-lg font-bold tracking-tight">
             VPO

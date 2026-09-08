@@ -1,6 +1,6 @@
 "use client"
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { SettingsSections, SettingsNavigation, SettingsPanel } from "@/components/settings/SettingsSections"
 import {
   Card,
   CardContent,
@@ -190,29 +190,10 @@ export function SettingsContent({
         </p>
       </div>
 
-      <Tabs defaultValue="organization">
-        <TabsList>
-          <TabsTrigger value="organization">Organization</TabsTrigger>
-          <TabsTrigger value="scoring">Scoring</TabsTrigger>
-          <TabsTrigger value="members">Members</TabsTrigger>
-          <TabsTrigger value="repositories">Repositories</TabsTrigger>
-          <TabsTrigger value="okrs">OKRs</TabsTrigger>
-          <TabsTrigger value="capacity">Capacity</TabsTrigger>
-          <TabsTrigger value="jira">Jira</TabsTrigger>
-          <TabsTrigger value="linear">Linear</TabsTrigger>
-          <TabsTrigger value="github-issues">GitHub Issues</TabsTrigger>
-          <TabsTrigger value="slack">Slack</TabsTrigger>
-          <TabsTrigger value="teams">Teams</TabsTrigger>
-          <TabsTrigger value="api-keys">API Keys</TabsTrigger>
-          <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
-          <TabsTrigger value="custom-fields">Custom Fields</TabsTrigger>
-          <TabsTrigger value="approvals">Approvals</TabsTrigger>
-          <TabsTrigger value="review-cycles">Review Cycles</TabsTrigger>
-          <TabsTrigger value="email">Email</TabsTrigger>
-        </TabsList>
+      <SettingsSections defaultValue="organization">
+        <SettingsNavigation />
 
-        <TabsContent value="organization">
+        <SettingsPanel value="organization">
           <Card>
             <CardHeader>
               <CardTitle>Organization Details</CardTitle>
@@ -244,9 +225,9 @@ export function SettingsContent({
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="scoring">
+        <SettingsPanel value="scoring">
           <Card>
             <CardHeader>
               <CardTitle>Scoring Configuration</CardTitle>
@@ -298,7 +279,7 @@ export function SettingsContent({
                   Priority Thresholds
                 </p>
                 <div className="grid gap-2 text-sm">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <span className="flex items-center gap-2">
                       <span className="bg-green-500 inline-block h-2.5 w-2.5 rounded-full" />
                       High Priority
@@ -329,12 +310,12 @@ export function SettingsContent({
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="members">
+        <SettingsPanel value="members">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <CardTitle>Members</CardTitle>
                   <CardDescription>
@@ -394,101 +375,101 @@ export function SettingsContent({
               </Table>
             </CardContent>
           </Card>
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="repositories">
-          <RepositorySettings repositories={repositories} />
-        </TabsContent>
+        <SettingsPanel value="repositories">
+          <RepositorySettings repositories={repositories} userRole={userRole} />
+        </SettingsPanel>
 
-        <TabsContent value="okrs">
+        <SettingsPanel value="okrs">
           <OkrSettings objectives={objectives} userRole={userRole} />
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="capacity">
+        <SettingsPanel value="capacity">
           <CapacitySettings
             capacity={capacity}
             currentQuarter={currentQuarter}
             userRole={userRole}
           />
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="jira">
+        <SettingsPanel value="jira">
           <JiraSettings
             integration={jiraIntegration}
             syncHistory={jiraSyncHistory}
             userRole={userRole}
           />
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="linear">
+        <SettingsPanel value="linear">
           <LinearSettings
             integration={linearIntegration}
             syncHistory={linearSyncHistory}
             userRole={userRole}
           />
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="github-issues">
+        <SettingsPanel value="github-issues">
           <GitHubIssuesSettings
             integration={githubIssuesIntegration}
             syncHistory={githubSyncHistory}
             userRole={userRole}
             repositories={repositories}
           />
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="slack">
+        <SettingsPanel value="slack">
           <SlackSettings
             integration={slackIntegration}
             notifications={slackNotifications}
             userRole={userRole}
           />
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="teams">
+        <SettingsPanel value="teams">
           <TeamsSettings
             integration={teamsIntegration}
             notifications={teamsNotifications}
             userRole={userRole}
           />
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="api-keys">
+        <SettingsPanel value="api-keys">
           <ApiKeySettings apiKeys={apiKeys} userRole={userRole} />
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="webhooks">
+        <SettingsPanel value="webhooks">
           <WebhookSettings webhooks={webhooks} userRole={userRole} />
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="templates">
+        <SettingsPanel value="templates">
           <TemplateSettings templates={templates} userRole={userRole} />
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="custom-fields">
+        <SettingsPanel value="custom-fields">
           <CustomFieldSettings customFields={customFields} userRole={userRole} />
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="approvals">
+        <SettingsPanel value="approvals">
           <ApprovalSettings
             workflow={approvalWorkflow}
             members={members}
             userRole={userRole}
           />
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="review-cycles">
+        <SettingsPanel value="review-cycles">
           <ReviewCycleSettings
             config={reviewCycleConfig}
             cycles={reviewCycles}
             userRole={userRole}
           />
-        </TabsContent>
+        </SettingsPanel>
 
-        <TabsContent value="email">
+        <SettingsPanel value="email">
           <EmailPreferencesSettings preferences={emailPreferences} />
-        </TabsContent>
-      </Tabs>
+        </SettingsPanel>
+      </SettingsSections>
     </div>
   )
 }

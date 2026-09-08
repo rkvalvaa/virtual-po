@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { validateApiKey, hasScope } from '@/lib/api/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/api/rate-limit';
 import { listFeatureRequests, createFeatureRequest } from '@/lib/db/queries/feature-requests';
-import { dispatchWebhookEvent } from '@/lib/api/webhooks';
 import type { RequestStatus } from '@/lib/types/database';
 import { REQUEST_STATUSES } from '@/lib/types/database';
 
@@ -106,11 +105,6 @@ export async function POST(req: Request) {
     featureRequest.summary = body.summary.trim();
   }
 
-  dispatchWebhookEvent(auth.orgId, 'request.created', {
-    requestId: featureRequest.id,
-    title: featureRequest.title,
-    status: featureRequest.status,
-  });
 
   return NextResponse.json({ data: featureRequest }, { status: 201, headers: rlHeaders });
 }

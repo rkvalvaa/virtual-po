@@ -1,11 +1,13 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { getFeatureRequestById } from '@/lib/db/queries/feature-requests';
-import { createEpic, createUserStory } from '@/lib/db/queries/epics';
+import { createEpic, createUserStory, getEpicByRequestId, getStoriesByEpicId } from '@/lib/db/queries/epics';
+import { query } from '@/lib/db/pool';
 import { logActivity } from '@/lib/db/queries/activity-log';
+import { guardAgentTools } from '@/lib/agents/runs';
 
-export function createOutputTools(requestId: string, orgId: string) {
-  return {
+export function createOutputTools(requestId: string, orgId: string, userId: string, runId: string) {
+  return guardAgentTools({ requestId, orgId, userId, runId, agent: 'output' }, {
     get_intake_data: tool({
       description: 'Retrieve the intake data and summary for this feature request',
       inputSchema: z.object({}),
@@ -52,6 +54,9 @@ export function createOutputTools(requestId: string, orgId: string) {
         technicalNotes: z.string().optional().describe('Technical considerations and notes'),
       }),
       execute: async ({ title, description, goals, successCriteria, technicalNotes }) => {
+        const existing = await getEpicByRequestId(requestId);
+        if (existing) return { saved: true, epicId: existing.id, reused: true,
+          stories: await getStoriesByEpicId(existing.id) };
         const epic = await createEpic({
           requestId,
           title,
@@ -80,7 +85,7 @@ export function createOutputTools(requestId: string, orgId: string) {
     save_user_story: tool({
       description: 'Save a generated user story to the database',
       inputSchema: z.object({
-        epicId: z.string().describe('The epic ID this story belongs to'),
+        epicId: z.uuid().describe('The epic ID this story belongs to'),
         title: z.string().describe('Short story title'),
         asA: z.string().describe('The user role (As a...)'),
         iWant: z.string().describe('The desired functionality (I want...)'),
@@ -91,6 +96,10 @@ export function createOutputTools(requestId: string, orgId: string) {
         storyPoints: z.number().int().optional().describe('Story point estimate (1,2,3,5,8,13)'),
       }),
       execute: async ({ epicId, title, asA, iWant, soThat, acceptanceCriteria, technicalNotes, priority, storyPoints }) => {
+        const authorizedEpic = await getEpicByRequestId(requestId);
+        if (!authorizedEpic || authorizedEpic.id !== epicId) return { error: 'Epic not found for this request' };
+        const existing = (await getStoriesByEpicId(epicId)).find(story => story.title === title);
+        if (existing) return { saved: true, storyId: existing.id, title: existing.title, reused: true };
         const story = await createUserStory({
           epicId,
           title,
@@ -101,7 +110,9 @@ export function createOutputTools(requestId: string, orgId: string) {
           technicalNotes,
           priority,
           storyPoints,
-        });
+        }, { requestId, orgId });
+
+        if (!story) return { error: 'Epic not found for this request' };
 
         try {
           await logActivity({
@@ -118,5 +129,17 @@ export function createOutputTools(requestId: string, orgId: string) {
         return { saved: true, storyId: story.id, title };
       },
     }),
-  };
+
+    complete_output: tool({
+      description: 'Call only after every planned user story has been saved. Confirms the artifact set is complete.',
+      inputSchema: z.object({ storyCount: z.number().int().min(1).max(100) }),
+      execute: async ({ storyCount }) => {
+        const epic = await getEpicByRequestId(requestId);
+        const stories = epic ? await getStoriesByEpicId(epic.id) : [];
+        if (!epic || stories.length !== storyCount) return { error: 'Save the epic and all planned stories before completing output.' };
+        await query('UPDATE agent_runs SET result_complete = true WHERE id = $1', [runId]);
+        return { completed: true, epicId: epic.id, storyCount };
+      },
+    }),
+  });
 }

@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "webhooks:worker": "node scripts/webhook-worker.mjs",
     "lint": "eslint",
     "migrate": "node-pg-migrate",
     "migrate:up": "node-pg-migrate up",

@@ -31,6 +31,7 @@ export async function getUserRepos(token: string): Promise<GitHubRepo[]> {
   const response = await fetch(
     "https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member",
     {
+      signal: AbortSignal.timeout(10_000),
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/vnd.github+json",
@@ -39,7 +40,7 @@ export async function getUserRepos(token: string): Promise<GitHubRepo[]> {
   );
 
   if (!response.ok) {
-    return [];
+    throw new Error('Unable to load repositories from GitHub');
   }
 
   const data = await response.json();

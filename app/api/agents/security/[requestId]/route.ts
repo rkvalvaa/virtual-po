@@ -1,16 +1,10 @@
-import {
-  streamText,
-  stepCountIs,
-  UIMessage,
-  convertToModelMessages,
-} from 'ai';
-import { anthropic, AGENT_MODEL as MODEL } from '@/lib/agents/client';
+import { readAgentBody, agentErrorResponse, isAgentRequestId } from '@/lib/agents/input';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { SECURITY_SYSTEM_PROMPT } from '@/lib/agents/prompts/security';
 import { createSecurityTools } from '@/lib/agents/tools/security-tools';
 import { getFeatureRequestById } from '@/lib/db/queries/feature-requests';
-import { createAgentTelemetry } from '@/lib/agents/telemetry';
+import { createGuardedAgentStream } from '@/lib/agents/stream';
 import '@/lib/auth/types';
 
 
@@ -25,18 +19,18 @@ export async function POST(
 
   const { requestId } = await params;
 
-  if (!requestId || typeof requestId !== 'string') {
+  if (!isAgentRequestId(requestId)) {
     return NextResponse.json(
       { error: 'requestId is required' },
       { status: 400 }
     );
   }
 
-  let body: { messages: UIMessage[] };
+  let body: Awaited<ReturnType<typeof readAgentBody>>;
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    body = await readAgentBody(req);
+  } catch (error) {
+    return agentErrorResponse(error);
   }
 
   const { messages } = body;
@@ -67,8 +61,6 @@ export async function POST(
     );
   }
 
-  const tools = createSecurityTools(requestId, session.user.orgId);
-
   const systemPrompt = `${SECURITY_SYSTEM_PROMPT}
 
 ## Feature Request Context
@@ -86,20 +78,12 @@ ${JSON.stringify(featureRequest.intakeData, null, 2)}
 ${JSON.stringify(featureRequest.assessmentData ?? {}, null, 2)}
 \`\`\``;
 
-  const result = streamText({
-    model: anthropic(MODEL),
+  const { orgId, id: userId } = session.user;
+  return createGuardedAgentStream({
+    scope: { agent: 'security', orgId, requestId, userId },
     system: systemPrompt,
-    messages: await convertToModelMessages(messages),
-    tools,
-    stopWhen: stepCountIs(3),
-    onFinish: createAgentTelemetry({
-      agent: 'security',
-      model: MODEL,
-      orgId: session.user.orgId,
-      requestId,
-      userId: session.user.id,
-    }),
+    messages,
+    signal: req.signal,
+    createTools: runId => createSecurityTools(requestId, orgId, userId, runId),
   });
-
-  return result.toUIMessageStreamResponse();
 }

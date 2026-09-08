@@ -9,9 +9,10 @@ import {
   type SecuritySeverity,
 } from '@/config/security-categories';
 import { logActivity } from '@/lib/db/queries/activity-log';
+import { guardAgentTools } from '@/lib/agents/runs';
 
-export function createSecurityTools(requestId: string, orgId: string) {
-  return {
+export function createSecurityTools(requestId: string, orgId: string, userId: string, runId: string) {
+  return guardAgentTools({ requestId, orgId, userId, runId, agent: 'security' }, {
     get_request_context: tool({
       description:
         'Retrieve the full feature request context including title, summary, intake data, and assessment data for security analysis',
@@ -136,5 +137,5 @@ export function createSecurityTools(requestId: string, orgId: string) {
         };
       },
     }),
-  };
+  });
 }

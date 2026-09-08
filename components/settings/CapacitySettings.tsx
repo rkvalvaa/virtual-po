@@ -89,7 +89,7 @@ export function CapacitySettings({
             </div>
 
             <div className="space-y-1">
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
                 <span className="text-muted-foreground">Utilization</span>
                 <span className="font-medium">{utilizationPct}%</span>
               </div>

@@ -15,7 +15,9 @@ export async function connectRepository(
     `INSERT INTO repositories (organization_id, github_repo_id, owner, name, full_name, default_branch, connected_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (organization_id, github_repo_id)
-     DO UPDATE SET is_active = true, updated_at = NOW()
+     DO UPDATE SET is_active = true, owner = EXCLUDED.owner, name = EXCLUDED.name,
+       full_name = EXCLUDED.full_name, default_branch = EXCLUDED.default_branch,
+       connected_by = EXCLUDED.connected_by, updated_at = NOW()
      RETURNING *`,
     [orgId, githubRepoId, owner, name, fullName, defaultBranch, connectedBy]
   );

@@ -436,7 +436,7 @@ export function OkrSettings({ objectives, userRole }: OkrSettingsProps) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle>Objectives & Key Results</CardTitle>
             <CardDescription>
@@ -498,7 +498,7 @@ export function OkrSettings({ objectives, userRole }: OkrSettingsProps) {
                       : 0
                     return (
                       <div key={kr.id} className="space-y-1">
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center justify-between gap-3 gap-2">
                           <span className="text-sm truncate">{kr.title}</span>
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="text-muted-foreground text-xs">

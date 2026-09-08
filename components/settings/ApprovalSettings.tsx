@@ -208,7 +208,7 @@ export function ApprovalSettings({
           </div>
         </div>
 
-        <div className="flex items-center justify-between rounded-md border p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
           <div>
             <p className="text-sm font-medium">Active</p>
             <p className="text-muted-foreground text-xs">
@@ -227,7 +227,7 @@ export function ApprovalSettings({
         <Separator />
 
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h4 className="text-sm font-semibold">Steps</h4>
             {isAdmin && (
               <Button

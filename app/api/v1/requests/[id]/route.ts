@@ -3,7 +3,6 @@ import { validateApiKey, hasScope } from '@/lib/api/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/api/rate-limit';
 import { getFeatureRequestById, updateFeatureRequest } from '@/lib/db/queries/feature-requests';
 import { getEpicByRequestId, getStoriesByEpicId } from '@/lib/db/queries/epics';
-import { dispatchWebhookEvent } from '@/lib/api/webhooks';
 import { REQUEST_STATUSES } from '@/lib/types/database';
 import type { RequestStatus } from '@/lib/types/database';
 
@@ -140,20 +139,6 @@ export async function PATCH(
 
   const updated = await updateFeatureRequest(id, updateData);
 
-  if (body.status !== undefined && body.status !== existing.status) {
-    dispatchWebhookEvent(auth.orgId, 'request.status_changed', {
-      requestId: id,
-      previousStatus: existing.status,
-      newStatus: body.status,
-    });
-  }
-
-  if (body.title !== undefined || body.summary !== undefined || body.tags !== undefined) {
-    dispatchWebhookEvent(auth.orgId, 'request.updated', {
-      requestId: id,
-      updatedFields: Object.keys(updateData),
-    });
-  }
 
   return NextResponse.json({ data: updated }, { headers: rlHeaders });
 }

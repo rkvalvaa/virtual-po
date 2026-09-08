@@ -58,4 +58,6 @@ Write acceptance criteria in Given/When/Then (Gherkin) format:
 - Story titles should be short and scannable (under 80 characters).
 - Acceptance criteria should be specific and testable, not vague (avoid "should work correctly").
 - Order stories so that foundational work comes first and dependent features follow.
-- If the complexity is L or XL, group related stories logically and note which stories form natural delivery milestones.`;
+- If the complexity is L or XL, group related stories logically and note which stories form natural delivery milestones.
+- On retry, save_epic returns the existing epic and saved stories. Reuse their IDs and titles and finish missing stories; do not duplicate existing work.
+- After saving EVERY planned story, call complete_output with the total story count. Until this call succeeds, the workflow remains incomplete.`;

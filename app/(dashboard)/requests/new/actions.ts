@@ -2,15 +2,16 @@
 
 import { requireAuth } from "@/lib/auth/session"
 import {
-  createFeatureRequest,
   findSimilarRequests,
   type SimilarRequest,
 } from "@/lib/db/queries/feature-requests"
-import { createConversation } from "@/lib/db/queries/conversations"
-import { seedDefaultTemplates } from "@/lib/db/queries/templates"
+import { createDraft } from "@/lib/db/queries/drafts"
+import { z } from "zod"
+import { getTemplateById, seedDefaultTemplates } from "@/lib/db/queries/templates"
 import { logActivity } from "@/lib/db/queries/activity-log"
 
-export async function createNewRequest(params?: {
+export async function createNewRequest(params: {
+  idempotencyKey: string
   title?: string
   templateId?: string
   promptHints?: string[]
@@ -21,31 +22,31 @@ export async function createNewRequest(params?: {
     throw new Error("User has no organization")
   }
 
-  const title = params?.title || "New Feature Request"
-
-  const request = await createFeatureRequest(
-    orgId,
-    session.user.id,
-    title
-  )
-  const conversation = await createConversation(request.id, "INTAKE")
+  const idempotencyKey = z.uuid().parse(params.idempotencyKey)
+  const title = z.string().trim().min(1).max(200).parse(params.title?.trim() || "New Feature Request")
+  const template = params.templateId ? await getTemplateById(z.uuid().parse(params.templateId)) : null
+  if (params.templateId && (!template || template.organizationId !== orgId || !template.isActive)) {
+    throw new Error("This template is no longer available. Start a request from the templates page.")
+  }
+  const draft = await createDraft({ orgId, userId: session.user.id, title, idempotencyKey,
+    intakeData: template ? { _template_hints: template.promptHints } : {} })
 
   try {
-    await logActivity({
+    if (draft.created) await logActivity({
       organizationId: orgId,
-      requestId: request.id,
+      requestId: draft.requestId,
       userId: session.user.id,
       action: 'REQUEST_CREATED',
       entityType: 'REQUEST',
-      entityId: request.id,
+      entityId: draft.requestId,
       metadata: { title },
     });
   } catch { /* activity logging is non-critical */ }
 
   return {
-    requestId: request.id,
-    conversationId: conversation.id,
-    promptHints: params?.promptHints ?? [],
+    requestId: draft.requestId,
+    conversationId: draft.conversationId,
+    promptHints: template?.promptHints ?? [],
   }
 }
 

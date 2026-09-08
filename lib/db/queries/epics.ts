@@ -91,11 +91,14 @@ export async function createUserStory(data: {
   technicalNotes?: string;
   priority?: number;
   storyPoints?: number;
-}): Promise<UserStory> {
+}, scope: { requestId: string; orgId: string }): Promise<UserStory | null> {
   const result = await query(
     `INSERT INTO user_stories (epic_id, title, as_a, i_want, so_that, acceptance_criteria, technical_notes, priority, story_points)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-     RETURNING *`,
+     SELECT e.id, $2, $3, $4, $5, $6, $7, $8, $9
+     FROM epics e
+     JOIN feature_requests r ON r.id = e.request_id
+     WHERE e.id::text = $1 AND r.id = $10 AND r.organization_id = $11
+     RETURNING user_stories.*`,
     [
       data.epicId,
       data.title,
@@ -106,8 +109,11 @@ export async function createUserStory(data: {
       data.technicalNotes ?? null,
       data.priority ?? 0,
       data.storyPoints ?? null,
+      scope.requestId,
+      scope.orgId,
     ]
   );
+  if (result.rows.length === 0) return null;
   return mapRow<UserStory>(result.rows[0]);
 }
 

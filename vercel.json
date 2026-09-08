@@ -1,5 +1,10 @@
 {
+  "regions": ["fra1"],
   "crons": [
+    {
+      "path": "/api/cron/webhooks",
+      "schedule": "* * * * *"
+    },
     {
       "path": "/api/cron/review-cycles",
       "schedule": "0 6 * * *"

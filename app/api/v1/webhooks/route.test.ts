@@ -1,4 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+vi.mock('node:dns/promises', () => {
+  const lookup = vi.fn(async () => [{ address: '8.8.8.8', family: 4 }]);
+  return { lookup, default: { lookup } };
+});
 import { GET, POST } from './route'
 import {
   hasDb,
@@ -116,6 +120,13 @@ describe.skipIf(!hasDb())('/api/v1/webhooks', () => {
   })
 
   describe('POST — validation', () => {
+    it('rejects loopback webhook destinations before persisting them', async () => {
+      const res = await POST(makeRequest({ method: 'POST', apiKey: adminKey,
+        body: { url: 'http://127.0.0.1/private', events: ['request.created'] } }));
+      expect(res.status).toBe(400);
+      const { getWebhooksByOrg } = await import('@/lib/db/queries/webhooks');
+      expect(await getWebhooksByOrg(org.id)).toHaveLength(0);
+    });
     it('should return 400 for invalid JSON body', async () => {
       const req = new Request('http://localhost/api/v1/webhooks', {
         method: 'POST',

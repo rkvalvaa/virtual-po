@@ -147,7 +147,7 @@ export function ReviewCycleSettings({
           </p>
         )}
 
-        <div className="flex items-center justify-between rounded-md border p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
           <div>
             <p className="text-sm font-medium">Recurring cycles</p>
             <p className="text-muted-foreground text-xs">
@@ -225,7 +225,7 @@ export function ReviewCycleSettings({
         {notice && <p className="text-muted-foreground text-sm">{notice}</p>}
 
         {isAdmin && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button onClick={handleSave} disabled={isPending}>
               {isPending ? "Saving..." : "Save"}
             </Button>

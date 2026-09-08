@@ -13,9 +13,6 @@ export default {
     signIn: "/login",
     error: "/login",
   },
-  callbacks: {
-    authorized({ auth }) {
-      return !!auth
-    },
-  },
+  // Route authorization belongs to proxy.ts. API handlers with non-session
+  // authentication must reach their own credential checks without a login gate.
 } satisfies NextAuthConfig

@@ -104,7 +104,7 @@ export function VoteWidget({
       <CardContent className="space-y-4">
         {/* Vote form */}
         <div className="space-y-3">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-medium">Your rating:</span>
             <StarRating value={selectedValue} onChange={setSelectedValue} />
             {selectedValue > 0 && (
@@ -118,7 +118,7 @@ export function VoteWidget({
             rows={2}
             className="resize-none"
           />
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
               onClick={handleSubmit}

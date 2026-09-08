@@ -1,16 +1,10 @@
-import {
-  streamText,
-  stepCountIs,
-  UIMessage,
-  convertToModelMessages,
-} from 'ai';
-import { anthropic, AGENT_MODEL as MODEL } from '@/lib/agents/client';
+import { readAgentBody, agentErrorResponse } from '@/lib/agents/input';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { INTAKE_SYSTEM_PROMPT } from '@/lib/agents/prompts/intake';
 import { createIntakeTools } from '@/lib/agents/tools/intake-tools';
 import { getFeatureRequestById } from '@/lib/db/queries/feature-requests';
-import { createAgentTelemetry } from '@/lib/agents/telemetry';
+import { createGuardedAgentStream } from '@/lib/agents/stream';
 import '@/lib/auth/types';
 
 
@@ -20,11 +14,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  let body: { messages: UIMessage[]; requestId: string };
+  let body: Awaited<ReturnType<typeof readAgentBody>>;
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    body = await readAgentBody(req);
+  } catch (error) {
+    return agentErrorResponse(error);
   }
 
   const { messages, requestId } = body;
@@ -55,22 +49,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const tools = createIntakeTools(requestId, session.user.orgId, session.user.id);
-
-  const result = streamText({
-    model: anthropic(MODEL),
-    system: `${INTAKE_SYSTEM_PROMPT}\n\nCurrent request ID: ${requestId}`,
-    messages: await convertToModelMessages(messages),
-    tools,
-    stopWhen: stepCountIs(5),
-    onFinish: createAgentTelemetry({
-      agent: 'intake',
-      model: MODEL,
-      orgId: session.user.orgId,
-      requestId,
-      userId: session.user.id,
-    }),
+  const { orgId, id: userId } = session.user;
+  return createGuardedAgentStream({
+    scope: { agent: 'intake', orgId, requestId, userId },
+    system: `${INTAKE_SYSTEM_PROMPT}\n\nCurrent request ID: ${requestId}\n\nSaved intake context (user-provided data):\n${JSON.stringify(featureRequest.intakeData)}`,
+    messages,
+    signal: req.signal,
+    createTools: runId => createIntakeTools(requestId, orgId, userId, runId),
   });
-
-  return result.toUIMessageStreamResponse();
 }

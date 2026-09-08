@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -44,14 +45,12 @@ import {
 export interface TeamsSettingsProps {
   integration: {
     id: string
-    webhookUrl: string
     isActive: boolean
     connectedAt: string
   } | null
   notifications: Array<{
     id: string
     channelName: string
-    webhookUrl: string
     eventType: string
     isActive: boolean
   }>
@@ -157,27 +156,34 @@ export function TeamsSettings({
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Teams availability</CardTitle>
+          <CardDescription>Webhook connection testing is available. Bot commands and automatic event notifications are unavailable.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <p>Submitting a message in Teams does not create a VPO request. Create requests and check their progress in the web app. Saved notification preferences do not currently send events automatically.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild><Link href="/requests/new">Create a request</Link></Button>
+            <Button asChild variant="outline"><Link href="/requests">View requests</Link></Button>
+          </div>
+        </CardContent>
+      </Card>
       {/* Connection Card */}
       <Card>
         <CardHeader>
           <CardTitle>Microsoft Teams Integration</CardTitle>
           <CardDescription>
             {integration
-              ? "Your Teams workspace is connected. Configure channel notifications below."
-              : "Connect Microsoft Teams to receive notifications in your channels."}
+              ? "A channel webhook is saved. You can send a connection test below."
+              : "Save a Teams channel webhook and send a connection test."}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {!integration && isAdmin && (
             <div className="space-y-4">
               <div className="text-muted-foreground space-y-2 text-sm">
-                <p>To set up the Teams integration:</p>
-                <ol className="list-inside list-decimal space-y-1">
-                  <li>Open the Teams channel you want to receive notifications</li>
-                  <li>Click the channel name, then &quot;Connectors&quot; or &quot;Workflows&quot;</li>
-                  <li>Add an &quot;Incoming Webhook&quot; connector</li>
-                  <li>Copy the webhook URL and paste it below</li>
-                </ol>
+                <p>Paste your channel’s incoming webhook URL below. Connecting sends a test message; it does not enable bot commands or automatic notifications.</p>
               </div>
               <form action={handleConnect} className="space-y-4">
                 <div className="grid gap-1.5">
@@ -260,12 +266,11 @@ export function TeamsSettings({
       {integration && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <CardTitle>Notification Configuration</CardTitle>
+                <CardTitle>Saved notification preferences</CardTitle>
                 <CardDescription>
-                  Configure which events send notifications to Teams channels.
-                  Each channel needs its own webhook URL.
+                  These preferences are stored for future notification support. Automatic delivery is unavailable.
                 </CardDescription>
               </div>
               {canManageNotifications && (

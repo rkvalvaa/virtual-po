@@ -27,8 +27,9 @@ export async function upsertTeamsNotification(
   return mapRow<TeamsNotification>(result.rows[0]);
 }
 
-export async function deleteTeamsNotification(id: string): Promise<void> {
-  await query(`DELETE FROM teams_notifications WHERE id = $1`, [id]);
+export async function deleteTeamsNotification(id: string, orgId: string): Promise<boolean> {
+  const result = await query(`DELETE FROM teams_notifications WHERE id = $1 AND organization_id = $2 RETURNING id`, [id, orgId]);
+  return result.rows.length > 0;
 }
 
 export async function getTeamsNotificationsByEventType(
