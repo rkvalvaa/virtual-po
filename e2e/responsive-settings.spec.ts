@@ -8,8 +8,7 @@ import { upsertTeamsNotification } from '@/lib/db/queries/teams';
 
 const sections = ['Organization', 'Members', 'Repositories', 'Scoring', 'OKRs', 'Capacity', 'Templates', 'Custom Fields', 'Approvals', 'Review Cycles', 'Jira', 'Linear', 'GitHub Issues', 'Slack', 'Teams', 'API Keys', 'Webhooks', 'Email'];
 async function noOverflow(page: Page) {
-  // Focus/scroll and text zoom can briefly leave stale document overflow bounds
-  // in Chromium. Retry the actual layout assertion, as with other browser UI checks.
+  // Retry the actual layout assertion, as with other browser UI checks.
   await expect(async () => {
     const dimensions = await page.evaluate(() => ({
       width: document.documentElement.clientWidth,
@@ -20,7 +19,31 @@ async function noOverflow(page: Page) {
         .map(element => ({ tag: element.tagName, text: element.textContent?.slice(0, 60) })),
     }));
     expect(dimensions.scroll, JSON.stringify(dimensions.overflowing)).toBeLessThanOrEqual(dimensions.width + 1);
-  }).toPass({ timeout: 5000 });
+  }).toPass({ timeout: 5000 }).catch(async error => {
+    console.log('Overflow diagnosis', await page.evaluate(() => {
+      const elements: Element[] = [];
+      function collect(root: Document | ShadowRoot) {
+        for (const element of root.querySelectorAll('*')) {
+          elements.push(element);
+          if (element.shadowRoot) collect(element.shadowRoot);
+        }
+      }
+      collect(document);
+      const overflowing = elements.filter(element => element.scrollWidth > element.clientWidth + 1)
+        .map(element => ({ tag: element.tagName, class: element.getAttribute('class'), width: element.clientWidth, scroll: element.scrollWidth, overflow: getComputedStyle(element).overflowX }));
+      const clipping: object[] = [];
+      for (const element of elements) {
+        if (!(element instanceof HTMLElement)) continue;
+        const original = element.style.overflowX;
+        element.style.overflowX = 'clip';
+        const scroll = document.documentElement.scrollWidth;
+        if (scroll <= document.documentElement.clientWidth + 1) clipping.push({ tag: element.tagName, class: element.className });
+        element.style.overflowX = original;
+      }
+      return { overflowing, clipping, scrollX, scrollY };
+    }));
+    throw error;
+  });
 }
 
 for (const width of [390, 768, 1366]) test(`settings sections and intake remain usable at ${width}px`, async ({ page }, testInfo) => {
