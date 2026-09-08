@@ -8,9 +8,19 @@ import { upsertTeamsNotification } from '@/lib/db/queries/teams';
 
 const sections = ['Organization', 'Members', 'Repositories', 'Scoring', 'OKRs', 'Capacity', 'Templates', 'Custom Fields', 'Approvals', 'Review Cycles', 'Jira', 'Linear', 'GitHub Issues', 'Slack', 'Teams', 'API Keys', 'Webhooks', 'Email'];
 async function noOverflow(page: Page) {
-  const dimensions = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
-  const overflowing = await page.evaluate(() => [...document.querySelectorAll('body *')].filter(element => element.getBoundingClientRect().right + scrollX > innerWidth + 1).slice(0, 12).map(element => ({ tag: element.tagName, class: element.className, right: element.getBoundingClientRect().right, scrollX, text: element.textContent?.slice(0, 60) })));
-  expect(dimensions.scroll, JSON.stringify(overflowing)).toBeLessThanOrEqual(dimensions.width + 1);
+  // Focus/scroll and text zoom can briefly leave stale document overflow bounds
+  // in Chromium. Retry the actual layout assertion, as with other browser UI checks.
+  await expect(async () => {
+    const dimensions = await page.evaluate(() => ({
+      width: document.documentElement.clientWidth,
+      scroll: document.documentElement.scrollWidth,
+      overflowing: [...document.querySelectorAll('body *')]
+        .filter(element => element.getBoundingClientRect().right + scrollX > innerWidth + 1)
+        .slice(0, 12)
+        .map(element => ({ tag: element.tagName, text: element.textContent?.slice(0, 60) })),
+    }));
+    expect(dimensions.scroll, JSON.stringify(dimensions.overflowing)).toBeLessThanOrEqual(dimensions.width + 1);
+  }).toPass({ timeout: 5000 });
 }
 
 for (const width of [390, 768, 1366]) test(`settings sections and intake remain usable at ${width}px`, async ({ page }, testInfo) => {
