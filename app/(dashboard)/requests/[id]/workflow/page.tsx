@@ -48,7 +48,7 @@ export default async function RequestWorkflowPage({ params }: { params: Promise<
       <Button asChild variant="outline" className="h-auto max-w-full whitespace-normal py-2"><Link href={`/requests/${id}`}>View request and results</Link></Button>
     </div>
     <ol className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Request workflow">
-      {stages.map(stage => <li key={stage.id} className="rounded-lg border p-3 text-sm">
+      {stages.map(stage => <li key={stage.id} className="min-w-0 rounded-lg border p-3 text-sm [overflow-wrap:anywhere]">
         <p className="font-medium">{stage.id === "intake" ? "Intake" : stage.title}</p>
         <p className="text-muted-foreground">{stage.done ? "Completed" : runs.rows.some(run => run.agent === stage.id && run.status === "RUNNING" && run.live) ? "Running" : next?.id === stage.id ? "Ready" : "Pending"}</p>
       </li>)}

@@ -31,7 +31,8 @@ The evidence below was inspected against the current implementation and executed
 - Final local production browser suite: 20/20 pass, including actual cron processing and accurate inactive-workflow labeling after deliberate rejection. Remote CI must be recorded before closing this audit.
 - `npm audit --json`: zero known vulnerabilities.
 - Bounded reviews covered each batch; final cross-batch review found no unresolved critical/important defects in authentication, agent transactions/history/quotas, webhook delivery and workflow state. Intentional reviewer cancellation/defer behavior is retained; incomplete inactive workflows no longer claim completion.
-- Pull request creation, remote CI and integration remain pending. No issue is marked Done on the strength of a local implementation alone.
+- [PR #67](https://github.com/rkvalvaa/virtual-po/pull/67) contains the implementation. Final remote CI and integration remain pending; the PR and Linear epic record subsequent check results. No issue is marked Done on the strength of a local implementation alone.
+- Remote browser validation exposed stage-label text overflow at 390px with 200% text. The Assessment label occupied 168px in its 101px content box in CI, compared with 151px locally; element-edge checks alone missed the overflowing text locally. A focused content-width regression failed against the original layout, then passed with emergency word wrapping on the stage list items. The root overflow tolerance is unchanged. Temporary diagnostic style mutations were removed.
 
 ## Deployment and operational boundary
 

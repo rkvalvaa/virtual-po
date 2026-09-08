@@ -19,31 +19,7 @@ async function noOverflow(page: Page) {
         .map(element => ({ tag: element.tagName, text: element.textContent?.slice(0, 60) })),
     }));
     expect(dimensions.scroll, JSON.stringify(dimensions.overflowing)).toBeLessThanOrEqual(dimensions.width + 1);
-  }).toPass({ timeout: 5000 }).catch(async error => {
-    console.log('Overflow diagnosis', await page.evaluate(() => {
-      const elements: Element[] = [];
-      function collect(root: Document | ShadowRoot) {
-        for (const element of root.querySelectorAll('*')) {
-          elements.push(element);
-          if (element.shadowRoot) collect(element.shadowRoot);
-        }
-      }
-      collect(document);
-      const overflowing = elements.filter(element => element.scrollWidth > element.clientWidth + 1)
-        .map(element => ({ tag: element.tagName, class: element.getAttribute('class'), width: element.clientWidth, scroll: element.scrollWidth, overflow: getComputedStyle(element).overflowX }));
-      const clipping: object[] = [];
-      for (const element of elements) {
-        if (!(element instanceof HTMLElement)) continue;
-        const original = element.style.overflowX;
-        element.style.overflowX = 'clip';
-        const scroll = document.documentElement.scrollWidth;
-        if (scroll <= document.documentElement.clientWidth + 1) clipping.push({ tag: element.tagName, class: element.className });
-        element.style.overflowX = original;
-      }
-      return { overflowing, clipping, scrollX, scrollY };
-    }));
-    throw error;
-  });
+  }).toPass({ timeout: 5000 });
 }
 
 for (const width of [390, 768, 1366]) test(`settings sections and intake remain usable at ${width}px`, async ({ page }, testInfo) => {
@@ -113,6 +89,11 @@ for (const width of [390, 768, 1366]) test(`settings sections and intake remain 
     }
     await page.goto(`/requests/${request.id}/workflow`);
     await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+    const assessmentLabel = page.getByRole('list', { name: 'Request workflow' }).getByText('Assessment', { exact: true });
+    await expect(async () => {
+      const size = await assessmentLabel.evaluate(element => ({ width: element.clientWidth, scroll: element.scrollWidth }));
+      expect(size.scroll).toBeLessThanOrEqual(size.width + 1);
+    }).toPass({ timeout: 5000 });
     await page.getByRole('textbox', { name: 'Message to agent' }).fill('Readable at 200% text');
     await page.getByRole('button', { name: 'Send', exact: true }).scrollIntoViewIfNeeded();
     await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeInViewport();
