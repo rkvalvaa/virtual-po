@@ -10,6 +10,7 @@ import { query } from '@/lib/db/pool';
 import { mapRows } from '@/lib/db/mappers';
 import type { FeatureRequest } from '@/lib/types/database';
 import { logActivity } from '@/lib/db/queries/activity-log';
+import { guardAgentTools } from '@/lib/agents/runs';
 
 const INTAKE_SECTIONS = [
   'problem_statement',
@@ -21,8 +22,8 @@ const INTAKE_SECTIONS = [
   'constraints',
 ] as const;
 
-export function createIntakeTools(requestId: string, orgId: string, userId: string) {
-  return {
+export function createIntakeTools(requestId: string, orgId: string, userId: string, runId: string) {
+  return guardAgentTools({ requestId, orgId, userId, runId, agent: 'intake' }, {
     save_intake_progress: tool({
       description:
         'Save gathered information for a section of the feature request intake. Call this after collecting enough detail for a section.',
@@ -161,5 +162,5 @@ export function createIntakeTools(requestId: string, orgId: string, userId: stri
         };
       },
     }),
-  };
+  });
 }

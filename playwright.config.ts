@@ -38,6 +38,8 @@ export default defineConfig({
         // The provider appends `/messages`, so the version segment belongs here.
         ANTHROPIC_BASE_URL: `http://localhost:${mockAnthropicPort}/v1`,
         ANTHROPIC_API_KEY: "sk-ant-e2e",
+        CRON_SECRET: process.env.CRON_SECRET ?? "e2e-cron-secret",
+        SLACK_SIGNING_SECRET: process.env.SLACK_SIGNING_SECRET ?? "e2e-slack-secret",
       },
     },
   ],

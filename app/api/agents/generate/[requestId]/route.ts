@@ -1,16 +1,10 @@
-import {
-  streamText,
-  stepCountIs,
-  UIMessage,
-  convertToModelMessages,
-} from 'ai';
-import { anthropic, AGENT_MODEL as MODEL } from '@/lib/agents/client';
+import type { UIMessage } from 'ai';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { OUTPUT_SYSTEM_PROMPT } from '@/lib/agents/prompts/output';
 import { createOutputTools } from '@/lib/agents/tools/output-tools';
 import { getFeatureRequestById } from '@/lib/db/queries/feature-requests';
-import { createAgentTelemetry } from '@/lib/agents/telemetry';
+import { createGuardedAgentStream } from '@/lib/agents/stream';
 import '@/lib/auth/types';
 
 
@@ -67,8 +61,6 @@ export async function POST(
     );
   }
 
-  const tools = createOutputTools(requestId, session.user.orgId);
-
   const systemPrompt = `${OUTPUT_SYSTEM_PROMPT}
 
 ## Feature Request Context
@@ -87,20 +79,12 @@ ${JSON.stringify(featureRequest.intakeData, null, 2)}
 ${JSON.stringify(featureRequest.assessmentData, null, 2)}
 \`\`\``;
 
-  const result = streamText({
-    model: anthropic(MODEL),
+  const { orgId, id: userId } = session.user;
+  return createGuardedAgentStream({
+    scope: { agent: 'output', orgId, requestId, userId },
     system: systemPrompt,
-    messages: await convertToModelMessages(messages),
-    tools,
-    stopWhen: stepCountIs(5),
-    onFinish: createAgentTelemetry({
-      agent: 'output',
-      model: MODEL,
-      orgId: session.user.orgId,
-      requestId,
-      userId: session.user.id,
-    }),
+    messages,
+    signal: req.signal,
+    createTools: runId => createOutputTools(requestId, orgId, userId, runId),
   });
-
-  return result.toUIMessageStreamResponse();
 }

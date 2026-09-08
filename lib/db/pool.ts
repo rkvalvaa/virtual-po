@@ -1,5 +1,6 @@
 import { Pool, QueryResult, QueryResultRow } from 'pg';
 import { log } from '@/lib/logging/logger';
+import { transactionContext } from './transaction-context';
 
 function positiveInt(value: string | undefined, fallback: number): number {
   const n = Number(value);
@@ -37,7 +38,9 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
   params?: unknown[]
 ): Promise<QueryResult<T>> {
   const start = Date.now();
-  const result = await pool.query<T>(text, params);
+  const transaction = transactionContext.getStore();
+  if (transaction && !transaction.active) throw new Error('Query attempted after transaction completed');
+  const result = await (transaction?.client ?? pool).query<T>(text, params);
   const durationMs = Date.now() - start;
 
   // `params` is never logged — it carries user data.
@@ -64,6 +67,30 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
 export async function getClient() {
   const client = await pool.connect();
   return client;
+}
+
+/** All query() calls in work share this client and rollback together. */
+export async function transaction<T>(work: () => Promise<T>): Promise<T> {
+  const existing = transactionContext.getStore();
+  if (existing) {
+    if (!existing.active) throw new Error('Transaction already completed');
+    return work();
+  }
+  const client = await pool.connect();
+  const context = { client, active: true };
+  try {
+    await client.query('BEGIN');
+    const result = await transactionContext.run(context, work);
+    const commit = await client.query('COMMIT');
+    if (commit.command !== 'COMMIT') throw new Error('Transaction rolled back after a failed query');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    context.active = false;
+    client.release();
+  }
 }
 
 export default pool;

@@ -1,4 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+vi.mock('node:dns/promises', () => {
+  const lookup = vi.fn(async () => [{ address: '8.8.8.8', family: 4 }]);
+  return { lookup, default: { lookup } };
+});
 import { PATCH, DELETE } from './route'
 import {
   hasDb,

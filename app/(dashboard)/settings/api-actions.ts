@@ -19,6 +19,7 @@ import { dispatchWebhookEvent } from "@/lib/api/webhooks"
 import { API_KEY_SCOPES, WEBHOOK_EVENTS } from "@/lib/types/database"
 import type { ApiKeyScope, WebhookEvent } from "@/lib/types/database"
 import crypto from "node:crypto"
+import { InvalidWebhookDestination } from "@/lib/api/webhook-destination"
 import "@/lib/auth/types"
 
 export async function createApiKeyAction(
@@ -132,7 +133,8 @@ export async function createWebhookAction(
     await createWebhookSubscription(orgId, url, secret, events as WebhookEvent[])
     revalidatePath("/settings")
     return { success: true }
-  } catch {
+  } catch (error) {
+    if (error instanceof InvalidWebhookDestination) return { success: false, error: error.message }
     return { success: false, error: "Failed to create webhook." }
   }
 }
@@ -177,7 +179,8 @@ export async function updateWebhookAction(
 
     revalidatePath("/settings")
     return { success: true }
-  } catch {
+  } catch (error) {
+    if (error instanceof InvalidWebhookDestination) return { success: false, error: error.message }
     return { success: false, error: "Failed to update webhook." }
   }
 }

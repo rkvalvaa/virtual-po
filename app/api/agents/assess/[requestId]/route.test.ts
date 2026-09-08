@@ -1,4 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+vi.mock('next/server', async () => ({
+  ...await vi.importActual<typeof import('next/server')>('next/server'),
+  after: vi.fn(),
+}))
 import {
   hasDb,
   createTestOrg,
@@ -53,7 +57,7 @@ function makePost(
 async function markIntakeComplete(id: string): Promise<void> {
   const { query } = await import('@/lib/db/pool')
   await query(
-    `UPDATE feature_requests SET intake_complete = true,
+    `UPDATE feature_requests SET intake_complete = true, status = 'PENDING_ASSESSMENT',
        intake_data = '{"problem": "test"}'::jsonb WHERE id = $1`,
     [id],
   )

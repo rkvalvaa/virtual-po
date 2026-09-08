@@ -1,6 +1,7 @@
 import { query } from '@/lib/db/pool';
 import { mapRow, mapRows } from '@/lib/db/mappers';
 import type { WebhookSubscription, WebhookEvent } from '@/lib/types/database';
+import { validateWebhookDestination } from '@/lib/api/webhook-destination';
 
 export async function createWebhookSubscription(
   orgId: string,
@@ -8,6 +9,7 @@ export async function createWebhookSubscription(
   secret: string,
   events: WebhookEvent[]
 ): Promise<WebhookSubscription> {
+  await validateWebhookDestination(url);
   const result = await query(
     `INSERT INTO webhook_subscriptions (organization_id, url, secret, events)
      VALUES ($1, $2, $3, $4)
@@ -48,6 +50,7 @@ export async function updateWebhookSubscription(
   let paramIndex = 1;
 
   if (data.url !== undefined) {
+    await validateWebhookDestination(data.url);
     fields.push(`url = $${paramIndex++}`);
     values.push(data.url);
   }

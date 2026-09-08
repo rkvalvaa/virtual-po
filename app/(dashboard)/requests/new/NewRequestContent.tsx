@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
+import { Button } from "@/components/ui/button"
 import { ChatWindow } from "@/components/chat/ChatWindow"
 import { QualityIndicator } from "@/components/chat/QualityIndicator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,21 +24,36 @@ interface NewRequestContentProps {
 
 export function NewRequestContent({ templates }: NewRequestContentProps) {
   const [step, setStep] = useState<"pick" | "loading" | "chat">(
-    templates.length > 0 ? "pick" : "loading"
+    "pick"
   )
   const [requestId, setRequestId] = useState<string | null>(null)
   const [promptHints, setPromptHints] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [qualityScore] = useState(0)
+  const pending = useRef(false)
+  const lastAttempt = useRef<Parameters<typeof createNewRequest>[0] | null>(null)
 
   function startRequest(params?: {
     title?: string
     templateId?: string
     promptHints?: string[]
   }) {
+    if (pending.current) return
+    pending.current = true
+    setError(null)
     setStep("loading")
-    createNewRequest(params)
+    if (!lastAttempt.current) {
+      let idempotencyKey: string = crypto.randomUUID()
+      try {
+        const stored = sessionStorage.getItem("vpo-pending-draft")
+        if (stored) idempotencyKey = stored
+        else sessionStorage.setItem("vpo-pending-draft", idempotencyKey)
+      } catch { /* Storage can be disabled; the in-memory key still protects retries. */ }
+      lastAttempt.current = { ...params, idempotencyKey }
+    }
+    createNewRequest(lastAttempt.current)
       .then((result) => {
+        try { sessionStorage.removeItem("vpo-pending-draft") } catch { /* optional storage */ }
         setRequestId(result.requestId)
         setPromptHints(result.promptHints)
         setStep("chat")
@@ -45,11 +61,7 @@ export function NewRequestContent({ templates }: NewRequestContentProps) {
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "Failed to create request")
       })
-  }
-
-  // Auto-start if no templates
-  if (step === "loading" && !requestId && !error && templates.length === 0) {
-    startRequest()
+      .finally(() => { pending.current = false })
   }
 
   if (step === "pick") {
@@ -76,6 +88,11 @@ export function NewRequestContent({ templates }: NewRequestContentProps) {
         <Card className="max-w-md">
           <CardContent>
             <p className="text-destructive text-sm">{error}</p>
+            <Button className="mt-4" onClick={() => startRequest()}>Retry</Button>
+            <Button className="ml-2 mt-4" variant="outline" onClick={() => {
+              setError(null)
+              setStep("pick")
+            }}>Back</Button>
           </CardContent>
         </Card>
       </div>

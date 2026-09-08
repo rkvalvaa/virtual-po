@@ -1,16 +1,10 @@
-import {
-  streamText,
-  stepCountIs,
-  UIMessage,
-  convertToModelMessages,
-} from 'ai';
-import { anthropic, AGENT_MODEL as MODEL } from '@/lib/agents/client';
+import type { UIMessage } from 'ai';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { INTAKE_SYSTEM_PROMPT } from '@/lib/agents/prompts/intake';
 import { createIntakeTools } from '@/lib/agents/tools/intake-tools';
 import { getFeatureRequestById } from '@/lib/db/queries/feature-requests';
-import { createAgentTelemetry } from '@/lib/agents/telemetry';
+import { createGuardedAgentStream } from '@/lib/agents/stream';
 import '@/lib/auth/types';
 
 
@@ -55,22 +49,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const tools = createIntakeTools(requestId, session.user.orgId, session.user.id);
-
-  const result = streamText({
-    model: anthropic(MODEL),
+  const { orgId, id: userId } = session.user;
+  return createGuardedAgentStream({
+    scope: { agent: 'intake', orgId, requestId, userId },
     system: `${INTAKE_SYSTEM_PROMPT}\n\nCurrent request ID: ${requestId}`,
-    messages: await convertToModelMessages(messages),
-    tools,
-    stopWhen: stepCountIs(5),
-    onFinish: createAgentTelemetry({
-      agent: 'intake',
-      model: MODEL,
-      orgId: session.user.orgId,
-      requestId,
-      userId: session.user.id,
-    }),
+    messages,
+    signal: req.signal,
+    createTools: runId => createIntakeTools(requestId, orgId, userId, runId),
   });
-
-  return result.toUIMessageStreamResponse();
 }

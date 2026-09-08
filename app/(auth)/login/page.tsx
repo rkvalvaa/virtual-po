@@ -1,4 +1,5 @@
-import { signIn } from "@/auth";
+import { auth, signIn } from "@/auth";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,7 +28,8 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  if ((await auth())?.user) redirect('/requests');
   return (
     <Card>
       <CardHeader className="text-center">

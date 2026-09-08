@@ -3,9 +3,10 @@ import { z } from 'zod';
 import { getFeatureRequestById } from '@/lib/db/queries/feature-requests';
 import { createEpic, createUserStory } from '@/lib/db/queries/epics';
 import { logActivity } from '@/lib/db/queries/activity-log';
+import { guardAgentTools } from '@/lib/agents/runs';
 
-export function createOutputTools(requestId: string, orgId: string) {
-  return {
+export function createOutputTools(requestId: string, orgId: string, userId: string, runId: string) {
+  return guardAgentTools({ requestId, orgId, userId, runId, agent: 'output' }, {
     get_intake_data: tool({
       description: 'Retrieve the intake data and summary for this feature request',
       inputSchema: z.object({}),
@@ -80,7 +81,7 @@ export function createOutputTools(requestId: string, orgId: string) {
     save_user_story: tool({
       description: 'Save a generated user story to the database',
       inputSchema: z.object({
-        epicId: z.string().describe('The epic ID this story belongs to'),
+        epicId: z.uuid().describe('The epic ID this story belongs to'),
         title: z.string().describe('Short story title'),
         asA: z.string().describe('The user role (As a...)'),
         iWant: z.string().describe('The desired functionality (I want...)'),
@@ -101,7 +102,9 @@ export function createOutputTools(requestId: string, orgId: string) {
           technicalNotes,
           priority,
           storyPoints,
-        });
+        }, { requestId, orgId });
+
+        if (!story) return { error: 'Epic not found for this request' };
 
         try {
           await logActivity({
@@ -118,5 +121,5 @@ export function createOutputTools(requestId: string, orgId: string) {
         return { saved: true, storyId: story.id, title };
       },
     }),
-  };
+  });
 }

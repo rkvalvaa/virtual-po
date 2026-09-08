@@ -15,9 +15,10 @@ import { getCurrentQuarterCapacity } from '@/lib/db/queries/capacity';
 import { logActivity } from '@/lib/db/queries/activity-log';
 import { maybeAutoApprove } from '@/lib/approvals/engine';
 import { log } from '@/lib/logging/logger';
+import { guardAgentTools } from '@/lib/agents/runs';
 
-export function createAssessmentTools(requestId: string, orgId: string, userId: string) {
-  return {
+export function createAssessmentTools(requestId: string, orgId: string, userId: string, runId: string) {
+  return guardAgentTools({ requestId, orgId, userId, runId, agent: 'assessment' }, {
     get_organization_context: tool({
       description:
         "Retrieve the organization's scoring configuration and priorities",
@@ -288,5 +289,5 @@ export function createAssessmentTools(requestId: string, orgId: string, userId: 
         };
       },
     }),
-  };
+  });
 }

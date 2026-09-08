@@ -5,6 +5,7 @@ import pool from "@/lib/db/pool"
 import authConfig from "./auth.config"
 import { ensureUserOrganization } from "@/lib/auth/org-setup"
 import { getUserByEmail } from "@/lib/db/queries/users"
+import { getOrganizationRole } from "@/lib/db/queries/organizations"
 import "@/lib/auth/types"
 
 /**
@@ -47,7 +48,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [...authConfig.providers, ...e2eProviders],
   callbacks: {
-    ...authConfig.callbacks,
     async jwt({ token, user }) {
       if (user?.id) {
         token.id = user.id
@@ -60,6 +60,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.orgId = orgId
         token.role = role
       }
+      // JWTs identify the session; current membership authorizes access. Never
+      // provision an organization when refreshing an existing/revoked token.
+      if (!token.id || !token.orgId) return null
+      const currentRole = await getOrganizationRole(token.orgId, token.id)
+      if (!currentRole) return null
+      token.role = currentRole
       return token
     },
     async session({ session, token }) {

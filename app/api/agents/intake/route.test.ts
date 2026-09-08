@@ -1,4 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+vi.mock('next/server', async () => ({
+  ...await vi.importActual<typeof import('next/server')>('next/server'),
+  after: vi.fn(),
+}))
 import {
   hasDb,
   createTestOrg,
@@ -74,7 +78,9 @@ describe.skipIf(!hasDb())('/api/agents/intake', () => {
     await cleanupTestOrg(otherOrg, [otherUser.id])
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const { query } = await import('@/lib/db/pool');
+    await query('DELETE FROM agent_runs WHERE request_id = $1', [request.id]);
     streamTextSpy.mockReset()
     fakeSession = { user: { id: user.id, orgId: org.id } }
   })

@@ -8,6 +8,7 @@ import {
 } from '@/lib/db/queries/webhooks';
 import { WEBHOOK_EVENTS } from '@/lib/types/database';
 import type { WebhookEvent } from '@/lib/types/database';
+import { InvalidWebhookDestination } from '@/lib/api/webhook-destination';
 
 function errorResponse(
   message: string,
@@ -77,7 +78,8 @@ export async function PATCH(
     return errorResponse('isActive must be a boolean', 'INVALID_PARAMETER', 400, rlHeaders);
   }
 
-  const updated = await updateWebhookSubscription(id, {
+  try {
+    const updated = await updateWebhookSubscription(id, {
     url: body.url,
     events: body.events as WebhookEvent[] | undefined,
     isActive: body.isActive,
@@ -86,7 +88,13 @@ export async function PATCH(
   // Strip secret from response
   const { secret, ...data } = updated;
   void secret;
-  return NextResponse.json({ data }, { headers: rlHeaders });
+    return NextResponse.json({ data }, { headers: rlHeaders });
+  } catch (error) {
+    if (error instanceof InvalidWebhookDestination) {
+      return errorResponse(error.message, 'INVALID_PARAMETER', 400, rlHeaders);
+    }
+    throw error;
+  }
 }
 
 export async function DELETE(

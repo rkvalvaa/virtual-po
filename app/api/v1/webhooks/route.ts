@@ -5,6 +5,7 @@ import { rateLimit, rateLimitHeaders } from '@/lib/api/rate-limit';
 import { createWebhookSubscription, getWebhooksByOrg } from '@/lib/db/queries/webhooks';
 import { WEBHOOK_EVENTS } from '@/lib/types/database';
 import type { WebhookEvent } from '@/lib/types/database';
+import { InvalidWebhookDestination } from '@/lib/api/webhook-destination';
 
 function errorResponse(
   message: string,
@@ -85,12 +86,19 @@ export async function POST(req: Request) {
 
   const secret = body.secret ?? crypto.randomBytes(32).toString('hex');
 
-  const webhook = await createWebhookSubscription(
+  try {
+    const webhook = await createWebhookSubscription(
     auth.orgId,
     body.url,
     secret,
     body.events as WebhookEvent[]
   );
 
-  return NextResponse.json({ data: webhook }, { status: 201, headers: rlHeaders });
+    return NextResponse.json({ data: webhook }, { status: 201, headers: rlHeaders });
+  } catch (error) {
+    if (error instanceof InvalidWebhookDestination) {
+      return errorResponse(error.message, 'INVALID_PARAMETER', 400, rlHeaders);
+    }
+    throw error;
+  }
 }
