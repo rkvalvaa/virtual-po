@@ -36,6 +36,21 @@ test('another organization cannot read or continue a saved request conversation'
   } finally { await cleanupTestOrg(org, [owner.id]); }
 });
 
+test('a deliberately closed request does not label unfinished agent stages complete', async ({ page }) => {
+  const org = await createTestOrg('e2e-closed-workflow');
+  const owner = await createTestUser(org);
+  const request = await createTestRequest(org, owner);
+  try {
+    await query("UPDATE feature_requests SET status='REJECTED' WHERE id=$1", [request.id]);
+    await loginAs(page, owner.email);
+    await page.goto(`/requests/${request.id}/workflow`);
+    await expect(page.getByRole('main').getByText('Workflow not active', { exact: true })).toBeVisible();
+    await expect(page.getByRole('main').getByText('Workflow complete', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Send', exact: true })).toHaveCount(0);
+    await page.goto('/');
+  } finally { await cleanupTestOrg(org, [owner.id]); }
+});
+
 test('complete intake, recover a failed assessment, review security and generate saved artifacts', async ({ page }) => {
   await loginAs(page, readSeed().stakeholderEmail);
   await page.goto('/requests/new');

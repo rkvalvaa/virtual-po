@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import crypto from 'node:crypto';
 import { readSeed } from './helpers/seed';
-import { createTestApiKey, createTestOrg, createTestUser, cleanupTestOrg } from '@/test/db-helpers';
+import { createTestApiKey, createTestOrg, createTestUser, createTestRequest, cleanupTestOrg } from '@/test/db-helpers';
 import { query } from '@/lib/db/pool';
 import { loginAs } from './helpers/auth';
 
@@ -67,4 +67,23 @@ test('an open admin page cannot mutate after demotion, and removed members lose 
   } finally {
     await cleanupTestOrg(org, [user.id]);
   }
+});
+
+test('authenticated webhook scheduler consumes a durable event through the real proxy', async ({ request }) => {
+  const org = await createTestOrg('cron-outbox');
+  const owner = await createTestUser(org);
+  try {
+    // A legacy unsafe destination is rejected before any outbound connection.
+    await query(`INSERT INTO webhook_subscriptions(organization_id,url,secret,events)
+      VALUES($1,'http://127.0.0.1/internal','test-only','{request.created}')`, [org.id]);
+    await createTestRequest(org, owner);
+    const response = await request.get('/api/cron/webhooks', {
+      headers: { Authorization: `Bearer ${process.env.CRON_SECRET ?? 'e2e-cron-secret'}` }, maxRedirects: 0,
+    });
+    expect(response.status()).toBe(200);
+    expect((await response.json()).processed).toBeGreaterThanOrEqual(1);
+    const delivery = await query(`SELECT d.status,d.error_code,d.attempt_count FROM webhook_deliveries d
+      JOIN webhook_events e ON e.id=d.event_id WHERE e.organization_id=$1`, [org.id]);
+    expect(delivery.rows).toEqual([{ status: 'FAILED', error_code: 'DESTINATION_REJECTED', attempt_count: 1 }]);
+  } finally { await cleanupTestOrg(org, [owner.id]); }
 });

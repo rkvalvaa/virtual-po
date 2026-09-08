@@ -55,7 +55,7 @@ export default async function RequestWorkflowPage({ params }: { params: Promise<
     </ol>
     <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
       <Card className="min-w-0 overflow-hidden py-0">
-        <CardHeader className="border-b py-4"><CardTitle>{next?.title ?? "Workflow complete"}</CardTitle></CardHeader>
+        <CardHeader className="border-b py-4"><CardTitle>{next?.title ?? (terminal && stages.some(stage => !stage.done) ? "Workflow not active" : "Workflow complete")}</CardTitle></CardHeader>
         {next ? <>
           {latest && !(latest.status === "RUNNING" && latest.live) && <p role="status" className="px-4 pt-3 text-sm text-muted-foreground">
             {latest.status === "FAILED" ? "The last attempt did not finish. Your saved progress is safe; retry below." : "This stage still needs saved results. Continue below to finish it."}
