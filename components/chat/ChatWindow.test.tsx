@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ChatWindow } from './ChatWindow'
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
 
 type Status = 'ready' | 'streaming' | 'submitted' | 'error'
 type Message = {
@@ -34,6 +35,7 @@ vi.mock('ai', () => ({
 }))
 
 beforeEach(() => {
+  sessionStorage.clear()
   mockSendMessage.mockReset()
   mockMessages = []
   mockStatus = 'ready'

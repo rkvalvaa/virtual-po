@@ -1,7 +1,9 @@
 "use client"
 
 import { useChat } from "@ai-sdk/react"
-import { DefaultChatTransport } from "ai"
+import { DefaultChatTransport, type UIMessage } from "ai"
+import { useRouter } from "next/navigation"
+import type { AgentStage } from "@/lib/agents/runs"
 import { useEffect, useRef, useState, useMemo } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
@@ -12,22 +14,44 @@ import { Send } from "lucide-react"
 
 interface ChatWindowProps {
   requestId: string
+  stage?: AgentStage
+  initialMessages?: UIMessage[]
+  disabled?: boolean
+  retryAvailable?: boolean
 }
 
-export function ChatWindow({ requestId }: ChatWindowProps) {
+export function ChatWindow({ requestId, stage = "intake", initialMessages = [], disabled = false, retryAvailable = false }: ChatWindowProps) {
+  const router = useRouter()
   const bottomRef = useRef<HTMLDivElement>(null)
   const [input, setInput] = useState("")
+  const draftKey = `vpo-message:${requestId}:${stage}`
+
+  useEffect(() => {
+    try {
+      const draft = sessionStorage.getItem(draftKey) ?? sessionStorage.getItem(`${draftKey}:pending`)
+      // Restore browser-only state after hydration.
+      if (draft) queueMicrotask(() => setInput(draft))
+    } catch { /* Storage is optional. */ }
+  }, [draftKey])
 
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
-        api: "/api/agents/intake",
+        api: stage === "intake" ? "/api/agents/intake" : `/api/agents/${stage === "assessment" ? "assess" : stage === "output" ? "generate" : "security"}/${requestId}`,
         body: { requestId },
       }),
-    [requestId]
+    [requestId, stage]
   )
 
-  const { messages, sendMessage, status, error } = useChat({ transport })
+  const { messages, sendMessage, regenerate, status, error } = useChat({
+    id: `${requestId}:${stage}`, messages: initialMessages, transport,
+    onFinish: ({ isError, isAbort }) => {
+      if (!isError && !isAbort) {
+        try { sessionStorage.removeItem(`${draftKey}:pending`) } catch { /* Storage is optional. */ }
+      }
+      router.refresh()
+    },
+  })
 
   const isStreaming = status === "streaming" || status === "submitted"
 
@@ -38,8 +62,12 @@ export function ChatWindow({ requestId }: ChatWindowProps) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const text = input.trim()
-    if (!text || isStreaming) return
+    if (!text || isStreaming || disabled) return
     setInput("")
+    try {
+      sessionStorage.setItem(`${draftKey}:pending`, text)
+      sessionStorage.removeItem(draftKey)
+    } catch { /* Storage is optional. */ }
     sendMessage({ text })
   }
 
@@ -49,17 +77,17 @@ export function ChatWindow({ requestId }: ChatWindowProps) {
         <div className="space-y-4">
           {messages.length === 0 && (
             <p className="text-muted-foreground py-8 text-center text-sm">
-              Describe your feature request and the intake agent will help
-              gather all the necessary details.
+              {stage === "intake" ? "Describe your feature request and the intake agent will help gather all the necessary details." : "Run this stage using the saved request details. Results are saved to the request."}
             </p>
           )}
           {messages.map((message) => (
             <MessageBubble key={message.id} message={message} />
           ))}
           {isStreaming && <TypingIndicator />}
-          {error && (
+          {(error || retryAvailable) && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
               Something went wrong. Please try again.
+              <Button variant="outline" className="ml-2" disabled={isStreaming || disabled} onClick={() => regenerate()}>Retry last message</Button>
             </div>
           )}
           <div ref={bottomRef} />
@@ -67,10 +95,18 @@ export function ChatWindow({ requestId }: ChatWindowProps) {
       </ScrollArea>
 
       <div className="border-t p-4">
+        {stage !== "intake" && <Button className="mb-3" disabled={isStreaming || disabled} onClick={() => sendMessage({ text: `Complete the ${stage} stage using the saved request context and save the results. If a previous attempt partially saved results, reuse those artifacts and complete the missing work.` })}>
+          {isStreaming ? "Running…" : stage === "assessment" ? "Run assessment" : stage === "security" ? "Run security review" : "Generate epic and stories"}
+        </Button>}
         <form onSubmit={handleSubmit} className="flex gap-2">
           <Textarea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            aria-label="Message to agent"
+            disabled={disabled}
+            onChange={(e) => {
+              setInput(e.target.value)
+              try { sessionStorage.setItem(draftKey, e.target.value) } catch { /* Storage is optional. */ }
+            }}
             placeholder="Describe your feature request..."
             className="min-h-10 flex-1 resize-none"
             rows={1}
@@ -85,7 +121,7 @@ export function ChatWindow({ requestId }: ChatWindowProps) {
             type="submit"
             size="icon"
             aria-label="Send"
-            disabled={isStreaming || !input.trim()}
+            disabled={disabled || isStreaming || !input.trim()}
           >
             <Send />
           </Button>

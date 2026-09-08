@@ -4,6 +4,7 @@ import { query } from '@/lib/db/pool';
 import { beginAgentRun } from '@/lib/agents/runs';
 import { createOutputTools } from './output-tools';
 import { createEpic, getStoriesByEpicId } from '@/lib/db/queries/epics';
+import { createSecurityReview } from '@/lib/db/queries/security-reviews';
 import {
   cleanupTestOrg, createTestOrg, createTestRequest, createTestUser, hasDb,
   type TestOrg, type TestUser, type TestRequest,
@@ -26,6 +27,8 @@ describe.skipIf(!hasDb())('output tools tenant isolation', () => {
     user = await createTestUser(org);
     otherUser = await createTestUser(otherOrg);
     request = await createTestRequest(org, user);
+    await createSecurityReview({ requestId: request.id, organizationId: org.id, categories: [], overallSeverity: 'none',
+      summary: 'Test review', recommendations: [], requiresSecurityReview: false, gaps: [] });
     const wrongRequest = await createTestRequest(org, user);
     const foreignRequest = await createTestRequest(otherOrg, otherUser);
     ownEpicId = (await createEpic({ requestId: request.id, title: 'Own' })).id;
@@ -74,5 +77,17 @@ describe.skipIf(!hasDb())('output tools tenant isolation', () => {
     const stories = await getStoriesByEpicId(ownEpicId);
     expect(stories).toHaveLength(1);
     expect(stories[0]).toMatchObject({ epicId: ownEpicId, title: 'Bounded story' });
+  });
+
+  it('reuses saved stories on retry and only completes a verified artifact set', async () => {
+    const tools = createOutputTools(request.id, org.id, user.id, runId);
+    const options = { toolCallId: 'test', messages: [] };
+    expect(await tools.complete_output.execute!({ storyCount: 1 }, options)).toMatchObject({ error: expect.any(String) });
+    const first = await save(ownEpicId);
+    expect(await save(ownEpicId)).toMatchObject(first as object);
+    expect(await getStoriesByEpicId(ownEpicId)).toHaveLength(1);
+    expect(await tools.complete_output.execute!({ storyCount: 2 }, options)).toMatchObject({ error: expect.any(String) });
+    expect(await tools.complete_output.execute!({ storyCount: 1 }, options)).toMatchObject({ completed: true });
+    await expect(save(ownEpicId)).rejects.toMatchObject({ status: 409 });
   });
 });

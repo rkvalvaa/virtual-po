@@ -42,6 +42,13 @@ describe.skipIf(!hasDb())('agent run authorization and atomic writes', () => {
     await expect(beginAgentRun(scope())).rejects.toMatchObject({ status: 409 });
   });
 
+  it('enforces assessment and security prerequisites at the server boundary', async () => {
+    await query("UPDATE feature_requests SET status = 'PENDING_ASSESSMENT', intake_complete = true, assessment_data = NULL WHERE id = $1", [request.id]);
+    await expect(beginAgentRun({ ...scope(), agent: 'security' })).rejects.toMatchObject({ status: 409 });
+    await query("UPDATE feature_requests SET status = 'UNDER_REVIEW', assessment_data = '{}' WHERE id = $1", [request.id]);
+    await expect(beginAgentRun({ ...scope(), agent: 'output' })).rejects.toThrow('Complete the security review first');
+  });
+
   it('checks state again at mutation time rather than trusting the run start', async () => {
     const run = await beginAgentRun(scope());
     await query("UPDATE feature_requests SET status = 'COMPLETED' WHERE id = $1", [request.id]);

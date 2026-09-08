@@ -13,9 +13,7 @@ test("stakeholder creates a request and opens its detail page", async ({
   await page.getByLabel("Working title (optional)").fill(title)
   await page.getByRole("button", { name: /start from scratch/i }).click()
 
-  // Creation hands off to the intake chat in place — it does not navigate to
-  // /requests/[id]. The chat only calls the agent once a message is sent, so
-  // stopping here keeps this slice free of LLM calls.
+  // Creation hands off to a stable workflow URL without starting an AI run.
   await expect(
     page.getByRole("main").getByText("Intake Agent", { exact: true }),
   ).toBeVisible()

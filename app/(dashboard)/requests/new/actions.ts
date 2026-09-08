@@ -7,7 +7,7 @@ import {
 } from "@/lib/db/queries/feature-requests"
 import { createDraft } from "@/lib/db/queries/drafts"
 import { z } from "zod"
-import { seedDefaultTemplates } from "@/lib/db/queries/templates"
+import { getTemplateById, seedDefaultTemplates } from "@/lib/db/queries/templates"
 import { logActivity } from "@/lib/db/queries/activity-log"
 
 export async function createNewRequest(params: {
@@ -24,7 +24,12 @@ export async function createNewRequest(params: {
 
   const idempotencyKey = z.uuid().parse(params.idempotencyKey)
   const title = z.string().trim().min(1).max(200).parse(params.title?.trim() || "New Feature Request")
-  const draft = await createDraft({ orgId, userId: session.user.id, title, idempotencyKey })
+  const template = params.templateId ? await getTemplateById(z.uuid().parse(params.templateId)) : null
+  if (params.templateId && (!template || template.organizationId !== orgId || !template.isActive)) {
+    throw new Error("This template is no longer available. Start a request from the templates page.")
+  }
+  const draft = await createDraft({ orgId, userId: session.user.id, title, idempotencyKey,
+    intakeData: template ? { _template_hints: template.promptHints } : {} })
 
   try {
     if (draft.created) await logActivity({
@@ -41,7 +46,7 @@ export async function createNewRequest(params: {
   return {
     requestId: draft.requestId,
     conversationId: draft.conversationId,
-    promptHints: params?.promptHints ?? [],
+    promptHints: template?.promptHints ?? [],
   }
 }
 

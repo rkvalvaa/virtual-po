@@ -24,3 +24,9 @@ Execution: inline, in focused test-first batches on `fix/cct-2039-project-harden
 ## Completion evidence
 
 Each completed item records changed files, regression checks and limitations in Linear. Final acceptance includes lint, strict type checking, all database tests, production build and browser tests covering the actual fixed paths. Tickets remain open until their acceptance criteria are verified. Full epic completion requires all fourteen items, not only the first security batch.
+
+### Verified implementation checkpoints (integration still pending)
+
+- `8451066`: first security/lifecycle/draft batch. 749 PostgreSQL-backed tests, lint, TypeScript, and 10 production-browser tests passed. Independent security and lease reviews addressed.
+- Workflow/history batch: stable `/requests/[id]/workflow` URL and detail resume link; server-owned conversation history and message identities; recoverable failed stages; persisted template guidance and quality; explicit assessment, security and output stages with server prerequisites and output completion marker. No conversation creation during page reads. 757 tests, lint, TypeScript, and 13 production-browser tests passed, including all-disabled templates, two-reply reload, unsent text, cross-tenant denial, failed assessment reload/retry, and generated artifacts. Real SDK partial-stream cancellation tested against PostgreSQL. Independent review findings addressed.
+- Remaining implementation: CCT-2047 responsive Settings and viewport checks; CCT-2048 shared AI quotas and full payload bounds; CCT-2049 durable webhook outbox; CCT-2050 truthful test delivery and secret lifecycle; CCT-2051 repository permissions/provider validation; CCT-2053 honest unsupported Teams commands. Final integration and requirement-by-requirement acceptance remain required for the entire epic.

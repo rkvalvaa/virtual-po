@@ -197,6 +197,9 @@ export function RequestDetail({
       </div>
 
       {/* Header */}
+      {canEditCustomFields && <Button asChild><Link href={`/requests/${request.id}/workflow`}>
+        {request.intakeComplete ? "Continue request workflow" : "Resume intake"}
+      </Link></Button>}
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight">{request.title}</h1>

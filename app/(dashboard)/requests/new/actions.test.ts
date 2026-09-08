@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { query } from '@/lib/db/pool';
 import { createTestOrg, createTestUser, cleanupTestOrg, hasDb, type TestOrg, type TestUser } from '@/test/db-helpers';
 import { createNewRequest } from './actions';
+import { createTemplate } from '@/lib/db/queries/templates';
 
 const identity = vi.hoisted(() => ({ userId: '', orgId: '' }));
 vi.mock('@/lib/auth/session', () => ({ requireAuth: async () => ({ user: { id: identity.userId, orgId: identity.orgId } }) }));
@@ -27,5 +28,12 @@ describe.skipIf(!hasDb())('idempotent draft creation', () => {
     const rows = await query(`SELECT COUNT(*)::int AS n FROM conversations c
       JOIN feature_requests r ON r.id = c.request_id WHERE r.organization_id = $1`, [org.id]);
     expect(rows.rows[0].n).toBe(1);
+  });
+
+  it('snapshots server-owned template guidance instead of trusting client hints', async () => {
+    const template = await createTemplate({ organizationId: org.id, name: 'Guided draft', category: 'CUSTOM', promptHints: ['Describe the intended user'] });
+    const draft = await createNewRequest({ idempotencyKey: randomUUID(), templateId: template.id, promptHints: ['Forged client guidance'] });
+    const row = await query('SELECT intake_data FROM feature_requests WHERE id = $1', [draft.requestId]);
+    expect(row.rows[0].intake_data._template_hints).toEqual(['Describe the intended user']);
   });
 });

@@ -3,14 +3,16 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NewRequestContent } from './NewRequestContent';
 import { createNewRequest } from './actions';
+import { StrictMode } from 'react';
 
 vi.mock('./actions', () => ({ createNewRequest: vi.fn(), findSimilarToTitle: vi.fn(async () => []) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn() }) }));
 
 describe('starting an intake with no active templates', () => {
   beforeEach(() => { vi.mocked(createNewRequest).mockReset(); sessionStorage.clear(); });
   it('does not create requests during render and offers an explicit start', () => {
     vi.mocked(createNewRequest).mockImplementation(() => new Promise(() => {}));
-    render(<NewRequestContent templates={[]} />);
+    render(<StrictMode><NewRequestContent templates={[]} /></StrictMode>);
     expect(screen.getByRole('button', { name: /start from scratch/i })).toBeVisible();
     expect(createNewRequest).not.toHaveBeenCalled();
   });

@@ -1,5 +1,5 @@
 /** Keep lease cleanup inside the response lifecycle, including consumer cancellation. */
-export function finalizeAgentResponse(response: Response, finish: () => Promise<void>): Response {
+export function finalizeAgentResponse(response: Response, finish: () => Promise<void>, onCancel?: () => void): Response {
   const reader = response.body?.getReader();
   if (!reader) throw new Error('Agent response has no stream');
   const body = new ReadableStream<Uint8Array>({
@@ -16,6 +16,7 @@ export function finalizeAgentResponse(response: Response, finish: () => Promise<
       }
     },
     async cancel(reason) {
+      onCancel?.();
       try { await reader.cancel(reason); } finally { await finish(); }
     },
   });

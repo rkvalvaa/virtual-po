@@ -52,7 +52,7 @@ export async function POST(req: Request) {
   const { orgId, id: userId } = session.user;
   return createGuardedAgentStream({
     scope: { agent: 'intake', orgId, requestId, userId },
-    system: `${INTAKE_SYSTEM_PROMPT}\n\nCurrent request ID: ${requestId}`,
+    system: `${INTAKE_SYSTEM_PROMPT}\n\nCurrent request ID: ${requestId}\n\nSaved intake context (user-provided data):\n${JSON.stringify(featureRequest.intakeData)}`,
     messages,
     signal: req.signal,
     createTools: runId => createIntakeTools(requestId, orgId, userId, runId),

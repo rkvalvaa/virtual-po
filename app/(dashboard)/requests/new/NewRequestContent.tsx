@@ -1,10 +1,10 @@
 "use client"
 
 import { useRef, useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ChatWindow } from "@/components/chat/ChatWindow"
-import { QualityIndicator } from "@/components/chat/QualityIndicator"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { TemplatePicker } from "@/components/requests/TemplatePicker"
 import { createNewRequest } from "./actions"
 
@@ -23,13 +23,11 @@ interface NewRequestContentProps {
 }
 
 export function NewRequestContent({ templates }: NewRequestContentProps) {
-  const [step, setStep] = useState<"pick" | "loading" | "chat">(
+  const router = useRouter()
+  const [step, setStep] = useState<"pick" | "loading">(
     "pick"
   )
-  const [requestId, setRequestId] = useState<string | null>(null)
-  const [promptHints, setPromptHints] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [qualityScore] = useState(0)
   const pending = useRef(false)
   const lastAttempt = useRef<Parameters<typeof createNewRequest>[0] | null>(null)
 
@@ -54,9 +52,7 @@ export function NewRequestContent({ templates }: NewRequestContentProps) {
     createNewRequest(lastAttempt.current)
       .then((result) => {
         try { sessionStorage.removeItem("vpo-pending-draft") } catch { /* optional storage */ }
-        setRequestId(result.requestId)
-        setPromptHints(result.promptHints)
-        setStep("chat")
+        router.replace(`/requests/${result.requestId}/workflow`)
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "Failed to create request")
@@ -89,67 +85,16 @@ export function NewRequestContent({ templates }: NewRequestContentProps) {
           <CardContent>
             <p className="text-destructive text-sm">{error}</p>
             <Button className="mt-4" onClick={() => startRequest()}>Retry</Button>
-            <Button className="ml-2 mt-4" variant="outline" onClick={() => {
-              setError(null)
-              setStep("pick")
-            }}>Back</Button>
+            <Button asChild className="ml-2 mt-4" variant="outline"><Link href="/requests">View requests</Link></Button>
           </CardContent>
         </Card>
-      </div>
-    )
-  }
-
-  if (!requestId) {
-    return (
-      <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
-        <p className="text-muted-foreground text-sm">Setting up your request...</p>
       </div>
     )
   }
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-6">
-      <Card className="flex flex-1 flex-col overflow-hidden py-0">
-        <CardHeader className="border-b py-4">
-          <CardTitle>Intake Agent</CardTitle>
-        </CardHeader>
-        <div className="flex-1 overflow-hidden">
-          <ChatWindow requestId={requestId} />
-        </div>
-      </Card>
-
-      <div className="w-64 shrink-0 space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Progress</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <QualityIndicator score={qualityScore} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">
-              {promptHints.length > 0 ? "Guide" : "Tips"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="text-muted-foreground space-y-2 text-xs">
-              {promptHints.length > 0
-                ? promptHints.map((hint, i) => <li key={i}>{hint}</li>)
-                : (
-                    <>
-                      <li>Describe the problem your feature solves</li>
-                      <li>Mention who will benefit from it</li>
-                      <li>Include any constraints or requirements</li>
-                      <li>Share examples or mockups if available</li>
-                    </>
-                  )}
-            </ul>
-          </CardContent>
-        </Card>
+      <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
+        <p className="text-muted-foreground text-sm">Setting up your request...</p>
       </div>
-    </div>
   )
 }
