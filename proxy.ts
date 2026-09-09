@@ -9,6 +9,7 @@ function usesMachineAuthentication(pathname: string): boolean {
   return pathname === "/api/v1" || pathname.startsWith("/api/v1/") || [
     "/api/slack/commands", "/api/slack/events", "/api/slack/interactions",
     "/api/cron/review-cycles", "/api/cron/webhooks", "/api/cron/email",
+    "/api/cron/tracker-status-sync",
     "/api/webhooks/resend", "/api/teams/messages", "/api/cron/teams", "/api/health",
   ].includes(pathname)
 }
