@@ -1,10 +1,12 @@
-import { query } from '@/lib/db/pool';
+import { query, transaction } from '@/lib/db/pool';
 import { estimateCostUsd } from '@/lib/agents/pricing';
 import type { DateRange } from '@/lib/db/queries/analytics';
+import { settleMeasuredAgentBudget } from './agent-budget';
 
 export type AgentName = 'intake' | 'assessment' | 'output' | 'security';
 
 export interface AgentUsageInsert {
+  agentRunId?: string;
   organizationId: string;
   requestId: string | null;
   userId: string | null;
@@ -18,12 +20,14 @@ export interface AgentUsageInsert {
 }
 
 export async function recordAgentUsage(row: AgentUsageInsert): Promise<void> {
-  await query(
+  await transaction(async () => {
+    await query(
     `INSERT INTO agent_usage (
-       organization_id, request_id, user_id, agent, model,
+       agent_run_id, organization_id, request_id, user_id, agent, model,
        input_tokens, output_tokens, duration_ms, steps, finish_reason
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
     [
+      row.agentRunId ?? null,
       row.organizationId,
       row.requestId,
       row.userId,
@@ -35,7 +39,16 @@ export async function recordAgentUsage(row: AgentUsageInsert): Promise<void> {
       row.steps,
       row.finishReason,
     ]
-  );
+    );
+    if (row.agentRunId) {
+      await settleMeasuredAgentBudget({
+        runId: row.agentRunId,
+        model: row.model,
+        inputTokens: row.inputTokens,
+        outputTokens: row.outputTokens,
+      });
+    }
+  });
 }
 
 export interface AgentUsageSummaryRow {

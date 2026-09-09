@@ -41,6 +41,13 @@ import { OrganizationSettings } from "@/components/settings/OrganizationSettings
 import { MemberSettings } from "@/components/settings/MemberSettings"
 import { InvitationSettings } from '@/components/settings/InvitationSettings'
 import type { PendingInvitation } from '@/lib/db/queries/invitations'
+import type { EmailReadiness } from '@/lib/email/config'
+import type { EmailDeliverySummary } from '@/lib/email/outbox'
+import type { PlanningCapacity } from '@/lib/planning/types'
+import type { TeamsReadiness } from '@/lib/teams/config'
+import type { TeamsDeliverySummary } from '@/lib/teams/outbox'
+import { AIBudgetSettings } from '@/components/settings/AIBudgetSettings'
+import type { AgentBudgetStatus } from '@/lib/db/queries/agent-budget'
 
 interface SettingsContentProps {
   scoringPolicy?: ScoringPolicy
@@ -85,12 +92,7 @@ interface SettingsContentProps {
       unit: string
     }>
   }>
-  capacity: {
-    quarter: string
-    totalCapacityDays: number
-    allocatedDays: number
-    notes: string | null
-  } | null
+  capacity: PlanningCapacity
   currentQuarter: string
   jiraIntegration: JiraSettingsProps["integration"]
   jiraSyncHistory: JiraSettingsProps["syncHistory"]
@@ -102,6 +104,9 @@ interface SettingsContentProps {
   slackNotifications: SlackSettingsProps["notifications"]
   teamsIntegration: TeamsSettingsProps["integration"]
   teamsNotifications: TeamsSettingsProps["notifications"]
+  teamsReadiness: TeamsReadiness
+  teamsDeliveries: TeamsDeliverySummary[]
+  teamsTenantId: string | null
   apiKeys: ApiKeySettingsProps["apiKeys"]
   webhooks: WebhookSettingsProps["webhooks"]
   templates: TemplateSettingsProps["templates"]
@@ -110,6 +115,10 @@ interface SettingsContentProps {
   reviewCycleConfig: ReviewCycleSettingsProps["config"]
   reviewCycles: ReviewCycleSettingsProps["cycles"]
   emailPreferences: Record<NotificationType, boolean>
+  emailReadiness: EmailReadiness
+  emailDeliveries: EmailDeliverySummary[]
+  aiBudget: AgentBudgetStatus
+  aiBudgetDeploymentConfiguration: 'READY' | 'UNCONFIGURED' | 'INVALID'
 }
 
 export function SettingsContent({
@@ -131,6 +140,9 @@ export function SettingsContent({
   slackNotifications,
   teamsIntegration,
   teamsNotifications,
+  teamsReadiness,
+  teamsDeliveries,
+  teamsTenantId,
   apiKeys,
   webhooks,
   templates,
@@ -139,6 +151,10 @@ export function SettingsContent({
   reviewCycleConfig,
   reviewCycles,
   emailPreferences,
+  emailReadiness,
+  emailDeliveries,
+  aiBudget,
+  aiBudgetDeploymentConfiguration,
   invitations = [],
   invitationReadiness = null,
   administrationHistory = [],
@@ -180,6 +196,10 @@ export function SettingsContent({
 
         <SettingsPanel value="repositories">
           <RepositorySettings repositories={repositories} userRole={userRole} />
+        </SettingsPanel>
+
+        <SettingsPanel value="ai-budget">
+          <AIBudgetSettings status={aiBudget} userRole={userRole} deploymentConfiguration={aiBudgetDeploymentConfiguration} />
         </SettingsPanel>
 
         <SettingsPanel value="okrs">
@@ -232,6 +252,10 @@ export function SettingsContent({
             integration={teamsIntegration}
             notifications={teamsNotifications}
             userRole={userRole}
+            readiness={teamsReadiness}
+            deliveries={teamsDeliveries}
+            tenantId={teamsTenantId}
+            members={members}
           />
         </SettingsPanel>
 
@@ -268,7 +292,7 @@ export function SettingsContent({
         </SettingsPanel>
 
         <SettingsPanel value="email">
-          <EmailPreferencesSettings preferences={emailPreferences} />
+          <EmailPreferencesSettings preferences={emailPreferences} userRole={userRole} readiness={emailReadiness} deliveries={emailDeliveries} />
         </SettingsPanel>
       </SettingsSections>
     </div>

@@ -13,6 +13,8 @@ export interface LinearIssue {
   state: { id: string; name: string } | null;
   priority: number;
   project: { id: string; name: string } | null;
+  labels: { nodes: Array<{ id: string; name: string }> };
+  updatedAt?: string;
 }
 
 export interface LinearTeam {
@@ -150,9 +152,10 @@ export function createLinearClient(config: LinearClientConfig) {
       const data = await graphql<{ issue: LinearIssue }>(`
         query($id: String!) {
           issue(id: $id) {
-            id identifier title description url priority
+            id identifier title description url priority updatedAt
             state { id name }
             project { id name }
+            labels { nodes { id name } }
           }
         }
       `, { id: issueId });
@@ -190,21 +193,64 @@ export function createLinearClient(config: LinearClientConfig) {
 
     async searchIssues(
       searchQuery: string,
-      _teamId?: string,
+      teamId?: string,
       limit = 50
     ): Promise<LinearIssue[]> {
-      const data = await graphql<{ issueSearch: { nodes: LinearIssue[] } }>(`
-        query($query: String!, $first: Int) {
-          issueSearch(query: $query, first: $first) {
+      const page = await this.searchIssuesPage(searchQuery, teamId, { pageSize: limit });
+      return page.items;
+    },
+
+    async searchIssuesPage(
+      searchQuery: string,
+      _teamId?: string,
+      options: { cursor?: string | null; pageSize?: number } = {}
+    ): Promise<{ items: LinearIssue[]; nextCursor: string | null }> {
+      const data = await graphql<{ issueSearch: { nodes: LinearIssue[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }>(`
+        query($query: String!, $first: Int, $after: String) {
+          issueSearch(query: $query, first: $first, after: $after) {
             nodes {
               id identifier title description url priority
               state { id name }
               project { id name }
+              labels { nodes { id name } }
             }
+            pageInfo { hasNextPage endCursor }
           }
         }
-      `, { query: searchQuery, first: limit });
-      return data.issueSearch.nodes;
+      `, { query: searchQuery, first: options.pageSize ?? 25, after: options.cursor ?? null });
+      return {
+        items: data.issueSearch.nodes,
+        nextCursor: data.issueSearch.pageInfo.hasNextPage ? data.issueSearch.pageInfo.endCursor : null,
+      };
+    },
+
+    async listUpdatedIssuesPage(
+      teamId: string,
+      updatedAfter: Date,
+      options: { cursor?: string | null; pageSize?: number } = {}
+    ): Promise<{ items: LinearIssue[]; nextCursor: string | null }> {
+      const data = await graphql<{ issues: { nodes: LinearIssue[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }>(`
+        query($teamId: ID!, $updatedAfter: DateTimeOrDuration!, $first: Int, $after: String) {
+          issues(
+            filter: { team: { id: { eq: $teamId } }, updatedAt: { gte: $updatedAfter } }
+            orderBy: updatedAt
+            first: $first
+            after: $after
+          ) {
+            nodes {
+              id identifier title description url priority updatedAt
+              state { id name }
+              project { id name }
+              labels { nodes { id name } }
+            }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      `, { teamId, updatedAfter: updatedAfter.toISOString(), first: options.pageSize ?? 50, after: options.cursor ?? null });
+      return {
+        items: data.issues.nodes,
+        nextCursor: data.issues.pageInfo.hasNextPage ? data.issues.pageInfo.endCursor : null,
+      };
     },
 
     async getWorkflowStates(teamId: string): Promise<LinearWorkflowState[]> {

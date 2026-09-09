@@ -15,8 +15,11 @@ import {
   validateAttachment,
 } from "@/lib/storage/validate"
 import { Download, Paperclip, Trash2, Upload } from "lucide-react"
+import { DocumentContextControl } from './DocumentContextControl'
+import type { DocumentSelection } from '@/lib/documents/context'
 
 export interface AttachmentView {
+  context?: DocumentSelection
   id: string
   filename: string
   mimeType: string
@@ -29,6 +32,7 @@ export interface AttachmentView {
 export interface AttachmentsCardProps {
   requestId: string
   attachments: AttachmentView[]
+  canSelectContext?: boolean
 }
 
 function formatDate(dateStr: string): string {
@@ -39,7 +43,7 @@ function formatDate(dateStr: string): string {
   })
 }
 
-export function AttachmentsCard({ requestId, attachments }: AttachmentsCardProps) {
+export function AttachmentsCard({ requestId, attachments, canSelectContext = false }: AttachmentsCardProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -104,6 +108,8 @@ export function AttachmentsCard({ requestId, attachments }: AttachmentsCardProps
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">Choose up to five text or Markdown files for AI assessments, 256 KiB each. Long documents are shortened and processing limits are shown. Deselecting or deleting a file removes its extracted text; existing assessment conclusions remain.</p>
+        <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Processing limits</summary><p className="mt-2">Only the first 16 KiB of text per file is read, with a combined 48 KiB limit. Files that exceed the combined limit are listed as omitted in the assessment.</p></details>
         <div
           onDragOver={(e) => {
             e.preventDefault()
@@ -190,6 +196,7 @@ export function AttachmentsCard({ requestId, attachments }: AttachmentsCardProps
                       {attachment.uploaderName ?? "Unknown"} &middot;{" "}
                       {formatDate(attachment.createdAt)}
                     </p>
+                    <DocumentContextControl attachmentId={attachment.id} filename={attachment.filename} mimeType={attachment.mimeType} size={attachment.size} selection={attachment.context} canSelect={canSelectContext} />
                   </div>
 
                   <Button variant="ghost" size="sm" asChild>

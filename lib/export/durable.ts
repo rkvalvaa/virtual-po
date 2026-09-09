@@ -30,10 +30,11 @@ export async function runExport(input: ExportInput, adapter: ExportAdapter): Pro
   const token = randomUUID();
   const manifest = await transaction(async () => {
     // Same request lock used by refinement/agents: the first manifest freezes content.
-    const authorized = await query(`SELECT r.id, r.human_refined, r.status FROM feature_requests r
+    const authorized = await query(`SELECT r.id, r.human_refined, r.status, r.archived_at FROM feature_requests r
       JOIN organization_users m ON m.organization_id = r.organization_id AND m.user_id = $3
       WHERE r.id = $1 AND r.organization_id = $2 AND m.role IN ('ADMIN', 'REVIEWER') FOR UPDATE OF r FOR SHARE OF m`, [input.requestId, input.orgId, input.userId]);
     if (!authorized.rowCount) throw new Error('Request not found or insufficient permissions.');
+    if (authorized.rows[0].archived_at) throw new Error('Restore this archived request before exporting.');
     if (authorized.rows[0].human_refined && !['APPROVED', 'IN_BACKLOG', 'IN_PROGRESS', 'COMPLETED'].includes(authorized.rows[0].status)) throw new Error('Approve the revised request before exporting.');
     const running = await query("SELECT id FROM agent_runs WHERE request_id = $1 AND status = 'RUNNING' AND expires_at > clock_timestamp()", [input.requestId]);
     if (running.rowCount) throw new Error('Wait for the active AI agent before exporting.');

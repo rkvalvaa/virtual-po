@@ -29,13 +29,28 @@ async function readMessages(id: string): Promise<UIMessage[]> {
 }
 
 async function insertMessage(id: string, message: UIMessage): Promise<void> {
+  // Source text belongs only to the selected attachment context. Keeping a copy
+  // in history would defeat deselection/deletion and replay stale evidence.
+  const parts = message.parts.map(part => {
+    if (part.type !== 'tool-get_supporting_documents' &&
+      !(part.type === 'dynamic-tool' && part.toolName === 'get_supporting_documents')) return part;
+    if (!('output' in part) || !part.output || typeof part.output !== 'object') return part;
+    const output = part.output as Record<string, unknown>;
+    const sources = Array.isArray(output.sources) ? output.sources.map(source => {
+      if (!source || typeof source !== 'object') return {};
+      const { attachmentId, filename, contentHash, lineCount, truncated } = source;
+      return { attachmentId, filename, contentHash, lineCount, truncated };
+    }) : [];
+    return { ...part, output: { sources, omitted: output.omitted ?? [], sourceTextOmitted: true,
+      instruction: 'Read get_supporting_documents again for current source text before citing.' } };
+  });
   await query(`INSERT INTO messages(conversation_id, client_message_id, role, content, ui_parts)
     VALUES ($1, $2, $3, $4, $5)
     ON CONFLICT (conversation_id, client_message_id) WHERE client_message_id IS NOT NULL
     DO UPDATE SET content = EXCLUDED.content, ui_parts = EXCLUDED.ui_parts
     WHERE messages.role = 'ASSISTANT' AND EXCLUDED.role = 'ASSISTANT'`,
     [id, message.id, message.role.toUpperCase(),
-      message.parts.filter(p => p.type === 'text').map(p => p.text).join('\n'), JSON.stringify(message.parts)]);
+      message.parts.filter(p => p.type === 'text').map(p => p.text).join('\n'), JSON.stringify(parts)]);
 }
 
 export async function getAgentMessages(scope: AgentScope): Promise<UIMessage[]> {

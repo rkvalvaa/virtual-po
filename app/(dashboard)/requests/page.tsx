@@ -19,6 +19,8 @@ import { ExportButton } from "@/components/shared/ExportButton"
 import type { RequestStatus, Complexity } from "@/lib/types/database"
 import type { SearchFilters } from "@/lib/db/queries/feature-requests"
 import { assessmentScoringPolicy } from '@/config/scoring-policy'
+import { getWorkspaceCapabilities, getWorkspaceSetup } from '@/lib/db/queries/setup'
+import { SetupChecklist } from '@/components/setup/SetupChecklist'
 
 interface RequestsPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -33,6 +35,7 @@ function parseSearchParams(
   params: Record<string, string | string[] | undefined>
 ): SearchFilters {
   const filters: SearchFilters = {}
+  filters.archived = params.archived === 'true'
 
   const search = typeof params.search === "string" ? params.search : undefined
   if (search) filters.search = search
@@ -103,7 +106,11 @@ export default async function RequestsPage({
   const filters = parseSearchParams(params)
   const PAGE_SIZE = 25
   filters.limit = PAGE_SIZE
-  const { requests, total } = await searchFeatureRequests(orgId, filters)
+  const [{ requests, total }, setup, capabilities] = await Promise.all([
+    searchFeatureRequests(orgId, filters),
+    getWorkspaceSetup(orgId, session.user.id),
+    getWorkspaceCapabilities(orgId, session.user.id),
+  ])
   const currentOffset = filters.offset ?? 0
   const voteSummaries =
     requests.length > 0
@@ -120,19 +127,21 @@ export default async function RequestsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {setup && <SetupChecklist setup={setup} capabilities={capabilities} />}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            Feature Requests
+            {filters.archived ? 'Archived Requests' : 'Feature Requests'}
           </h1>
           <p className="text-muted-foreground text-sm">
             {total} request{total !== 1 ? "s" : ""}{" "}
             {hasFilters ? "matching filters" : "total"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline"><Link href={filters.archived ? '/requests' : '/requests?archived=true'}>{filters.archived ? 'Active requests' : 'Archived requests'}</Link></Button>
           <ExportButton
-            exportUrl="/api/export/requests"
+            exportUrl={filters.archived ? '/api/export/requests?archived=true' : '/api/export/requests'}
             filename="requests.csv"
           />
           <Button asChild>
@@ -152,15 +161,15 @@ export default async function RequestsPage({
         <Card>
           <CardHeader className="items-center text-center">
             <CardTitle>
-              {hasFilters ? "No matching requests" : "No requests yet"}
+              {filters.archived ? 'No archived requests' : hasFilters ? "No matching requests" : "No requests yet"}
             </CardTitle>
             <CardDescription>
-              {hasFilters
+              {filters.archived ? 'Archived requests retain their history and can be restored here.' : hasFilters
                 ? "Try adjusting your search or filters to find what you're looking for."
                 : "Create your first feature request to get started with the intake process."}
             </CardDescription>
           </CardHeader>
-          {!hasFilters && (
+          {!hasFilters && !filters.archived && (
             <CardContent className="flex justify-center">
               <Button asChild>
                 <Link href="/requests/new">
@@ -174,6 +183,7 @@ export default async function RequestsPage({
       ) : (
         <>
           <BulkRequestTable
+            archiveMode={filters.archived ? 'restore' : 'archive'}
             requests={requests.map((r) => ({
               id: r.id,
               title: r.title,
@@ -191,7 +201,7 @@ export default async function RequestsPage({
               voteCount: v.voteCount,
             }))}
             columns={["quality"]}
-            statusActions={[
+            statusActions={filters.archived ? [] : [
               { label: "Move to Backlog", targetStatus: "IN_BACKLOG" },
             ]}
           />

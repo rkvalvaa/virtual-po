@@ -6,8 +6,20 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/email",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/teams",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/review-cycles",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/tracker-status-sync",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

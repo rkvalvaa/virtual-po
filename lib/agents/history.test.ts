@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { query } from '@/lib/db/pool';
 import { beginAgentRun, finishAgentRun } from './runs';
 import { prepareAgentMessages, saveAgentReply, getAgentMessages } from './history';
+import type { UIMessage } from 'ai';
 import { createTestOrg, createTestUser, createTestRequest, cleanupTestOrg, hasDb, type TestOrg, type TestUser, type TestRequest } from '@/test/db-helpers';
 
 describe.skipIf(!hasDb())('persisted agent conversations', () => {
@@ -51,5 +52,21 @@ describe.skipIf(!hasDb())('persisted agent conversations', () => {
     await finishAgentRun(run.id, 'FAILED');
     await expect(saveAgentReply({ ...scope(), runId: run.id }, { ...message, role: 'assistant' })).rejects.toMatchObject({ status: 409 });
     expect(await getAgentMessages(scope())).toEqual([message]);
+  });
+
+  it('retains document citation metadata without retaining extracted source text in conversation history', async () => {
+    const run = await beginAgentRun(scope());
+    const reply = { id: 'document-reply', role: 'assistant', parts: [
+      { type: 'tool-get_supporting_documents', toolCallId: 'docs', state: 'output-available', input: {},
+        output: { sources: [{ attachmentId: request.id, filename: 'brief.md', text: 'Private raw source', contentHash: 'hash' }], omitted: [] } },
+      { type: 'text', text: 'Assessment conclusion.' },
+    ] } as UIMessage;
+    await saveAgentReply({ ...scope(), runId: run.id }, reply);
+    const stored = JSON.stringify(await getAgentMessages(scope()));
+    expect(stored).not.toContain('Private raw source');
+    expect(stored).toContain('brief.md');
+    expect(stored).toContain('Assessment conclusion.');
+    expect(stored).toContain('sourceTextOmitted');
+    expect(JSON.stringify(reply)).toContain('Private raw source');
   });
 });

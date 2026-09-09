@@ -12,6 +12,7 @@ export interface GitHubIssue {
   milestone: { id: number; title: string; number: number } | null;
   created_at: string;
   updated_at: string;
+  pull_request?: unknown;
 }
 
 export interface GitHubLabel {
@@ -90,6 +91,26 @@ export function createGitHubIssuesClient(config: { token: string }) {
     }
 
     return result.data;
+  }
+
+  async function searchIssuesPage(
+    owner: string,
+    repo: string,
+    query: string,
+    options: { cursor?: string | null; pageSize?: number } = {}
+  ): Promise<{ items: GitHubIssue[]; total: number; nextCursor: string | null }> {
+    const pageSize = options.pageSize ?? 25;
+    const parsedPage = Number.parseInt(options.cursor ?? '1', 10);
+    const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+    const q = encodeURIComponent(`repo:${owner}/${repo} ${query}`);
+    const result = await request<GitHubIssueSearchResult>(
+      `https://api.github.com/search/issues?q=${q}&per_page=${pageSize}&page=${page}`
+    );
+    return {
+      items: result.items.filter(item => !item.pull_request),
+      total: result.total_count,
+      nextCursor: page * pageSize < result.total_count ? String(page + 1) : null,
+    };
   }
 
   return {
@@ -187,10 +208,17 @@ export function createGitHubIssuesClient(config: { token: string }) {
       repo: string,
       query: string
     ): Promise<GitHubIssueSearchResult> {
-      const q = encodeURIComponent(`repo:${owner}/${repo} ${query}`);
-      return request<GitHubIssueSearchResult>(
-        `https://api.github.com/search/issues?q=${q}&per_page=50`
-      );
+      const page = await searchIssuesPage(owner, repo, query, { pageSize: 50 });
+      return { total_count: page.total, items: page.items };
+    },
+
+    async searchIssuesPage(
+      owner: string,
+      repo: string,
+      query: string,
+      options: { cursor?: string | null; pageSize?: number } = {}
+    ): Promise<{ items: GitHubIssue[]; total: number; nextCursor: string | null }> {
+      return searchIssuesPage(owner, repo, query, options);
     },
 
     async addIssueToProject(

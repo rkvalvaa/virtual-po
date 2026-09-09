@@ -6,6 +6,8 @@ import { canAccess } from "@/lib/auth/rbac"
 import { recordDecisionOutcome, recordActualComplexity } from "@/lib/db/queries/outcomes"
 import { logActivity } from "@/lib/db/queries/activity-log"
 import { getDecisionById } from "@/lib/db/queries/decisions"
+import { transaction } from '@/lib/db/pool'
+import { lockActiveMemberRequest } from '@/lib/db/queries/request-access'
 import "@/lib/auth/types"
 import type { UserRole, DecisionOutcome, Complexity } from "@/lib/types/database"
 
@@ -20,7 +22,12 @@ export async function submitOutcome(
     throw new Error("Insufficient permissions: REVIEWER role required")
   }
 
-  await recordDecisionOutcome(decisionId, outcome, notes)
+  await transaction(async () => {
+    const decision = await getDecisionById(decisionId)
+    if (!decision) throw new Error('Decision not found.')
+    await lockActiveMemberRequest(decision.requestId, session.user.orgId, session.user.id, true)
+    await recordDecisionOutcome(decisionId, outcome, notes)
+  })
 
   try {
     const decision = await getDecisionById(decisionId);
@@ -53,7 +60,10 @@ export async function submitActualComplexity(
     throw new Error("Insufficient permissions: REVIEWER role required")
   }
 
-  await recordActualComplexity(requestId, actualComplexity, actualEffortDays, lessonsLearned)
+  await transaction(async () => {
+    await lockActiveMemberRequest(requestId, session.user.orgId, session.user.id, true)
+    await recordActualComplexity(requestId, actualComplexity, actualEffortDays, lessonsLearned)
+  })
 
   try {
     await logActivity({

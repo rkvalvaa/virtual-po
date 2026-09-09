@@ -12,7 +12,7 @@ export async function recordDecisionOutcome(
      SET outcome = $1,
          outcome_notes = $2,
          outcome_recorded_at = NOW()
-     WHERE id = $3
+     WHERE id = $3 AND EXISTS (SELECT 1 FROM feature_requests r WHERE r.id=decisions.request_id AND r.archived_at IS NULL)
      RETURNING *`,
     [outcome, notes ?? null, decisionId]
   );
@@ -31,7 +31,7 @@ export async function recordActualComplexity(
          actual_effort_days = $2,
          lessons_learned = $3,
          updated_at = NOW()
-     WHERE id = $4
+     WHERE id = $4 AND archived_at IS NULL
      RETURNING *`,
     [actualComplexity, actualEffortDays ?? null, lessonsLearned ?? null, requestId]
   );
@@ -54,6 +54,7 @@ export async function getCalibrationData(orgId: string): Promise<CalibrationRow[
             priority_score, actual_effort_days, lessons_learned
      FROM feature_requests
      WHERE organization_id = $1
+       AND archived_at IS NULL
        AND (actual_complexity IS NOT NULL OR actual_effort_days IS NOT NULL)
      ORDER BY updated_at DESC`,
     [orgId]
@@ -101,7 +102,7 @@ export async function getSimilarRequests(
             fr.created_at, fr.updated_at
      FROM request_similarities rs
      JOIN feature_requests fr ON rs.similar_request_id = fr.id
-     WHERE rs.source_request_id = $1
+     WHERE rs.source_request_id = $1 AND fr.archived_at IS NULL
      ORDER BY rs.similarity_score DESC
      LIMIT $2`,
     [requestId, limit]
@@ -155,7 +156,7 @@ export async function findSimilarByKeywords(
   excludeRequestId?: string,
   limit = 10
 ): Promise<KeywordMatchRow[]> {
-  const conditions: string[] = ['fr.organization_id = $1'];
+  const conditions: string[] = ['fr.organization_id = $1', 'fr.archived_at IS NULL'];
   const values: unknown[] = [orgId];
   let paramIndex = 2;
 

@@ -6,7 +6,9 @@ export interface ModelPricing {
 }
 
 /**
- * Anthropic list pricing, USD per million tokens.
+ * Standard global Anthropic list pricing, USD per million tokens. Opus 5
+ * was verified against Anthropic's official pricing on 2026-09-09:
+ * https://www.anthropic.com/claude/opus
  *
  * ponytail: a flat map, not a pricing service. Add a row when a model is
  * added; unknown models fall back to the current agent model's rates so
@@ -18,7 +20,9 @@ export const MODEL_PRICING_USD_PER_MTOK: Record<string, ModelPricing> = {
   'claude-sonnet-4-5-20250929': { input: 3, output: 15 },
 };
 
-const FALLBACK_PRICING: ModelPricing = MODEL_PRICING_USD_PER_MTOK['claude-opus-5'];
+export const DEFAULT_AGENT_MODEL = 'claude-opus-5';
+
+const FALLBACK_PRICING: ModelPricing = MODEL_PRICING_USD_PER_MTOK[DEFAULT_AGENT_MODEL];
 
 export function estimateCostUsd(
   model: string,

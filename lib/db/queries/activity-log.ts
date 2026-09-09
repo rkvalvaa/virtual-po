@@ -1,4 +1,5 @@
-import { query } from '@/lib/db/pool';
+import { query, transaction } from '@/lib/db/pool';
+import { enqueueTeamsActivity } from '@/lib/teams/outbox';
 import { mapRow, mapRows } from '@/lib/db/mappers';
 import type { ActivityLog, ActivityAction, ActivityEntityType } from '@/lib/types/database';
 
@@ -11,21 +12,18 @@ export async function logActivity(params: {
   entityId?: string | null;
   metadata?: Record<string, unknown>;
 }): Promise<ActivityLog> {
-  const result = await query(
-    `INSERT INTO activity_log (organization_id, request_id, user_id, action, entity_type, entity_id, metadata)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING *`,
-    [
-      params.organizationId,
-      params.requestId ?? null,
-      params.userId ?? null,
-      params.action,
-      params.entityType ?? null,
-      params.entityId ?? null,
-      JSON.stringify(params.metadata ?? {}),
-    ]
-  );
-  return mapRow<ActivityLog>(result.rows[0]);
+  return transaction(async () => {
+    const result = await query(
+      `INSERT INTO activity_log (organization_id, request_id, user_id, action, entity_type, entity_id, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [params.organizationId, params.requestId ?? null, params.userId ?? null, params.action,
+        params.entityType ?? null, params.entityId ?? null, JSON.stringify(params.metadata ?? {})]
+    );
+    await enqueueTeamsActivity({ id: result.rows[0].id, organizationId: params.organizationId,
+      requestId: params.requestId ?? null, action: params.action });
+    return mapRow<ActivityLog>(result.rows[0]);
+  });
 }
 
 export interface ActivityLogWithUser extends ActivityLog {

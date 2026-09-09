@@ -6,19 +6,18 @@ import {
   getIntegrationByType,
   upsertIntegration,
   deactivateIntegration,
-  logJiraSync,
-
-
-  updateFeatureRequestJiraKeys,
 } from "@/lib/db/queries/jira-sync"
 import {
   createJiraClient,
   getJiraClientFromIntegration,
 } from "@/lib/jira/client"
 import { getEpicByRequestId } from "@/lib/db/queries/epics"
-import { createFeatureRequest, getFeatureRequestById } from "@/lib/db/queries/feature-requests"
+import { getFeatureRequestById } from "@/lib/db/queries/feature-requests"
 import { canAccess } from "@/lib/auth/rbac"
 import { exportJira } from "@/lib/export/adapters"
+import { previewJiraPage } from "@/lib/import/provider-pages"
+import { importSelectedPreview, requireTrackerImportAccess, resolveImportConflictForProvider, trackerActionError } from "@/lib/import/actions"
+import type { TrackerConflictResolution, TrackerImportField } from "@/lib/import/tracker-imports"
 import "@/lib/auth/types"
 
 export async function connectJira(
@@ -193,57 +192,52 @@ export async function importFromJira(
   imported?: number
   error?: string
 }> {
-  const session = await requireAuth()
+  const preview = await previewJiraImport({ projectKey, jql })
+  if (!preview.success) return { success: false, error: preview.error }
+  const result = await importJiraPage({ projectKey, jql, remoteEntityIds: preview.page.items.map(item => item.remoteEntityId) })
+  return result.success ? { success: true, imported: result.result.created + result.result.updated } : result
+}
 
-  if (!canAccess(session.user.role, "REVIEWER")) {
-    return { success: false, error: "Insufficient permissions." }
-  }
+export interface JiraImportInput { projectKey: string; jql?: string; cursor?: string | null }
 
-  const orgId = session.user.orgId
-  if (!orgId) {
-    return { success: false, error: "No organization found." }
-  }
+async function loadJiraImportPage(input: JiraImportInput) {
+  const access = await requireTrackerImportAccess('JIRA')
+  if (!access.success) return access
+  const client = getJiraClientFromIntegration(access.integration)
+  const projects = await client.getProjects()
+  const project = projects.find(project => project.key === input.projectKey)
+  if (!project) return { success: false as const, error: 'Select an accessible Jira project.' }
+  const page = await previewJiraPage(client, { ...input, projectId: project.id, baseUrl: access.integration.config.baseUrl as string })
+  return { success: true as const, access, page }
+}
 
+export async function previewJiraImport(input: JiraImportInput) {
   try {
-    const integration = await getIntegrationByType(orgId, "JIRA")
-    if (!integration) {
-      return { success: false, error: "No Jira integration found." }
-    }
+    const loaded = await loadJiraImportPage(input)
+    return loaded.success ? { success: true as const, page: loaded.page } : loaded
+  } catch (error) {
+    return { success: false as const, error: trackerActionError(error, 'Failed to preview Jira issues.') }
+  }
+}
 
-    const client = getJiraClientFromIntegration(integration)
-    const searchJql =
-      jql ?? `project = ${projectKey} AND issuetype in (Story, Task, Bug) ORDER BY created DESC`
-    const { issues } = await client.searchIssues(searchJql)
+export async function importJiraPage(input: JiraImportInput & { remoteEntityIds: string[] }) {
+  try {
+    const loaded = await loadJiraImportPage(input)
+    if (!loaded.success) return loaded
+    const result = await importSelectedPreview(loaded.access.context, loaded.page, input.remoteEntityIds)
+    if (result.success) revalidatePath('/requests')
+    return result
+  } catch (error) {
+    return { success: false as const, error: trackerActionError(error, 'Failed to import from Jira.') }
+  }
+}
 
-    let imported = 0
-    for (const issue of issues) {
-      const title = issue.fields.summary
-      const featureRequest = await createFeatureRequest(
-        orgId,
-        session.user.id,
-        title
-      )
-
-      await updateFeatureRequestJiraKeys(
-        featureRequest.id,
-        issue.key,
-        `${(integration.config.baseUrl as string).replace(/\/$/, "")}/browse/${issue.key}`
-      )
-
-      await logJiraSync(
-        orgId,
-        "FEATURE_REQUEST",
-        featureRequest.id,
-        issue.key,
-        "PULL",
-        "SUCCESS"
-      )
-      imported++
-    }
-
-    revalidatePath("/requests")
-    return { success: true, imported }
-  } catch {
-    return { success: false, error: "Failed to import from Jira." }
+export async function resolveJiraImportConflict(linkId: string, resolutions: Partial<Record<TrackerImportField, TrackerConflictResolution>>) {
+  try {
+    const result = await resolveImportConflictForProvider('JIRA', linkId, resolutions)
+    if (result.success) revalidatePath('/requests')
+    return result
+  } catch (error) {
+    return { success: false as const, error: trackerActionError(error, 'Failed to resolve Jira import conflict.') }
   }
 }

@@ -2,12 +2,12 @@ import { requireAuth } from "@/lib/auth/session"
 import { getOrganizationById, getOrganizationUsers } from "@/lib/db/queries/organizations"
 import { getRepositoriesByOrgId } from "@/lib/db/queries/repositories"
 import { getObjectivesWithKeyResults } from "@/lib/db/queries/okrs"
-import { getCurrentQuarterCapacity } from "@/lib/db/queries/capacity"
+import { getCurrentQuarterPlanningCapacity } from "@/lib/db/queries/planning"
 import { getIntegrationByType, getJiraSyncHistory } from "@/lib/db/queries/jira-sync"
 import { getLinearSyncHistory } from "@/lib/db/queries/linear-sync"
 import { getGitHubSyncHistory } from "@/lib/db/queries/github-sync"
 import { getSlackNotifications } from "@/lib/db/queries/slack"
-import { getTeamsNotifications } from "@/lib/db/queries/teams"
+import { getTeamsNotifications, getTeamsTenant } from "@/lib/db/queries/teams"
 import { getApiKeysByOrg } from "@/lib/db/queries/api-keys"
 import { getWebhooksByOrg } from "@/lib/db/queries/webhooks"
 import { getAllTemplates, seedDefaultTemplates } from "@/lib/db/queries/templates"
@@ -25,6 +25,12 @@ import { listPendingInvitations } from '@/lib/db/queries/invitations'
 import { invitationEmailReadiness } from '@/lib/email/invitation'
 import { getActivityByOrganization } from '@/lib/db/queries/activity-log'
 import { getScoringPolicy } from '@/lib/db/queries/scoring-policy'
+import { emailReadiness } from '@/lib/email/config'
+import { listEmailDeliveries } from '@/lib/email/outbox'
+import { teamsReadiness } from '@/lib/teams/config'
+import { listTeamsDeliveries } from '@/lib/teams/outbox'
+import { deploymentBudgetCeilingMicrousd } from '@/lib/agents/budget'
+import { getAgentBudgetStatus } from '@/lib/db/queries/agent-budget'
 
 export default async function SettingsPage() {
   const session = await requireAuth()
@@ -40,12 +46,21 @@ export default async function SettingsPage() {
 
   await seedDefaultTemplates(orgId)
 
-  const [organization, orgUsers, repositories, objectivesWithKr, capacityRows, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, teamsIntegration, teamsNotifications, apiKeys, webhookSubscriptions, allTemplates, customFieldDefinitions, emailPrefs, approvalWorkflows, reviewCycles] = await Promise.all([
+  let aiBudgetCeiling: number | null = null
+  let aiBudgetDeploymentConfiguration: 'READY' | 'UNCONFIGURED' | 'INVALID' = 'UNCONFIGURED'
+  try {
+    aiBudgetCeiling = deploymentBudgetCeilingMicrousd()
+    if (aiBudgetCeiling !== null) aiBudgetDeploymentConfiguration = 'READY'
+  } catch {
+    aiBudgetDeploymentConfiguration = 'INVALID'
+  }
+
+  const [organization, orgUsers, repositories, objectivesWithKr, capacitySummary, jiraIntegration, jiraSyncHistory, linearIntegration, linearSyncHistory, githubIssuesIntegration, githubSyncHistory, slackIntegration, slackNotifications, teamsIntegration, teamsNotifications, apiKeys, webhookSubscriptions, allTemplates, customFieldDefinitions, emailPrefs, approvalWorkflows, reviewCycles, aiBudget] = await Promise.all([
     getOrganizationById(orgId),
     getOrganizationUsers(orgId),
     getRepositoriesByOrgId(orgId),
     getObjectivesWithKeyResults(orgId),
-    getCurrentQuarterCapacity(orgId),
+    getCurrentQuarterPlanningCapacity(orgId),
     getIntegrationByType(orgId, "JIRA"),
     getJiraSyncHistory(orgId),
     getIntegrationByType(orgId, "LINEAR"),
@@ -63,6 +78,7 @@ export default async function SettingsPage() {
     getEmailPreferences(session.user.id, orgId),
     listWorkflows(orgId),
     listReviewCycles(orgId, 10),
+    getAgentBudgetStatus(orgId, session.user.id, aiBudgetCeiling),
   ])
 
   // ponytail: one count per listed cycle, fanned out in parallel. Ten rows on
@@ -85,6 +101,10 @@ export default async function SettingsPage() {
   const approvalWorkflow =
     approvalWorkflows.find((w) => w.isActive) ?? approvalWorkflows[0] ?? null
 
+  if (!aiBudget) {
+    return <div className="text-muted-foreground py-12 text-center text-sm">Current workspace membership is required.</div>
+  }
+
   if (!organization) {
     return (
       <div className="text-muted-foreground py-12 text-center text-sm">
@@ -101,9 +121,9 @@ export default async function SettingsPage() {
     joinedAt: ou.createdAt.toISOString(),
   }))
 
-  const [invitations, administrationHistory] = session.user.role === 'ADMIN'
-    ? await Promise.all([listPendingInvitations(orgId), getActivityByOrganization(orgId, 100)])
-    : [[], []]
+  const [invitations, administrationHistory, emailDeliveries, teamsTenantId, teamsDeliveries] = session.user.role === 'ADMIN'
+    ? await Promise.all([listPendingInvitations(orgId), getActivityByOrganization(orgId, 100), listEmailDeliveries(orgId), getTeamsTenant(orgId), listTeamsDeliveries(orgId)])
+    : [[], [], [], null, []]
 
   const objectives = objectivesWithKr.map((obj) => ({
     id: obj.id,
@@ -122,16 +142,6 @@ export default async function SettingsPage() {
 
   const now = new Date()
   const currentQuarter = `${now.getFullYear()}-Q${Math.ceil((now.getMonth() + 1) / 3)}`
-  const capacityRow = capacityRows[0] ?? null
-  const capacity = capacityRow
-    ? {
-        quarter: capacityRow.quarter,
-        totalCapacityDays: capacityRow.totalCapacityDays,
-        allocatedDays: capacityRow.allocatedDays,
-        notes: capacityRow.notes,
-      }
-    : null
-
   return (
     <SettingsContent
       organization={{
@@ -159,7 +169,7 @@ export default async function SettingsPage() {
         connectedAt: r.connectedAt.toISOString(),
       }))}
       objectives={objectives}
-      capacity={capacity}
+      capacity={capacitySummary}
       currentQuarter={currentQuarter}
       jiraIntegration={
         jiraIntegration
@@ -252,6 +262,9 @@ export default async function SettingsPage() {
         eventType: n.eventType,
         isActive: n.isActive,
       }))}
+      teamsReadiness={teamsReadiness()}
+      teamsDeliveries={teamsDeliveries}
+      teamsTenantId={teamsTenantId}
       apiKeys={apiKeys.map((k) => ({
         id: k.id,
         name: k.name,
@@ -315,6 +328,10 @@ export default async function SettingsPage() {
           })
         ) as Record<NotificationType, boolean>
       }
+      emailReadiness={emailReadiness()}
+      emailDeliveries={emailDeliveries}
+      aiBudget={aiBudget}
+      aiBudgetDeploymentConfiguration={aiBudgetDeploymentConfiguration}
     />
   )
 }

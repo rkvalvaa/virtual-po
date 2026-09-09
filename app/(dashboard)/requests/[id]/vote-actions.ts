@@ -6,6 +6,8 @@ import { getFeatureRequestById } from "@/lib/db/queries/feature-requests";
 import { upsertVote, deleteVote, getVoteByUser } from "@/lib/db/queries/votes";
 import { notifyRequestOwner } from "@/lib/db/queries/notifications";
 import { logActivity } from "@/lib/db/queries/activity-log";
+import { transaction } from '@/lib/db/pool';
+import { lockActiveMemberRequest } from '@/lib/db/queries/request-access';
 import "@/lib/auth/types";
 
 export async function submitVote(
@@ -29,7 +31,10 @@ export async function submitVote(
 
   // Check if this is a new vote (not an update) before notifying
   const existingVote = await getVoteByUser(requestId, session.user.id);
-  await upsertVote(requestId, session.user.id, voteValue, rationale);
+  await transaction(async () => {
+    await lockActiveMemberRequest(requestId, session.user.orgId, session.user.id);
+    await upsertVote(requestId, session.user.id, voteValue, rationale);
+  });
 
   try {
     await logActivity({
@@ -72,7 +77,10 @@ export async function removeVote(requestId: string) {
     throw new Error("Feature request not found");
   }
 
-  await deleteVote(requestId, session.user.id);
+  await transaction(async () => {
+    await lockActiveMemberRequest(requestId, session.user.orgId, session.user.id);
+    await deleteVote(requestId, session.user.id);
+  });
 
   try {
     await logActivity({

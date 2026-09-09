@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { submitVote, removeVote } from "@/app/(dashboard)/requests/[id]/vote-actions"
 
 interface VoteWidgetProps {
+  readOnly?: boolean
   requestId: string
   currentVote: {
     voteValue: number
@@ -66,6 +67,7 @@ export function VoteWidget({
   currentVote,
   votes,
   summary,
+  readOnly = false,
 }: VoteWidgetProps) {
   const [selectedValue, setSelectedValue] = useState(currentVote?.voteValue ?? 0)
   const [rationale, setRationale] = useState(currentVote?.rationale ?? "")
@@ -103,7 +105,7 @@ export function VoteWidget({
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Vote form */}
-        <div className="space-y-3">
+        {!readOnly && <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-medium">Your rating:</span>
             <StarRating value={selectedValue} onChange={setSelectedValue} />
@@ -138,7 +140,7 @@ export function VoteWidget({
               </Button>
             )}
           </div>
-        </div>
+        </div>}
 
         {/* Other votes */}
         {votes.length > 0 && (

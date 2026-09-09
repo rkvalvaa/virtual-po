@@ -7,6 +7,11 @@ import type { RequestStatus } from '@/lib/types/database'
 const bulkUpdateStatus = vi.fn()
 const bulkAddTags = vi.fn()
 const bulkRemoveTags = vi.fn()
+const archiveRequests = vi.fn()
+
+vi.mock('@/app/(dashboard)/requests/archive-actions', () => ({
+  archiveRequests: (...args: unknown[]) => archiveRequests(...args),
+}))
 
 vi.mock('@/app/(dashboard)/bulk-actions', () => ({
   bulkUpdateStatus: (...args: unknown[]) => bulkUpdateStatus(...args),
@@ -45,6 +50,18 @@ describe('BulkRequestTable', () => {
     bulkUpdateStatus.mockReset()
     bulkAddTags.mockReset()
     bulkRemoveTags.mockReset()
+    archiveRequests.mockReset()
+  })
+
+  it('reports partial archive failures and keeps unsuccessful rows selected', async () => {
+    archiveRequests.mockResolvedValue([{ requestId: 'a', success: true }, { requestId: 'b', success: false, error: 'Wait for the active AI run.' }])
+    render(<BulkRequestTable {...defaultProps({ requests: [makeRequest({ id: 'a', title: 'First' }), makeRequest({ id: 'b', title: 'Second' })], archiveMode: 'archive' })} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    await user.click(screen.getByRole('button', { name: 'Archive selected' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('1 request archived. 1 unchanged: Wait for the active AI run.')
+    expect(screen.getByRole('checkbox', { name: 'Select Second' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Select First' })).not.toBeChecked()
   })
 
   describe('row rendering', () => {

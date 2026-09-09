@@ -5,7 +5,7 @@ import { listCustomFieldDefinitions } from '@/lib/db/queries/custom-fields';
 import { generateCSV, formatRequestsForExport } from '@/lib/utils/export';
 import '@/lib/auth/types';
 
-export async function GET() {
+export async function GET(request?: Request) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -17,7 +17,7 @@ export async function GET() {
   }
 
   const [{ requests }, customFieldDefinitions] = await Promise.all([
-    listFeatureRequests(orgId, { limit: 10000 }),
+    listFeatureRequests(orgId, { limit: 10000, archived: request ? new URL(request.url).searchParams.get('archived') === 'true' : false }),
     listCustomFieldDefinitions(orgId),
   ]);
   const { headers, rows } = formatRequestsForExport(requests, customFieldDefinitions);

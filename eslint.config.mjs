@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Agent worktrees and local Claude state; never lint them.
     ".claude/**",
+    ".vercel/**",
     "playwright-report/**",
     "test-results/**",
   ]),

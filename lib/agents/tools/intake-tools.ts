@@ -142,6 +142,7 @@ export function createIntakeTools(requestId: string, orgId: string, userId: stri
           `SELECT id, title, summary, status, priority_score
            FROM feature_requests
            WHERE organization_id = $1
+             AND archived_at IS NULL
              AND (title ILIKE '%' || $2 || '%' OR summary ILIKE '%' || $2 || '%')
            ORDER BY created_at DESC
            LIMIT 5`,

@@ -19,9 +19,11 @@ import {
 } from "@/lib/utils/custom-fields";
 import { applyDecision } from "@/lib/decisions/apply";
 import { assertNoApprovalChainBypass } from "@/lib/approvals/engine";
-import { createComment } from "@/lib/db/queries/comments";
 import { notifyRequestOwner, notifyUser, getOrgUserIds } from "@/lib/db/queries/notifications";
 import { logActivity } from "@/lib/db/queries/activity-log";
+import { transaction } from '@/lib/db/pool';
+import { lockActiveMemberRequest } from '@/lib/db/queries/request-access';
+import { addComment as addCollaborativeComment } from './collaboration-actions';
 import "@/lib/auth/types";
 
 export async function submitDecision(
@@ -90,7 +92,11 @@ export async function updateCustomFields(
     return { success: false, errors: validation.errors };
   }
 
-  await updateRequestCustomFields(requestId, orgId, validation.values);
+  await transaction(async () => {
+    const current = await lockActiveMemberRequest(requestId, orgId, session.user.id);
+    if (current.requesterId !== session.user.id && current.actorRole !== 'ADMIN' && current.actorRole !== 'REVIEWER') throw new Error('Insufficient permissions.');
+    await updateRequestCustomFields(requestId, orgId, validation.values);
+  });
 
   try {
     await logActivity({
@@ -114,50 +120,7 @@ export async function addComment(
   content: string,
   parentId?: string
 ) {
-  const session = await requireAuth();
-
-  const request = await getFeatureRequestById(requestId);
-  if (!request) {
-    throw new Error("Feature request not found");
-  }
-  if (request.organizationId !== session.user.orgId) {
-    throw new Error("Feature request not found");
-  }
-
-  const comment = await createComment(
-    requestId,
-    session.user.id,
-    content,
-    parentId
-  );
-
-  try {
-    await logActivity({
-      organizationId: request.organizationId,
-      requestId,
-      userId: session.user.id,
-      action: 'COMMENT_ADDED',
-      entityType: 'COMMENT',
-      entityId: comment.id,
-      metadata: { preview: content.slice(0, 100) },
-    });
-  } catch { /* activity logging is non-critical */ }
-
-  // Notify the request owner about the new comment
-  await notifyRequestOwner({
-    organizationId: request.organizationId,
-    requesterId: request.requesterId,
-    type: "COMMENT_ADDED",
-    title: "New comment",
-    message: `${session.user.name ?? "Someone"} commented on "${request.title}"`,
-    link: `/requests/${requestId}`,
-    requestId,
-    actorId: session.user.id,
-  });
-
-  revalidatePath("/requests/" + requestId);
-
-  return { success: true, commentId: comment.id };
+  return addCollaborativeComment(requestId, content, parentId, []);
 }
 
 export async function transitionStatus(

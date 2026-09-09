@@ -40,7 +40,11 @@ import {
   testTeamsConnection,
   addTeamsNotificationConfig,
   removeTeamsNotificationConfig,
+  bindTeamsIdentityAction,
+  retryTeamsDeliveryAction,
 } from "@/app/(dashboard)/settings/teams-actions"
+import type { TeamsReadiness } from '@/lib/teams/config'
+import type { TeamsDeliverySummary } from '@/lib/teams/outbox'
 
 export interface TeamsSettingsProps {
   integration: {
@@ -55,6 +59,10 @@ export interface TeamsSettingsProps {
     isActive: boolean
   }>
   userRole: string
+  readiness?: TeamsReadiness
+  deliveries?: TeamsDeliverySummary[]
+  tenantId?: string | null
+  members?: Array<{ userId: string; userName: string | null; userEmail: string }>
 }
 
 const EVENT_TYPES = [
@@ -88,6 +96,10 @@ export function TeamsSettings({
   integration,
   notifications,
   userRole,
+  readiness = { notifications: 'NOT_VALIDATED', commands: 'NOT_CONFIGURED', approvals: 'UNSUPPORTED', message: 'Teams capabilities are unavailable.' },
+  deliveries = [],
+  tenantId = null,
+  members = [],
 }: TeamsSettingsProps) {
   const [isPending, startTransition] = useTransition()
   const [testResult, setTestResult] = useState<{
@@ -159,10 +171,15 @@ export function TeamsSettings({
       <Card>
         <CardHeader>
           <CardTitle>Teams availability</CardTitle>
-          <CardDescription>Webhook connection testing is available. Bot commands and automatic event notifications are unavailable.</CardDescription>
+          <CardDescription>{readiness.message}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <p>Submitting a message in Teams does not create a VPO request. Create requests and check their progress in the web app. Saved notification preferences do not currently send events automatically.</p>
+          <div className="flex min-w-0 flex-wrap items-start gap-2">
+            <Badge className="max-w-full whitespace-normal break-words text-left leading-snug" variant="outline">Notifications: {readiness.notifications.replaceAll('_', ' ').toLowerCase()}</Badge>
+            <Badge className="max-w-full whitespace-normal break-words text-left leading-snug" variant="outline">Commands: {readiness.commands.replaceAll('_', ' ').toLowerCase()}</Badge>
+            <Badge className="max-w-full whitespace-normal break-words text-left leading-snug" variant="outline">Approvals: unavailable</Badge>
+          </div>
+          <p>Teams create and status commands are enabled only after authenticated deployment validation. Approvals remain unavailable.</p>
           <div className="flex flex-wrap gap-2">
             <Button asChild><Link href="/requests/new">Create a request</Link></Button>
             <Button asChild variant="outline"><Link href="/requests">View requests</Link></Button>
@@ -186,6 +203,7 @@ export function TeamsSettings({
                 <p>Paste your channel’s incoming webhook URL below. Connecting sends a test message; it does not enable bot commands or automatic notifications.</p>
               </div>
               <form action={handleConnect} className="space-y-4">
+                <div className="grid gap-1.5"><label htmlFor="tenantId" className="text-sm font-medium">Microsoft tenant ID</label><Input id="tenantId" name="tenantId" required disabled={isPending} /></div>
                 <div className="grid gap-1.5">
                   <label htmlFor="webhookUrl" className="text-sm font-medium">
                     Webhook URL
@@ -261,6 +279,20 @@ export function TeamsSettings({
           )}
         </CardContent>
       </Card>
+
+      {integration && isAdmin && <Card><CardHeader><CardTitle>Identity binding</CardTitle><CardDescription>Map a stable Teams user ID to a current VPO member. Display names and submitted email addresses are never used as identity.</CardDescription></CardHeader><CardContent>
+        <form action={async formData => { startTransition(async () => { await bindTeamsIdentityAction(formData) }) }} className="grid gap-3 sm:grid-cols-2">
+          <input type="hidden" name="tenantId" value={tenantId ?? ''} />
+          <div><label htmlFor="teamsUserId" className="text-sm font-medium">Teams user ID</label><Input id="teamsUserId" name="teamsUserId" required /></div>
+          <div><label htmlFor="teamsMember" className="text-sm font-medium">VPO member</label><select id="teamsMember" name="userId" required className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm">{members.map(member => <option key={member.userId} value={member.userId}>{member.userName ?? member.userEmail}</option>)}</select></div>
+          <Button type="submit" disabled={isPending || !tenantId}>Bind identity</Button>
+        </form>
+      </CardContent></Card>}
+
+      {integration && <Card><CardHeader><CardTitle>Recent Teams deliveries</CardTitle><CardDescription>Accepted means the Teams webhook returned success. Unknown outcomes require reconciliation and are not retried automatically.</CardDescription></CardHeader><CardContent className="space-y-2">
+        {!deliveries.length && <p className="text-sm text-muted-foreground">No Teams deliveries yet.</p>}
+        {deliveries.map(delivery => <div key={delivery.id} className="flex flex-wrap justify-between gap-2 rounded-lg border p-3 text-sm"><div><p>{delivery.channelName} · {formatEventType(delivery.eventType)}</p><p className="text-xs text-muted-foreground">Attempts: {delivery.attemptCount}</p>{delivery.errorMessage && <p className="text-xs text-destructive">{delivery.errorMessage}</p>}</div><div className="flex items-center gap-2"><Badge variant={delivery.status === 'FAILED' ? 'destructive' : 'outline'}>{delivery.status.replaceAll('_', ' ').toLowerCase()}</Badge>{(delivery.status === 'FAILED' || delivery.status === 'UNAVAILABLE') && <Button size="sm" variant="outline" disabled={isPending || readiness.notifications !== 'READY'} onClick={() => startTransition(async () => { await retryTeamsDeliveryAction(delivery.id) })}>Retry</Button>}</div></div>)}
+      </CardContent></Card>}
 
       {/* Notification Configuration Card */}
       {integration && (

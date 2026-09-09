@@ -6,7 +6,7 @@ import { connectRepository } from '@/lib/db/queries/repositories';
 import { upsertIntegration } from '@/lib/db/queries/jira-sync';
 import { upsertTeamsNotification } from '@/lib/db/queries/teams';
 
-const sections = ['Organization', 'Members', 'Repositories', 'Scoring', 'OKRs', 'Capacity', 'Templates', 'Custom Fields', 'Approvals', 'Review Cycles', 'Jira', 'Linear', 'GitHub Issues', 'Slack', 'Teams', 'API Keys', 'Webhooks', 'Email'];
+const sections = ['Organization', 'Members', 'Repositories', 'AI Budget', 'Scoring', 'OKRs', 'Capacity', 'Templates', 'Custom Fields', 'Approvals', 'Review Cycles', 'Jira', 'Linear', 'GitHub Issues', 'Slack', 'Teams', 'API Keys', 'Webhooks', 'Email'];
 async function noOverflow(page: Page) {
   // Retry the actual layout assertion, as with other browser UI checks.
   await expect(async () => {
@@ -109,7 +109,7 @@ test('Teams setup is explicit about unavailable commands and never creates a req
     await loginAs(page, admin.email);
     await page.goto('/settings');
     await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Teams', exact: true }).click();
-    await expect(page.getByText('Bot commands and automatic event notifications are unavailable.', { exact: false })).toBeVisible();
+    await expect(page.getByText('Teams capabilities remain unavailable until their deployment end-to-end validation is recorded.', { exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Create a request', exact: true })).toHaveAttribute('href', '/requests/new');
     const response = await page.request.post('/api/teams/messages', { data: { type: 'message', text: '/vpo submit False success' } });
     expect(response.status()).toBe(503);

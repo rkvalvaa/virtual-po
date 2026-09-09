@@ -31,13 +31,14 @@ export async function getRefinement(requestId: string, orgId: string, userId: st
     const current = await snapshot(request);
     const history = await query('SELECT id, reason, before_snapshot, after_snapshot, created_at FROM request_revisions WHERE request_id = $1 AND organization_id = $2 ORDER BY created_at DESC, id DESC LIMIT 20', [requestId, orgId]);
     return { content: current.content, revision: current.revision, status: request.status, exported: current.exported,
-      canEdit: REFINEMENT_STATES.includes(request.status) && !current.exported,
-      canReassess: REFINEMENT_STATES.includes(request.status) && request.intakeComplete && !!request.assessmentData,
+      canEdit: !request.archivedAt && REFINEMENT_STATES.includes(request.status) && !current.exported,
+      canReassess: !request.archivedAt && REFINEMENT_STATES.includes(request.status) && request.intakeComplete && !!request.assessmentData,
       history: history.rows.map(row => ({ id: row.id, reason: row.reason, before: row.before_snapshot, after: row.after_snapshot, createdAt: row.created_at.toISOString() })) };
   });
 }
 
 async function assertEditable(request: FeatureRequest, revision: string, current: Awaited<ReturnType<typeof snapshot>>) {
+  if (request.archivedAt) throw new Error('Restore this archived request before editing.');
   if (!REFINEMENT_STATES.includes(request.status)) throw new Error('Work in progress, completed, or rejected requests cannot be refined.');
   if (current.revision !== revision) throw new Error('This request changed. Reload and compare your edits before saving.');
   const running = await query("SELECT id FROM agent_runs WHERE request_id = $1 AND status = 'RUNNING' AND expires_at > clock_timestamp()", [request.id]);

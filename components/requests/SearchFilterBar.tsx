@@ -138,7 +138,7 @@ export function SearchFilterBar() {
 
   function clearAllFilters() {
     setSearchValue("")
-    router.push(pathname)
+    router.push(searchParams.get('archived') === 'true' ? `${pathname}?archived=true` : pathname)
   }
 
   function handleSortChange(field: string) {

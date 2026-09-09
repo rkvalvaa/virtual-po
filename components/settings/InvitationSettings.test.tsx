@@ -20,4 +20,10 @@ describe('invitations settings', () => {
     expect(screen.getByText('Configure email delivery')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Send invitation' })).toBeDisabled();
   });
+  it('labels provider acceptance without claiming inbox delivery', () => {
+    render(<InvitationSettings invitations={[{ id: 'invite', email: 'user@example.test', role: 'REVIEWER', expiresAt: '2099-01-01', deliveryStatus: 'SENT', deliveryError: null }]} readiness={null} />);
+    expect(screen.getByText(/Accepted by email provider/)).toBeVisible();
+    expect(screen.getByText(/does not confirm inbox delivery/)).toBeVisible();
+    expect(screen.queryByText('Email sent')).not.toBeInTheDocument();
+  });
 });

@@ -31,16 +31,24 @@ export async function getCommentsByRequestId(
 
 export interface CommentWithAuthor extends Comment {
   authorName: string;
+  mentionNames: string[];
 }
 
 export async function getCommentsWithAuthorByRequestId(
   requestId: string
 ): Promise<CommentWithAuthor[]> {
   const result = await query(
-    `SELECT c.*, u.name AS author_name
+    `SELECT c.*, u.name AS author_name,
+            COALESCE(
+              ARRAY_AGG(cm.display_name ORDER BY cm.display_name)
+                FILTER (WHERE cm.mentioned_user_id IS NOT NULL),
+              ARRAY[]::text[]
+            ) AS mention_names
      FROM comments c
      LEFT JOIN users u ON c.author_id = u.id
+     LEFT JOIN comment_mentions cm ON cm.comment_id = c.id
      WHERE c.request_id = $1
+     GROUP BY c.id, u.name
      ORDER BY c.created_at ASC`,
     [requestId]
   );

@@ -11,8 +11,10 @@ vi.mock('next/navigation', () => ({
 
 // addComment server action is called by CommentInput on submit.
 const addComment = vi.fn()
-vi.mock('@/app/(dashboard)/requests/[id]/actions', () => ({
+const setRequestFollowing = vi.fn()
+vi.mock('@/app/(dashboard)/requests/[id]/collaboration-actions', () => ({
   addComment: (...args: unknown[]) => addComment(...args),
+  setRequestFollowing: (...args: unknown[]) => setRequestFollowing(...args),
 }))
 
 function comment(overrides: Partial<CommentNode>): CommentNode {
@@ -22,12 +24,14 @@ function comment(overrides: Partial<CommentNode>): CommentNode {
     authorName: 'Alice',
     parentId: null,
     createdAt: new Date().toISOString(),
+    mentionNames: [],
     ...overrides,
   }
 }
 
 beforeEach(() => {
   addComment.mockReset()
+  setRequestFollowing.mockReset()
 })
 
 describe('CommentThread', () => {
@@ -187,7 +191,40 @@ describe('CommentThread', () => {
       // The second one is the submit button inside the reply form (the first
       // is the "Reply" link that toggled it open).
       await user.click(submit[submit.length - 1])
-      expect(addComment).toHaveBeenCalledWith('req-1', 'thanks!', 'root')
+      expect(addComment).toHaveBeenCalledWith('req-1', 'thanks!', 'root', [])
+    })
+  })
+
+  describe('mentions and following', () => {
+    it('uses a labeled current-member picker and submits stable user IDs with readable text', async () => {
+      addComment.mockResolvedValue({ success: true, commentId: 'new-comment' })
+      const user = userEvent.setup()
+      render(<CommentThread requestId="req-1" comments={[]} members={[
+        { id: 'user-bob', name: 'Bob Smith', email: 'bob@example.test' },
+        { id: 'user-carol', name: 'Carol', email: 'carol@example.test' },
+      ]} following={false} />)
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Mention teammate' }), 'user-bob')
+      await user.click(screen.getByRole('button', { name: 'Add mention' }))
+      expect(screen.getByPlaceholderText(/add a comment/i)).toHaveValue('@Bob Smith ')
+      await user.type(screen.getByPlaceholderText(/add a comment/i), 'please review')
+      await user.click(screen.getByRole('button', { name: 'Post Comment' }))
+      expect(addComment).toHaveBeenCalledWith('req-1', '@Bob Smith please review', undefined, ['user-bob'])
+    })
+
+    it('renders persisted mention names independently from current membership options', () => {
+      render(<CommentThread requestId="req-1" comments={[
+        comment({ content: 'Please review this.', mentionNames: ['Former Member'] }),
+      ]} members={[]} following={false} />)
+      expect(screen.getByText('Mentioned: @Former Member')).toBeInTheDocument()
+    })
+
+    it('follows and unfollows the request with accessible status feedback', async () => {
+      setRequestFollowing.mockResolvedValue({ success: true, following: true })
+      const user = userEvent.setup()
+      render(<CommentThread requestId="req-1" comments={[]} members={[]} following={false} />)
+      await user.click(screen.getByRole('button', { name: 'Follow request' }))
+      expect(setRequestFollowing).toHaveBeenCalledWith('req-1', true)
+      expect(await screen.findByRole('button', { name: 'Unfollow request' })).toBeInTheDocument()
     })
   })
 

@@ -1,8 +1,10 @@
 import type { StreamTextOnFinishCallback, ToolSet } from 'ai';
 import { recordAgentUsage, type AgentName } from '@/lib/db/queries/agent-usage';
+import { markAgentBudgetUnknown } from '@/lib/db/queries/agent-budget';
 import { log } from '@/lib/logging/logger';
 
 interface AgentTelemetryParams {
+  runId: string;
   agent: AgentName;
   model: string;
   orgId: string;
@@ -17,6 +19,7 @@ interface AgentTelemetryParams {
  */
 export function createAgentTelemetry<TOOLS extends ToolSet = ToolSet>({
   agent,
+  runId,
   model,
   orgId,
   requestId,
@@ -27,8 +30,8 @@ export function createAgentTelemetry<TOOLS extends ToolSet = ToolSet>({
   return async (event) => {
     const durationMs = Date.now() - startedAt;
     // v6 sums usage across steps in `totalUsage`; both counts are optional.
-    const inputTokens = event.totalUsage.inputTokens ?? 0;
-    const outputTokens = event.totalUsage.outputTokens ?? 0;
+    const inputTokens = event.totalUsage.inputTokens;
+    const outputTokens = event.totalUsage.outputTokens;
     const steps = event.steps.length;
     const finishReason = event.finishReason;
 
@@ -44,8 +47,18 @@ export function createAgentTelemetry<TOOLS extends ToolSet = ToolSet>({
       finishReason,
     });
 
+    if (inputTokens === undefined || outputTokens === undefined) {
+      try {
+        await markAgentBudgetUnknown(runId, 'USAGE_MISSING');
+      } catch (err) {
+        log.error('agent.budget_unknown_record_failed', { agent, runId, requestId, err });
+      }
+      return;
+    }
+
     try {
       await recordAgentUsage({
+        agentRunId: runId,
         organizationId: orgId,
         requestId,
         userId,
@@ -58,6 +71,11 @@ export function createAgentTelemetry<TOOLS extends ToolSet = ToolSet>({
         finishReason,
       });
     } catch (err) {
+      try {
+        await markAgentBudgetUnknown(runId, 'USAGE_RECORD_FAILED');
+      } catch (settlementError) {
+        log.error('agent.budget_unknown_record_failed', { agent, runId, requestId, err: settlementError });
+      }
       // Telemetry must never break the stream the user is reading.
       log.error('agent.usage_record_failed', { agent, requestId, err });
     }

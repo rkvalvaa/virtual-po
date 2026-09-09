@@ -13,7 +13,8 @@ export interface JiraIssue {
   fields: {
     summary: string;
     description?: unknown;
-    status?: { name: string };
+    status?: { id?: string; name: string };
+    labels?: string[];
     issuetype?: { name: string };
     project?: { key: string };
     [key: string]: unknown;
@@ -105,11 +106,28 @@ export function createJiraClient(config: JiraClientConfig) {
     },
 
     async searchIssues(jql: string, maxResults = 50): Promise<{ issues: JiraIssue[]; total: number }> {
-      const result = await request<{ issues: JiraIssue[]; total?: number }>('/search/jql', {
+      const result = await this.searchIssuesPage(jql, { pageSize: maxResults });
+      return { issues: result.items, total: result.total };
+    },
+
+    async searchIssuesPage(
+      jql: string,
+      options: { cursor?: string | null; pageSize?: number } = {}
+    ): Promise<{ items: JiraIssue[]; total: number; nextCursor: string | null }> {
+      const result = await request<{ issues: JiraIssue[]; total?: number; nextPageToken?: string; isLast?: boolean }>('/search/jql', {
         method: 'POST',
-        body: JSON.stringify({ jql, maxResults, fields: ['summary', 'description', 'status', 'project', 'issuetype'] }),
+        body: JSON.stringify({
+          jql,
+          maxResults: options.pageSize ?? 25,
+          fields: ['summary', 'description', 'status', 'project', 'issuetype', 'labels'],
+          ...(options.cursor ? { nextPageToken: options.cursor } : {}),
+        }),
       });
-      return { issues: result.issues, total: result.total ?? result.issues.length };
+      return {
+        items: result.issues,
+        total: result.total ?? result.issues.length,
+        nextCursor: result.isLast === true ? null : result.nextPageToken ?? null,
+      };
     },
 
     async getProjects(): Promise<Array<{ id: string; key: string; name: string }>> {

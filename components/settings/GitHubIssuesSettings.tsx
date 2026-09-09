@@ -24,6 +24,7 @@ import {
   disconnectGitHubIssues,
   testGitHubIssuesConnection,
 } from "@/app/(dashboard)/settings/github-issues-actions"
+import { TrackerImport } from "./TrackerImport"
 
 export interface GitHubIssuesSettingsProps {
   integration: {
@@ -86,6 +87,7 @@ export function GitHubIssuesSettings({
   const [connectError, setConnectError] = useState<string | null>(null)
 
   const isAdmin = userRole === "ADMIN"
+  const canImport = userRole === "ADMIN" || userRole === "REVIEWER"
 
   function handleConnect(formData: FormData) {
     setConnectError(null)
@@ -241,6 +243,10 @@ export function GitHubIssuesSettings({
           )}
         </CardContent>
       </Card>
+
+      {integration && canImport && (
+        <TrackerImport provider="GITHUB_ISSUES" destination={integration.defaultRepo} />
+      )}
 
       <Card>
         <CardHeader>

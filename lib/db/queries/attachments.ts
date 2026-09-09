@@ -1,4 +1,4 @@
-import { query } from '@/lib/db/pool';
+import { query, transaction } from '@/lib/db/pool';
 import { mapRow, mapRows } from '@/lib/db/mappers';
 import type { Attachment } from '@/lib/types/database';
 
@@ -70,12 +70,24 @@ export async function getAttachmentById(
 }
 
 /** Org-scoped delete: an id from another org matches nothing. */
-export async function deleteAttachment(id: string, orgId: string): Promise<boolean> {
-  const result = await query(
+export async function deleteAttachment(id: string, orgId: string, userId?: string): Promise<boolean> {
+  return transaction(async () => {
+    const locked = await query(`SELECT r.id FROM feature_requests r JOIN attachments a ON a.request_id=r.id
+      WHERE a.id=$1 AND r.organization_id=$2 FOR UPDATE OF r`, [id, orgId]);
+    if (!locked.rowCount) return false;
+    if (userId) {
+      const authorized = await query(`SELECT m.user_id FROM organization_users m JOIN attachments a ON a.id=$1
+        WHERE m.organization_id=$2 AND m.user_id=$3 AND (m.role='ADMIN' OR a.uploaded_by=$3) FOR SHARE OF m`, [id, orgId, userId]);
+      if (!authorized.rowCount) throw new Error('Attachment not found or insufficient permissions.');
+    }
+    const running = await query("SELECT id FROM agent_runs WHERE request_id=$1 AND status='RUNNING' AND expires_at>clock_timestamp()", [locked.rows[0].id]);
+    if (running.rowCount) throw new Error('Wait for the active AI run before deleting supporting attachments.');
+    const result = await query(
     `DELETE FROM attachments a
      USING feature_requests fr
      WHERE a.id = $1 AND fr.id = a.request_id AND fr.organization_id = $2`,
     [id, orgId]
   );
-  return (result.rowCount ?? 0) > 0;
+    return (result.rowCount ?? 0) > 0;
+  });
 }

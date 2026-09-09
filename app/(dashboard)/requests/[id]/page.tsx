@@ -11,16 +11,19 @@ import { getVoteByUser, getVotesByRequest, getVoteSummary } from "@/lib/db/queri
 import { getActivityByRequest } from "@/lib/db/queries/activity-log"
 import { listCustomFieldDefinitions } from "@/lib/db/queries/custom-fields"
 import { listAttachmentsByRequest } from "@/lib/db/queries/attachments"
+import { listDocumentContext } from '@/lib/documents/context'
 import { canAccess } from "@/lib/auth/rbac"
 import {
   getActiveWorkflow,
   listRequestApprovalsWithApprover,
 } from "@/lib/db/queries/approval-workflows"
 import { getOrganizationUsers } from "@/lib/db/queries/organizations"
+import { getRequestSubscription, listMentionableMembers } from '@/lib/db/queries/collaboration'
 import { getApprovalState, canActOnStep } from "@/lib/approvals/engine"
 import type { RequestStatus, UserRole } from "@/lib/types/database"
 import type { ApprovalChainStep } from "@/components/review/ApprovalChain"
 import { RequestDetail } from "./RequestDetail"
+import { ArchiveControl } from '@/components/requests/ArchiveControl'
 import "@/lib/auth/types"
 
 /** Statuses reached before review — no approval chain to show yet. */
@@ -52,7 +55,7 @@ export default async function RequestDetailPage({
 
   const keywordCount = keywords.length
 
-  const [epic, decisions, comments, similarResults, jiraIntegration, linearIntegration, currentVote, allVotes, voteSummary, activities, customFieldDefinitions, attachments, approvalWorkflow, approvals] = await Promise.all([
+  const [epic, decisions, comments, similarResults, jiraIntegration, linearIntegration, currentVote, allVotes, voteSummary, activities, customFieldDefinitions, attachments, approvalWorkflow, approvals, mentionableMembers, following] = await Promise.all([
     getEpicByRequestId(request.id),
     getDecisionsByRequestId(request.id),
     getCommentsWithAuthorByRequestId(request.id),
@@ -77,8 +80,11 @@ export default async function RequestDetailPage({
       ? getActiveWorkflow(session.user.orgId)
       : Promise.resolve(null),
     listRequestApprovalsWithApprover(request.id),
+    listMentionableMembers(request.id, request.organizationId, session.user.id),
+    getRequestSubscription(request.id, request.organizationId, session.user.id),
   ])
   const stories = epic ? await getStoriesByEpicId(epic.id) : []
+  const documentSelections = await listDocumentContext(request.id, request.organizationId, session.user.id)
   const [exports, githubIntegration] = await Promise.all([
     getExportStatus(request.id, request.organizationId),
     getIntegrationByType(request.organizationId, 'GITHUB_ISSUES'),
@@ -119,6 +125,7 @@ export default async function RequestDetailPage({
         decidedAt: approval?.createdAt.toISOString() ?? null,
         rationale: approval?.rationale ?? null,
         canAct:
+          !request.archivedAt &&
           status === "PENDING" &&
           request.status === "UNDER_REVIEW" &&
           canActOnStep(step, session.user.id, session.user.role as UserRole),
@@ -127,8 +134,12 @@ export default async function RequestDetailPage({
   }
 
   return (
+    <>
+    <ArchiveControl requestId={request.id} archived={!!request.archivedAt}
+      canManage={canAccess(session.user.role as UserRole, 'REVIEWER') || (request.requesterId === session.user.id && request.status === 'DRAFT')} />
     <RequestDetail
       request={{
+        archived: !!request.archivedAt,
         id: request.id,
         title: request.title,
         summary: request.summary,
@@ -158,10 +169,11 @@ export default async function RequestDetailPage({
         required: f.required,
       }))}
       canEditCustomFields={
-        request.requesterId === session.user.id ||
-        canAccess(session.user.role as UserRole, "REVIEWER")
+        !request.archivedAt && (request.requesterId === session.user.id ||
+        canAccess(session.user.role as UserRole, "REVIEWER"))
       }
       attachments={attachments.map((a) => ({
+        context: documentSelections.find(selection => selection.attachmentId === a.id),
         id: a.id,
         filename: a.filename,
         mimeType: a.mimeType,
@@ -210,7 +222,10 @@ export default async function RequestDetailPage({
         authorName: c.authorName ?? "Unknown",
         parentId: c.parentId,
         createdAt: c.createdAt.toISOString(),
+        mentionNames: c.mentionNames,
       }))}
+      mentionableMembers={mentionableMembers}
+      following={following}
       similarRequests={similarResults.map((sr) => ({
         id: sr.id,
         title: sr.title,
@@ -255,5 +270,6 @@ export default async function RequestDetailPage({
         createdAt: a.createdAt.toISOString(),
       }))}
     />
+    </>
   )
 }
