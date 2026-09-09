@@ -206,8 +206,8 @@ export function RequestDetail({
       </div>
 
       {/* Header */}
-      {canEditCustomFields && <Button variant="outline" asChild><Link href={`/requests/${request.id}/edit`}>Refine request / reassess</Link></Button>}
-      {canEditCustomFields && <Button asChild><Link href={`/requests/${request.id}/workflow`}>
+      {canEditCustomFields && <Button variant="outline" className="h-auto max-w-full whitespace-normal" asChild><Link href={`/requests/${request.id}/edit`}>Refine request / reassess</Link></Button>}
+      {canEditCustomFields && <Button className="h-auto max-w-full whitespace-normal" asChild><Link href={`/requests/${request.id}/workflow`}>
         {request.intakeComplete ? "Continue request workflow" : "Resume intake"}
       </Link></Button>}
       <div className="space-y-2">
