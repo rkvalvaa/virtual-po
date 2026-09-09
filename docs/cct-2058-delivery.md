@@ -27,12 +27,18 @@ Independent reviews covered each implementation slice. Review fixes include curr
 - Production build passed.
 - All migrations 0001 through 0055 applied in order to a fresh disposable database.
 - Production browser suite: 35 Chromium tests passed, including desktop/mobile, 200% text, authorization, workflow recovery, workspace switching and the new feature flows.
+- Hosted CI for PR #69 passed lint, types, build, tests and E2E. A protected Vercel preview initially lacked database/auth configuration; its Ready status alone did not establish runtime health.
+- Neon production-branch rehearsal: `cct-2058-pr69-validation` (`br-rapid-band-b2mkt2c5`) in `plain-king-67816459` applied all eleven pending migrations. Existing organization, user, request, decision, comment and attachment counts were preserved; schema comparison shows additive changes.
+- The PR-specific preview now uses that isolated branch and unique authentication secrets. Its health endpoint reports `status=ok`, `db=ok`, commit `b94d095`; seven hosted browser flows passed for setup, collaboration, planning, archive, documents, email readiness and Teams readiness. Paid AI calls are disabled in this preview.
+- Hosted latency exposed a browser-test race: the setup test now waits for successful dismissal before reloading to verify persistence.
 
 ## Rollout and live validation
 
 Apply additive migrations 0045–0055 before deploying the application. Preserve existing records; do not run down migrations as a routine rollback. A code rollback can retain the additive schema. Check the deployed commit, CI, health endpoint and authenticated workflows after rollout.
 
 Production was inspected read-only on 2026-09-09 and currently has migrations through 0044. Email configuration is unavailable in the inspected deployment. No live email or Teams message was sent as part of implementation.
+
+The production integrations table contains no configured providers. Live tracker acceptance therefore requires connecting a provider; mocks and hosted readiness checks do not replace that evidence.
 
 Email requires a verified sender, canonical application URL, worker scheduling and a signed Resend webhook. See [email operations](email-delivery.md). Live sender and receipt validation remains outstanding.
 

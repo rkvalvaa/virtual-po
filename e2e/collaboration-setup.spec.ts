@@ -12,6 +12,7 @@ test('setup dismisses and resumes with member-appropriate links and no sample re
     await expect(setup.getByRole('link', { name: 'Open member settings' })).toHaveCount(0);
     await expect(setup.getByRole('link', { name: 'Create a request' })).toBeVisible();
     await page.getByRole('button', { name: 'Dismiss setup checklist' }).click();
+    await expect(page.getByText('Setup checklist is hidden.')).toBeVisible();
     await page.reload();
     await expect(page.getByText('Setup checklist is hidden.')).toBeVisible();
     await page.getByRole('button', { name: 'Resume setup checklist' }).click();
