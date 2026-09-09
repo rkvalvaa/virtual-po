@@ -1,3 +1,5 @@
+import { ExportRejected } from '@/lib/export/errors';
+
 export interface LinearClientConfig {
   apiKey: string;
 }
@@ -41,18 +43,23 @@ export function createLinearClient(config: LinearClientConfig) {
   async function graphql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
     const response = await fetch('https://api.linear.app/graphql', {
       method: 'POST',
+      signal: AbortSignal.timeout(30_000),
       headers,
       body: JSON.stringify({ query, variables }),
     });
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Linear API error ${response.status}: ${body}`);
+      const ErrorType = [400, 401, 403, 422, 429].includes(response.status) ? ExportRejected : Error;
+      throw new ErrorType(`Linear API error ${response.status}: ${body}`);
     }
 
-    const json = await response.json() as { data?: T; errors?: Array<{ message: string }> };
+    const json = await response.json() as { data?: T; errors?: Array<{ message: string; extensions?: { code?: string; type?: string } }> };
     if (json.errors?.length) {
-      throw new Error(`Linear GraphQL errors: ${json.errors.map(e => e.message).join(', ')}`);
+      const rejected = !json.data && json.errors.every(error =>
+        ['GRAPHQL_PARSE_FAILED', 'GRAPHQL_VALIDATION_FAILED', 'RATELIMITED'].includes(error.extensions?.code ?? '') || error.extensions?.type === 'invalid input');
+      const ErrorType = rejected ? ExportRejected : Error;
+      throw new ErrorType(`Linear GraphQL errors: ${json.errors.map(e => e.message).join(', ')}`);
     }
     if (!json.data) {
       throw new Error('Linear API returned no data');
@@ -90,7 +97,8 @@ export function createLinearClient(config: LinearClientConfig) {
       teamId: string,
       title: string,
       description?: string,
-      priority?: number
+      priority?: number,
+      id?: string
     ): Promise<LinearIssue> {
       const data = await graphql<{ issueCreate: { issue: LinearIssue } }>(`
         mutation($input: IssueCreateInput!) {
@@ -105,6 +113,7 @@ export function createLinearClient(config: LinearClientConfig) {
       `, {
         input: {
           teamId,
+          id,
           title,
           description: description ?? undefined,
           priority: priority ?? 3,
@@ -153,7 +162,8 @@ export function createLinearClient(config: LinearClientConfig) {
     async createProject(
       teamId: string,
       name: string,
-      description?: string
+      description?: string,
+      id?: string
     ): Promise<LinearProject> {
       const data = await graphql<{ projectCreate: { project: LinearProject } }>(`
         mutation($input: ProjectCreateInput!) {
@@ -164,11 +174,18 @@ export function createLinearClient(config: LinearClientConfig) {
       `, {
         input: {
           name,
-          description,
+          id,
+          description: description?.slice(0, 255),
+          content: description,
           teamIds: [teamId],
         },
       });
       return data.projectCreate.project;
+    },
+
+    async getProject(id: string): Promise<LinearProject> {
+      const data = await graphql<{ project: LinearProject }>(`query($id: String!) { project(id: $id) { id name url state } }`, { id });
+      return data.project;
     },
 
     async searchIssues(

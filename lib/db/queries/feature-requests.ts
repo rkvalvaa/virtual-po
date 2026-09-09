@@ -331,11 +331,11 @@ export async function searchFeatureRequests(
 
   // Build ORDER BY with text search rank when searching
   let orderByClause: string;
-  if (filters.search) {
-    orderByClause = `ts_rank(search_vector, plainto_tsquery('english', $${paramIndex++})) DESC, ${sortBy} ${sortOrder}`;
+  if (filters.search && !filters.sortBy) {
+    orderByClause = `ts_rank(search_vector, plainto_tsquery('english', $${paramIndex++})) DESC, ${sortBy} ${sortOrder} NULLS LAST, id ASC`;
     values.push(filters.search);
   } else {
-    orderByClause = `${sortBy} ${sortOrder}`;
+    orderByClause = `${sortBy} ${sortOrder} NULLS LAST, created_at DESC, id ASC`;
   }
 
   const dataResult = await query(

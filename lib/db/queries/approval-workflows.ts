@@ -179,6 +179,14 @@ export async function replaceSteps(
   const client = await getClient();
   try {
     await client.query('BEGIN');
+    // Coordinate named approver selection with membership removal/demotion.
+    await client.query('SELECT id FROM organizations WHERE id = $1 FOR UPDATE', [orgId]);
+    for (const step of steps) {
+      if (step.approverUserId) {
+        const member = await client.query("SELECT user_id FROM organization_users WHERE organization_id = $1 AND user_id = $2 AND role IN ('ADMIN', 'REVIEWER')", [orgId, step.approverUserId]);
+        if (!member.rowCount) throw new Error('Named approver must be a current reviewer or administrator.');
+      }
+    }
 
     const owned = await client.query(
       `SELECT id FROM approval_workflows WHERE id = $1 AND organization_id = $2`,

@@ -105,8 +105,10 @@ export function createIntakeTools(requestId: string, orgId: string, userId: stri
           ),
       }),
       execute: async ({ summary }) => {
+        const humanSummary = await query(`SELECT id FROM request_revisions WHERE request_id = $1 AND organization_id = $2
+          AND before_snapshot #>> '{content,summary}' IS DISTINCT FROM after_snapshot #>> '{content,summary}' LIMIT 1`, [requestId, orgId]);
         await updateFeatureRequest(requestId, {
-          summary,
+          ...(humanSummary.rowCount ? {} : { summary }),
           intakeComplete: true,
         });
         await updateFeatureRequestStatus(requestId, 'PENDING_ASSESSMENT');

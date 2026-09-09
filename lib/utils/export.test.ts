@@ -4,6 +4,7 @@ import type { CustomFieldDefinition, CustomFieldType, FeatureRequest } from '@/l
 
 function makeRequest(overrides: Partial<FeatureRequest> = {}): FeatureRequest {
   return {
+    humanRefined: false,
     id: 'req-1',
     organizationId: 'org-1',
     requesterId: 'user-1',

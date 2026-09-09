@@ -9,13 +9,14 @@ import {
 } from "@/lib/db/queries/jira-sync"
 import {
   logLinearSync,
-  updateEpicLinearKeys,
-  updateStoryLinearKeys,
+
+
 } from "@/lib/db/queries/linear-sync"
 import { getLinearClientFromIntegration } from "@/lib/linear/client"
-import { getEpicByRequestId, getStoriesByEpicId } from "@/lib/db/queries/epics"
-import { createFeatureRequest } from "@/lib/db/queries/feature-requests"
+import { getEpicByRequestId } from "@/lib/db/queries/epics"
+import { createFeatureRequest, getFeatureRequestById } from "@/lib/db/queries/feature-requests"
 import { canAccess } from "@/lib/auth/rbac"
+import { exportLinear } from "@/lib/export/adapters"
 import "@/lib/auth/types"
 
 export async function connectLinear(
@@ -137,12 +138,17 @@ export async function syncEpicToLinear(
       return { success: false, error: "No Linear integration found." }
     }
 
-    const epic = await getEpicByRequestId(requestId)
+    const request = await getFeatureRequestById(requestId)
+    if (!request || request.organizationId !== orgId) {
+      return { success: false, error: "Request not found." }
+    }
+
+    const epic = await getEpicByRequestId(requestId, orgId)
     if (!epic) {
       return { success: false, error: "No epic found for this request." }
     }
 
-    const stories = await getStoriesByEpicId(epic.id)
+
     const client = getLinearClientFromIntegration(integration)
     const resolvedTeamId =
       teamId ?? (integration.config.defaultTeamId as string)
@@ -151,56 +157,14 @@ export async function syncEpicToLinear(
       return { success: false, error: "No team ID specified." }
     }
 
-    // Create Linear project for the epic
-    const linearProject = await client.createProject(
-      resolvedTeamId,
-      epic.title,
-      epic.description ?? undefined
-    )
-
-    await updateEpicLinearKeys(epic.id, linearProject.id, linearProject.url)
-    await logLinearSync(orgId, "EPIC", epic.id, linearProject.id, "PUSH", "SUCCESS")
-
-    // Create Linear issues for stories linked to the project
-    for (const story of stories) {
-      try {
-        const description = `As ${story.asA}, I want ${story.iWant}, so that ${story.soThat}`
-        const linearIssue = await client.createIssue(
-          resolvedTeamId,
-          story.title,
-          description
-        )
-        // Link the issue to the project
-        await client.updateIssue(linearIssue.id, { projectId: linearProject.id })
-
-        await updateStoryLinearKeys(story.id, linearIssue.id, linearIssue.url)
-        await logLinearSync(
-          orgId,
-          "STORY",
-          story.id,
-          linearIssue.id,
-          "PUSH",
-          "SUCCESS"
-        )
-      } catch {
-        await logLinearSync(
-          orgId,
-          "STORY",
-          story.id,
-          "",
-          "PUSH",
-          "FAILED",
-          `Failed to create Linear issue for: ${story.title}`
-        )
-      }
+    const teams = await client.getTeams()
+    if (!teams.some(team => team.id === resolvedTeamId)) {
+      return { success: false, error: "Select an accessible Linear team." }
     }
 
+    const result = await exportLinear({ requestId, orgId, userId: session.user.id }, resolvedTeamId, client)
     revalidatePath(`/requests/${requestId}`)
-    return {
-      success: true,
-      linearProjectId: linearProject.id,
-      linearProjectUrl: linearProject.url,
-    }
+    return { ...result, linearProjectId: result.items[0]?.external?.id, linearProjectUrl: result.items[0]?.external?.url }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to sync to Linear."
     return { success: false, error: message }

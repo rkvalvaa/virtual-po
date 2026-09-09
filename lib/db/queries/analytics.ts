@@ -1,3 +1,5 @@
+import { assessmentScoringPolicy } from '@/config/scoring-policy';
+import { getPriorityLabel } from '@/config/scoring';
 import { query } from '@/lib/db/pool';
 
 export interface DateRange {
@@ -135,34 +137,16 @@ export async function getPriorityDistribution(
     params.push(dateRange.from, dateRange.to);
   }
 
-  // ORDER BY wraps a subquery because Postgres does not allow referencing
-  // a SELECT alias inside a CASE expression in the outer ORDER BY (it looks
-  // up `band` as a column on feature_requests, not the alias).
-  const result = await query(
-    `SELECT band, count FROM (
-       SELECT
-         CASE
-           WHEN priority_score >= 75 THEN 'High'
-           WHEN priority_score >= 50 THEN 'Medium'
-           WHEN priority_score IS NOT NULL THEN 'Low'
-           ELSE 'Unscored'
-         END AS band,
-         COUNT(*) AS count
-       FROM feature_requests
-       WHERE organization_id = $1${dateFilter}
-       GROUP BY 1
-     ) bands
-     ORDER BY
-       CASE band WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 WHEN 'Low' THEN 3 ELSE 4 END`,
-    params
-  );
-
-  return result.rows.map((row) => ({
-    band: row.band,
-    count: parseInt(row.count, 10),
-  }));
+  // Group by score and policy, then use the same validated historical fallback as badges.
+  const result = await query(`SELECT priority_score, assessment_data->'scoringPolicy' AS policy, COUNT(*) AS count
+    FROM feature_requests WHERE organization_id = $1${dateFilter} GROUP BY 1, 2`, params);
+  const counts = new Map<string, number>();
+  for (const row of result.rows) {
+    const band = row.priority_score === null ? 'Unscored' : getPriorityLabel(Number(row.priority_score), assessmentScoringPolicy({ scoringPolicy: row.policy }).config);
+    counts.set(band, (counts.get(band) ?? 0) + Number(row.count));
+  }
+  return (['High', 'Medium', 'Low', 'Unscored'] as const).filter(band => counts.has(band)).map(band => ({ band, count: counts.get(band)! }));
 }
-
 export async function getAverageTimeToDecision(
   orgId: string,
   dateRange?: DateRange
@@ -660,7 +644,7 @@ export async function getBacklogBurndown(
   const startingCount = startResult.rows[0]?.count ?? 0;
 
   // 2. Per-day deltas within the range: +1 for each request created that
-  //    day, -1 for each STATUS_CHANGED→COMPLETED event that day.
+  //    day, -1 for each STATUS_CHANGEDâ†’COMPLETED event that day.
   const eventsResult = await query(
     `SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day, SUM(delta)::int AS delta
      FROM (

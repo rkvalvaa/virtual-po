@@ -27,11 +27,14 @@ export async function createEpic(data: {
 }
 
 export async function getEpicByRequestId(
-  requestId: string
+  requestId: string,
+  orgId?: string
 ): Promise<Epic | null> {
   const result = await query(
-    `SELECT * FROM epics WHERE request_id = $1`,
-    [requestId]
+    `SELECT e.* FROM epics e
+     JOIN feature_requests r ON r.id = e.request_id
+     WHERE e.request_id = $1 AND ($2::uuid IS NULL OR r.organization_id = $2)`,
+    [requestId, orgId ?? null]
   );
   if (result.rows.length === 0) return null;
   return mapRow<Epic>(result.rows[0]);
@@ -118,11 +121,17 @@ export async function createUserStory(data: {
 }
 
 export async function getStoriesByEpicId(
-  epicId: string
+  epicId: string,
+  scope?: { requestId: string; orgId: string }
 ): Promise<UserStory[]> {
   const result = await query(
-    `SELECT * FROM user_stories WHERE epic_id = $1 ORDER BY priority ASC, created_at ASC`,
-    [epicId]
+    `SELECT s.* FROM user_stories s
+     JOIN epics e ON e.id = s.epic_id
+     JOIN feature_requests r ON r.id = e.request_id
+     WHERE s.epic_id = $1 AND ($2::uuid IS NULL OR r.id = $2)
+       AND ($3::uuid IS NULL OR r.organization_id = $3)
+     ORDER BY s.priority ASC, s.created_at ASC`,
+    [epicId, scope?.requestId ?? null, scope?.orgId ?? null]
   );
   return mapRows<UserStory>(result.rows);
 }

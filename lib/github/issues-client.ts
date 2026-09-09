@@ -1,3 +1,5 @@
+import { ExportRejected } from '@/lib/export/errors';
+
 export interface GitHubIssue {
   id: number;
   node_id: string;
@@ -49,12 +51,14 @@ export function createGitHubIssuesClient(config: { token: string }) {
   async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
     const response = await fetch(url, {
       ...options,
+      signal: AbortSignal.timeout(30_000),
       headers: { ...headers, ...options.headers },
     });
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(
+      const ErrorType = [400, 401, 403, 404, 422, 429].includes(response.status) ? ExportRejected : Error;
+      throw new ErrorType(
         `GitHub API error ${response.status} ${response.statusText} on ${options.method ?? 'GET'} ${url}: ${body}`
       );
     }
@@ -69,6 +73,7 @@ export function createGitHubIssuesClient(config: { token: string }) {
   async function graphql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
     const response = await fetch('https://api.github.com/graphql', {
       method: 'POST',
+      signal: AbortSignal.timeout(30_000),
       headers,
       body: JSON.stringify({ query, variables }),
     });
@@ -160,6 +165,21 @@ export function createGitHubIssuesClient(config: { token: string }) {
       return request<GitHubMilestone[]>(
         `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/milestones?per_page=100&state=open`
       );
+    },
+
+    async findExport(owner: string, repo: string, marker: string): Promise<GitHubIssue | null> {
+      // Direct listing avoids search-index lag. A bounded scan may return unknown,
+      // which the export engine deliberately never treats as permission to recreate.
+      const deadline = Date.now() + 45_000;
+      for (let page = 1; page <= 20 && Date.now() < deadline; page++) {
+        const items = await request<Array<GitHubIssue & { pull_request?: unknown }>>(
+          `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?state=all&sort=created&direction=desc&per_page=100&page=${page}`
+        );
+        const match = items.find(item => !item.pull_request && item.body?.includes(marker));
+        if (match) return match;
+        if (items.length < 100) break;
+      }
+      return null;
     },
 
     async searchIssues(

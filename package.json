@@ -16,10 +16,10 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.40",
-    "@ai-sdk/react": "^3.0.80",
+    "@ai-sdk/anthropic": "^3.0.116",
+    "@ai-sdk/react": "^3.0.281",
     "@vercel/blob": "^2.8.0",
-    "ai": "^6.0.78",
+    "ai": "^6.0.278",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

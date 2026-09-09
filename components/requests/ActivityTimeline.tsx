@@ -57,6 +57,9 @@ function formatDate(dateStr: string): string {
 }
 
 const ACTION_CONFIG: Record<ActivityAction, { icon: typeof ArrowRightLeft; label: string; color: string }> = {
+  ORGANIZATION_UPDATED: { icon: Pencil, label: "Organization updated", color: "text-blue-500" },
+  MEMBER_UPDATED: { icon: Pencil, label: "Membership updated", color: "text-blue-500" },
+  INVITATION_UPDATED: { icon: Pencil, label: "Invitation updated", color: "text-blue-500" },
   STATUS_CHANGED: { icon: ArrowRightLeft, label: "Status changed", color: "text-blue-500" },
   COMMENT_ADDED: { icon: MessageSquare, label: "Comment added", color: "text-green-500" },
   DECISION_MADE: { icon: Gavel, label: "Decision made", color: "text-purple-500" },

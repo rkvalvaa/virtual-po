@@ -7,17 +7,18 @@ import {
   upsertIntegration,
   deactivateIntegration,
   logGitHubSync,
-  updateEpicGitHubKeys,
-  updateStoryGitHubKeys,
+
+
   updateFeatureRequestGitHubKeys,
 } from "@/lib/db/queries/github-sync"
 import {
   getGitHubIssuesClientFromToken,
 } from "@/lib/github/issues-client"
 import { getGitHubToken } from "@/lib/github/client"
-import { getEpicByRequestId, getStoriesByEpicId } from "@/lib/db/queries/epics"
-import { createFeatureRequest } from "@/lib/db/queries/feature-requests"
+import { getEpicByRequestId } from "@/lib/db/queries/epics"
+import { createFeatureRequest, getFeatureRequestById } from "@/lib/db/queries/feature-requests"
 import { canAccess } from "@/lib/auth/rbac"
+import { exportGitHub } from "@/lib/export/adapters"
 import "@/lib/auth/types"
 
 function parseRepo(repoFullName: string): { owner: string; repo: string } {
@@ -165,12 +166,17 @@ export async function syncToGitHubIssues(
       return { success: false, error: "No GitHub Issues integration found." }
     }
 
-    const epic = await getEpicByRequestId(requestId)
+    const request = await getFeatureRequestById(requestId)
+    if (!request || request.organizationId !== orgId) {
+      return { success: false, error: "Request not found." }
+    }
+
+    const epic = await getEpicByRequestId(requestId, orgId)
     if (!epic) {
       return { success: false, error: "No epic found for this request." }
     }
 
-    const stories = await getStoriesByEpicId(epic.id)
+
 
     const token = await getGitHubToken(session.user.id)
     if (!token) {
@@ -184,96 +190,15 @@ export async function syncToGitHubIssues(
       return { success: false, error: "No repository specified." }
     }
 
+    if (resolvedRepo !== integration.config.defaultRepo) {
+      return { success: false, error: "Select the repository configured by your workspace administrator." }
+    }
     const { owner, repo } = parseRepo(resolvedRepo)
+    await client.listLabels(owner, repo)
 
-    // Create the epic as a GitHub issue with "epic" label
-    const epicBody = [
-      epic.description ?? "",
-      "",
-      "## Goals",
-      ...(epic.goals ?? []).map((g) => `- ${g}`),
-      "",
-      "## Success Criteria",
-      ...(epic.successCriteria ?? []).map((c) => `- ${c}`),
-      epic.technicalNotes ? `\n## Technical Notes\n${epic.technicalNotes}` : "",
-    ].join("\n")
-
-    const ghEpic = await client.createIssue(
-      owner,
-      repo,
-      epic.title,
-      epicBody,
-      ["epic"]
-    )
-
-    await updateEpicGitHubKeys(epic.id, ghEpic.number, ghEpic.html_url)
-    await logGitHubSync(orgId, "EPIC", epic.id, ghEpic.number, "PUSH", "SUCCESS")
-
-    // Optionally add to a project
-    const defaultProjectId = integration.config.defaultProjectId as string
-    if (defaultProjectId) {
-      try {
-        await client.addIssueToProject(defaultProjectId, ghEpic.node_id)
-      } catch {
-        // Non-fatal: project linking can fail without blocking the sync
-      }
-    }
-
-    // Create GitHub issues for each story, referencing the epic
-    for (const story of stories) {
-      try {
-        const storyBody = [
-          `**As** ${story.asA}, **I want** ${story.iWant}, **so that** ${story.soThat}`,
-          "",
-          "## Acceptance Criteria",
-          ...(story.acceptanceCriteria ?? []).map((c) => `- [ ] ${c}`),
-          story.technicalNotes ? `\n## Technical Notes\n${story.technicalNotes}` : "",
-          story.storyPoints != null ? `\n**Story Points:** ${story.storyPoints}` : "",
-          "",
-          `Part of epic #${ghEpic.number}`,
-        ].join("\n")
-
-        const ghStory = await client.createIssue(
-          owner,
-          repo,
-          story.title,
-          storyBody,
-          ["user-story"]
-        )
-
-        await updateStoryGitHubKeys(story.id, ghStory.number, ghStory.html_url)
-        await logGitHubSync(
-          orgId,
-          "STORY",
-          story.id,
-          ghStory.number,
-          "PUSH",
-          "SUCCESS"
-        )
-
-        // Also add stories to the project if configured
-        if (defaultProjectId) {
-          try {
-            await client.addIssueToProject(defaultProjectId, ghStory.node_id)
-          } catch {
-            // Non-fatal
-          }
-        }
-      } catch {
-        await logGitHubSync(
-          orgId,
-          "STORY",
-          story.id,
-          null,
-          "PUSH",
-          "FAILED",
-          `Failed to create GitHub issue for: ${story.title}`
-        )
-      }
-    }
-
+    const result = await exportGitHub({ requestId, orgId, userId: session.user.id }, owner, repo, integration.config.defaultProjectId as string | undefined, client)
     revalidatePath(`/requests/${requestId}`)
-    return { success: true, githubIssueNumber: ghEpic.number, githubIssueUrl: ghEpic.html_url }
+    return { ...result, githubIssueNumber: result.items[0]?.external ? Number(result.items[0].external.id) : undefined, githubIssueUrl: result.items[0]?.external?.url }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to sync to GitHub Issues."
     return { success: false, error: message }

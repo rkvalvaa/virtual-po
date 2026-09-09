@@ -27,6 +27,7 @@ export async function lockAuthorizedRequest(scope: AgentScope): Promise<FeatureR
 }
 
 async function assertStage(request: FeatureRequest, agent: AgentStage): Promise<void> {
+  if (agent === 'output' && request.humanRefined) throw new AgentAccessError('Human revisions are protected. Refine the generated content manually.', 409);
   const allowed = {
     intake: ['DRAFT', 'INTAKE_IN_PROGRESS'],
     assessment: ['PENDING_ASSESSMENT'],
@@ -37,6 +38,8 @@ async function assertStage(request: FeatureRequest, agent: AgentStage): Promise<
   if (agent !== 'intake' && !request.intakeComplete) throw new AgentAccessError('Complete intake first', 409);
   if ((agent === 'output' || agent === 'security') && !request.assessmentData) throw new AgentAccessError('Complete assessment first', 409);
   if (agent === 'output') {
+    const exported = await query('SELECT id FROM tracker_exports WHERE request_id = $1 AND organization_id = $2 LIMIT 1', [request.id, request.organizationId]);
+    if (exported.rowCount) throw new AgentAccessError('Exported content is frozen. Edit the linked tracker content instead.', 409);
     const security = await query('SELECT id FROM security_reviews WHERE request_id = $1 AND organization_id = $2 LIMIT 1', [request.id, request.organizationId]);
     if (!security.rows.length) throw new AgentAccessError('Complete the security review first', 409);
   }

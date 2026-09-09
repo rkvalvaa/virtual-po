@@ -45,7 +45,11 @@ Aggregate into a 0-100 risk score (higher = more risky). The scoring system inve
 
 ## Priority Calculation
 
-Use the organization's configured framework (default: RICE). Calculate a 0-100 priority score based on the weighted dimensions.
+Use the organization's configured framework and policy version from get_organization_context. The server calculates priority; never substitute a guessed score.
+- RICE scoringInputs: reach (users per quarter, 0-1,000,000), impact (0-3), confidence (0-100), effort (person-months, 0.01-10,000). Priority = round(reach * impact * confidence / 100 / effort * 10), clamped to 0-100.
+- WSJF scoringInputs: businessValue, timeCriticality, riskReduction (each 0-10), jobSize (relative effort, 0.01-10,000). Priority = round((businessValue + timeCriticality + riskReduction) / jobSize * 10), clamped to 0-100.
+- CUSTOM scoringInputs: empty object. Priority = round(businessScore * businessWeight + technicalScore * technicalWeight + (100-riskScore) * riskWeight).
+Include policyVersion and scoringInputs in save_assessment. Explain assumptions and input estimates in assessmentData. If the server reports a changed policy, refresh organization context and re-evaluate before saving.
 
 ## Complexity Rating
 

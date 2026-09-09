@@ -32,8 +32,10 @@ import {
   bulkRemoveTags,
 } from "@/app/(dashboard)/bulk-actions"
 import type { RequestStatus } from "@/lib/types/database"
+import type { ScoringConfig } from '@/config/scoring'
 
 interface RequestRow {
+  scoringConfig?: ScoringConfig
   id: string
   title: string
   status: RequestStatus
@@ -276,7 +278,7 @@ export function BulkRequestTable({
                   <StatusBadge status={request.status} />
                 </TableCell>
                 <TableCell>
-                  <PriorityBadge score={request.priorityScore} />
+                  <PriorityBadge score={request.priorityScore} config={request.scoringConfig} />
                 </TableCell>
                 <TableCell>
                   <VoteBadge
