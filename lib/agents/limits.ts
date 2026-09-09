@@ -6,6 +6,8 @@ export const AGENT_LIMITS = {
   bodyBytes: 128 * 1024,
   messageCount: 100,
   inputBytes: 160 * 1024,
+  toolSchemaBytes: 128 * 1024,
+  protocolOverheadBytesPerStep: 32 * 1024,
   outputTokensPerStep: 4096,
   steps: 5,
 } as const;

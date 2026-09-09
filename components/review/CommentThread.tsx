@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { CommentInput } from "@/components/review/CommentInput"
+import { setRequestFollowing } from '@/app/(dashboard)/requests/[id]/collaboration-actions'
+import type { MentionableMember } from '@/lib/db/queries/collaboration'
 
 export interface CommentNode {
   id: string
@@ -10,11 +12,14 @@ export interface CommentNode {
   authorName: string
   parentId: string | null
   createdAt: string
+  mentionNames: string[]
 }
 
 interface CommentThreadProps {
   comments: CommentNode[]
   requestId: string
+  members?: MentionableMember[]
+  following?: boolean
 }
 
 // Cap visual indentation at this depth — deeper replies still thread under
@@ -55,11 +60,13 @@ function CommentItem({
   depth,
   childrenByParent,
   requestId,
+  members,
 }: {
   comment: CommentNode
   depth: number
   childrenByParent: Map<string, CommentNode[]>
   requestId: string
+  members: MentionableMember[]
 }) {
   const [showReply, setShowReply] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
@@ -97,6 +104,11 @@ function CommentItem({
             </span>
           </div>
           <p className="whitespace-pre-wrap text-sm">{comment.content}</p>
+          {comment.mentionNames.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Mentioned: @{comment.mentionNames.join(', @')}
+            </p>
+          )}
           <div className="flex items-center gap-3 text-xs">
             <button
               type="button"
@@ -127,6 +139,7 @@ function CommentItem({
             onCommentAdded={() => setShowReply(false)}
             placeholder="Write a reply..."
             compact
+            members={members}
           />
         </div>
       )}
@@ -146,6 +159,7 @@ function CommentItem({
               depth={depth + 1}
               childrenByParent={childrenByParent}
               requestId={requestId}
+              members={members}
             />
           ))}
         </div>
@@ -154,7 +168,10 @@ function CommentItem({
   )
 }
 
-export function CommentThread({ comments, requestId }: CommentThreadProps) {
+export function CommentThread({ comments, requestId, members = [], following = false }: CommentThreadProps) {
+  const [isFollowing, setIsFollowing] = useState(following)
+  const [followPending, setFollowPending] = useState(false)
+  const [followError, setFollowError] = useState('')
   const topLevel = comments.filter((c) => c.parentId === null)
   const childrenByParent = new Map<string, CommentNode[]>()
 
@@ -168,7 +185,31 @@ export function CommentThread({ comments, requestId }: CommentThreadProps) {
 
   return (
     <div className="space-y-6">
-      <h3 className="font-semibold">Comments</h3>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-semibold">Comments</h3>
+        <button
+          type="button"
+          disabled={followPending}
+          className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
+          onClick={async () => {
+            setFollowPending(true)
+            setFollowError('')
+            try {
+              const result = await setRequestFollowing(requestId, !isFollowing)
+              if (result.success) setIsFollowing(result.following ?? !isFollowing)
+              else setFollowError(result.error ?? 'Unable to update request notifications.')
+            } catch {
+              setFollowError('Unable to update request notifications. Try again.')
+            } finally {
+              setFollowPending(false)
+            }
+          }}
+        >
+          {followPending ? 'Updating…' : isFollowing ? 'Unfollow request' : 'Follow request'}
+        </button>
+      </div>
+      <p className="text-xs text-muted-foreground">Follow this request to receive notifications about new comments.</p>
+      {followError && <p role="alert" className="text-sm text-destructive">{followError}</p>}
 
       {topLevel.length > 0 ? (
         <div className="space-y-6">
@@ -179,6 +220,7 @@ export function CommentThread({ comments, requestId }: CommentThreadProps) {
               depth={0}
               childrenByParent={childrenByParent}
               requestId={requestId}
+              members={members}
             />
           ))}
         </div>
@@ -190,6 +232,7 @@ export function CommentThread({ comments, requestId }: CommentThreadProps) {
         <CommentInput
           requestId={requestId}
           placeholder="Add a comment..."
+          members={members}
         />
       </div>
     </div>

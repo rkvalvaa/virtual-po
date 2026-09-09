@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { prepareAgentMessages, saveAgentReply } from './history';
 import { agentErrorResponse, boundedModelHistory } from './input';
 import { AGENT_LIMITS } from './limits';
+import { assertAgentToolsWithinBudget } from './budget';
 
 export async function createGuardedAgentStream(options: {
   scope: AgentScope;
@@ -18,7 +19,10 @@ export async function createGuardedAgentStream(options: {
 }): Promise<Response> {
   let runId: string | undefined;
   try {
-    const run = await beginAgentRun(options.scope);
+    const candidateRunId = randomUUID();
+    const tools = options.createTools(candidateRunId);
+    assertAgentToolsWithinBudget(tools);
+    const run = await beginAgentRun(options.scope, AGENT_MODEL, candidateRunId);
     runId = run.id;
     const runScope = { ...options.scope, runId: run.id };
     const history = await prepareAgentMessages(runScope, options.messages);
@@ -32,14 +36,14 @@ export async function createGuardedAgentStream(options: {
     // Next keeps this task alive even when a disconnected consumer stops reading.
     after(cleanup);
     const telemetry = createAgentTelemetry({
-      ...options.scope, model: AGENT_MODEL,
+      ...options.scope, runId: run.id, model: AGENT_MODEL,
     });
     let streamFailed = false;
     const result = streamText({
       model: anthropic(AGENT_MODEL),
       system: options.system,
       messages,
-      tools: options.createTools(run.id),
+      tools,
       stopWhen: stepCountIs(AGENT_LIMITS.steps),
       maxOutputTokens: AGENT_LIMITS.outputTokensPerStep,
       prepareStep: async ({ messages }) => {

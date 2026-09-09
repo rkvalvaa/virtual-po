@@ -7,6 +7,7 @@ import {
 import { createDecision } from '@/lib/db/queries/decisions';
 import { notifyRequestOwner } from '@/lib/db/queries/notifications';
 import { logActivity } from '@/lib/db/queries/activity-log';
+import { query, transaction } from '@/lib/db/pool';
 
 export const DECISION_STATUS_MAP: Record<DecisionType, RequestStatus> = {
   APPROVE: 'APPROVED',
@@ -33,11 +34,13 @@ export async function applyDecision(params: {
   rationale: string;
 }): Promise<void> {
   const { requestId, organizationId, userId, decision, rationale } = params;
-
+  await transaction(async () => {
+  await query('SELECT id FROM feature_requests WHERE id=$1 AND organization_id=$2 FOR UPDATE', [requestId, organizationId]);
   const request = await getFeatureRequestById(requestId);
   if (!request || request.organizationId !== organizationId) {
     throw new Error('Feature request not found');
   }
+  if (request.archivedAt) throw new Error('Restore this archived request before making a decision.');
 
   const targetStatus = DECISION_STATUS_MAP[decision];
   if (!canTransition(request.status, targetStatus)) {
@@ -68,5 +71,6 @@ export async function applyDecision(params: {
     link: `/requests/${requestId}`,
     requestId,
     actorId: userId,
+  });
   });
 }

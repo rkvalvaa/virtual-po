@@ -24,6 +24,8 @@ import {
   disconnectLinear,
   testLinearConnection,
 } from "@/app/(dashboard)/settings/linear-actions"
+import { TrackerImport } from "./TrackerImport"
+import { LinearStatusSyncSettings } from "./LinearStatusSyncSettings"
 
 export interface LinearSettingsProps {
   integration: {
@@ -78,6 +80,7 @@ export function LinearSettings({
   const [connectError, setConnectError] = useState<string | null>(null)
 
   const isAdmin = userRole === "ADMIN"
+  const canImport = userRole === "ADMIN" || userRole === "REVIEWER"
 
   function handleConnect(formData: FormData) {
     setConnectError(null)
@@ -225,6 +228,14 @@ export function LinearSettings({
           )}
         </CardContent>
       </Card>
+
+      {integration && canImport && (
+        <TrackerImport provider="LINEAR" destination={integration.defaultTeamId ?? ""} />
+      )}
+
+      {integration && canImport && (
+        <LinearStatusSyncSettings teamId={integration.defaultTeamId ?? ""} isAdmin={isAdmin} />
+      )}
 
       <Card>
         <CardHeader>

@@ -183,7 +183,8 @@ export async function updateTeamCapacity(
   const allocatedDays = Number(formData.get("allocatedDays"))
   const notes = (formData.get("notes") as string) || null
 
-  if (!quarter || isNaN(totalCapacityDays) || isNaN(allocatedDays)) {
+  if (!/^[0-9]{4}-Q[1-4]$/.test(quarter) || !Number.isFinite(totalCapacityDays) || !Number.isFinite(allocatedDays)
+    || totalCapacityDays < 0 || allocatedDays < 0 || totalCapacityDays > 100000 || allocatedDays > 100000) {
     return { success: false, error: "Quarter and capacity values are required." }
   }
 

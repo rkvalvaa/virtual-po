@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
 import { ThemeToggle } from "@/components/layout/ThemeToggle"
+import { WorkspaceSelector, type WorkspaceOption } from './WorkspaceSelector'
 import {
   FileText,
   ClipboardCheck,
   Layers,
+  CalendarRange,
   BarChart3,
   Settings,
   Menu,
@@ -22,11 +24,14 @@ const navLinks = [
   { href: "/requests", label: "Requests", icon: FileText },
   { href: "/review", label: "Review", icon: ClipboardCheck },
   { href: "/backlog", label: "Backlog", icon: Layers },
+  { href: "/planning", label: "Planning", icon: CalendarRange },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const
 
 interface SidebarProps {
+  activeOrgId: string
+  workspaces: WorkspaceOption[]
   user: {
     name: string | null
     email: string | null
@@ -97,7 +102,7 @@ function UserSection({
   )
 }
 
-export function Sidebar({ user, signOutAction, notificationBell }: SidebarProps) {
+export function Sidebar({ user, signOutAction, notificationBell, activeOrgId, workspaces }: SidebarProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -124,6 +129,7 @@ export function Sidebar({ user, signOutAction, notificationBell }: SidebarProps)
           </div>
         </div>
         <div className="flex-1 overflow-y-auto py-4">
+          <WorkspaceSelector activeOrgId={activeOrgId} workspaces={workspaces} />
           <NavLinks pathname={pathname} />
         </div>
         <UserSection user={user} initials={initials} signOutAction={signOutAction} />
@@ -150,12 +156,15 @@ export function Sidebar({ user, signOutAction, notificationBell }: SidebarProps)
               </Link>
             </div>
             <div className="flex-1 overflow-y-auto py-4">
+              <WorkspaceSelector activeOrgId={activeOrgId} workspaces={workspaces} />
               <NavLinks pathname={pathname} onNavigate={() => setMobileOpen(false)} />
             </div>
             <UserSection user={user} initials={initials} signOutAction={signOutAction} />
           </SheetContent>
         </Sheet>
-        <span className="ml-3 flex-1 text-lg font-bold tracking-tight">VPO</span>
+        <span className="ml-3 min-w-0 flex-1 truncate text-sm font-semibold" title={workspaces.find(w => w.id === activeOrgId)?.name}>
+          {workspaces.find(w => w.id === activeOrgId)?.name ?? 'VPO'}
+        </span>
         <ThemeToggle />
         {notificationBell}
       </div>

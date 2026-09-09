@@ -128,7 +128,7 @@ export async function removeAttachment(
     throw new Error("Insufficient permissions: ADMIN role required");
   }
 
-  const deleted = await deleteAttachmentRow(attachmentId, orgId);
+  const deleted = await deleteAttachmentRow(attachmentId, orgId, session.user.id);
   if (deleted && attachment.storageKey) {
     // Logged, never fatal: the row is already gone from the user's view.
     await deleteBlob(attachment.storageKey);

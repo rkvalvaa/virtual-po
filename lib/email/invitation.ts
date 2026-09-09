@@ -1,20 +1,16 @@
 import { Resend } from 'resend';
 import type { InvitationDelivery } from '@/lib/db/queries/invitations';
+import { emailReadiness, getApplicationBaseUrl } from './config';
 
 export function invitationEmailReadiness(): string | null {
-  if (!process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) return 'Email delivery requires RESEND_API_KEY and EMAIL_FROM. Configure delivery before inviting members.';
-  try {
-    const url = new URL(process.env.AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? '');
-    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname))) throw new Error();
-    if (url.username || url.password) throw new Error();
-  } catch { return 'Configure a valid AUTH_URL or NEXT_PUBLIC_APP_URL for invitation links.'; }
-  return null;
+  const readiness = emailReadiness();
+  return readiness.state === 'CONFIGURED' ? null : readiness.message;
 }
 
 export async function sendInvitationEmail(invite: InvitationDelivery): Promise<{ success: boolean; error?: string }> {
   const error = invitationEmailReadiness();
   if (error) return { success: false, error };
-  const origin = new URL(process.env.AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL!).origin;
+  const origin = getApplicationBaseUrl();
   try {
     const result = await new Resend(process.env.RESEND_API_KEY).emails.send({
       from: process.env.EMAIL_FROM!, to: invite.email,

@@ -24,6 +24,7 @@ import {
   disconnectJira,
   testJiraConnection,
 } from "@/app/(dashboard)/settings/jira-actions"
+import { TrackerImport } from "./TrackerImport"
 
 export interface JiraSettingsProps {
   integration: {
@@ -80,6 +81,7 @@ export function JiraSettings({
   const [connectError, setConnectError] = useState<string | null>(null)
 
   const isAdmin = userRole === "ADMIN"
+  const canImport = userRole === "ADMIN" || userRole === "REVIEWER"
 
   function handleConnect(formData: FormData) {
     setConnectError(null)
@@ -259,6 +261,10 @@ export function JiraSettings({
           )}
         </CardContent>
       </Card>
+
+      {integration && canImport && (
+        <TrackerImport provider="JIRA" destination={integration.defaultProjectKey} />
+      )}
 
       <Card>
         <CardHeader>

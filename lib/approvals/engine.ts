@@ -19,6 +19,7 @@ import {
 import { getOrganizationUsers } from '@/lib/db/queries/organizations';
 import { notifyUser } from '@/lib/db/queries/notifications';
 import { logActivity } from '@/lib/db/queries/activity-log';
+import { query, transaction } from '@/lib/db/pool';
 
 /**
  * APPROVED / REJECTED — the step has a recorded decision.
@@ -178,7 +179,8 @@ export async function submitStepApproval(params: {
   rationale: string;
 }): Promise<{ status: 'RECORDED' | 'APPROVED' | 'REJECTED' }> {
   const { requestId, orgId, userId, role, decision, rationale } = params;
-
+  return transaction(async () => {
+  await query('SELECT id FROM feature_requests WHERE id=$1 AND organization_id=$2 FOR UPDATE', [requestId, orgId]);
   const request = await getFeatureRequestById(requestId);
   if (!request || !orgId || request.organizationId !== orgId) {
     throw new Error('Feature request not found');
@@ -186,6 +188,7 @@ export async function submitStepApproval(params: {
   if (request.status !== 'UNDER_REVIEW') {
     throw new Error(`Request is ${request.status}, not under review`);
   }
+  if (request.archivedAt) throw new Error('Restore this archived request before making a decision.');
 
   const workflow = await getActiveWorkflow(orgId);
   if (!workflow || workflow.steps.length === 0) {
@@ -264,6 +267,7 @@ export async function submitStepApproval(params: {
   }
 
   return { status: 'RECORDED' };
+  });
 }
 
 /**

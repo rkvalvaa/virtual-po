@@ -7,6 +7,7 @@ import type {
 } from '@/lib/types/database';
 
 export interface SearchFilters {
+  archived?: boolean;
   search?: string;
   statuses?: RequestStatus[];
   tags?: string[];
@@ -51,11 +52,12 @@ export async function listFeatureRequests(
     status?: RequestStatus;
     requesterId?: string;
     assigneeId?: string;
+    archived?: boolean;
     limit?: number;
     offset?: number;
   }
 ): Promise<{ requests: FeatureRequest[]; total: number }> {
-  const conditions: string[] = ['organization_id = $1'];
+  const conditions: string[] = ['organization_id = $1', filters?.archived ? 'archived_at IS NOT NULL' : 'archived_at IS NULL'];
   const values: unknown[] = [orgId];
   let paramIndex = 2;
 
@@ -129,6 +131,7 @@ export async function findSimilarRequests(
     `SELECT id, title, status, created_at, similarity(title, $2) AS sim
      FROM feature_requests
      WHERE organization_id = $1
+       AND archived_at IS NULL
        AND ($4::uuid IS NULL OR id <> $4)
        AND similarity(title, $2) > $3
      ORDER BY sim DESC, created_at DESC
@@ -194,9 +197,10 @@ export async function updateFeatureRequest(
   values.push(id);
 
   const result = await query(
-    `UPDATE feature_requests SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+    `UPDATE feature_requests SET ${fields.join(', ')} WHERE id = $${paramIndex} AND archived_at IS NULL RETURNING *`,
     values
   );
+  if (!result.rows[0]) throw new Error('Request unavailable or archived. Restore it before editing.');
   return mapRow<FeatureRequest>(result.rows[0]);
 }
 
@@ -205,9 +209,10 @@ export async function updateFeatureRequestStatus(
   status: RequestStatus
 ): Promise<FeatureRequest> {
   const result = await query(
-    `UPDATE feature_requests SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+    `UPDATE feature_requests SET status = $1, updated_at = NOW() WHERE id = $2 AND archived_at IS NULL RETURNING *`,
     [status, id]
   );
+  if (!result.rows[0]) throw new Error('Request unavailable or archived. Restore it before changing status.');
   return mapRow<FeatureRequest>(result.rows[0]);
 }
 
@@ -221,7 +226,7 @@ export async function updateIntakeData(
      SET intake_data = $1,
          quality_score = COALESCE($2, quality_score),
          updated_at = NOW()
-     WHERE id = $3
+     WHERE id = $3 AND archived_at IS NULL
      RETURNING *`,
     [JSON.stringify(intakeData), qualityScore ?? null, id]
   );
@@ -248,7 +253,7 @@ export async function updateAssessmentData(
          priority_score = COALESCE($5, priority_score),
          complexity = COALESCE($6, complexity),
          updated_at = NOW()
-     WHERE id = $7
+     WHERE id = $7 AND archived_at IS NULL
      RETURNING *`,
     [
       JSON.stringify(assessmentData),
@@ -267,7 +272,7 @@ export async function searchFeatureRequests(
   orgId: string,
   filters: SearchFilters = {}
 ): Promise<{ requests: FeatureRequest[]; total: number }> {
-  const conditions: string[] = ['organization_id = $1'];
+  const conditions: string[] = ['organization_id = $1', filters.archived ? 'archived_at IS NOT NULL' : 'archived_at IS NULL'];
   const values: unknown[] = [orgId];
   let paramIndex = 2;
 

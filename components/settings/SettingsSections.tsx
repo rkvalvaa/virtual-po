@@ -1,18 +1,36 @@
 "use client"
 
-import { createContext, useContext, useState, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 
 const groups = [
-  { title: "Workspace", sections: [["organization", "Organization"], ["members", "Members"], ["repositories", "Repositories"]] },
+  { title: "Workspace", sections: [["organization", "Organization"], ["members", "Members"], ["repositories", "Repositories"], ["ai-budget", "AI Budget"]] },
   { title: "Planning and review", sections: [["scoring", "Scoring"], ["okrs", "OKRs"], ["capacity", "Capacity"], ["templates", "Templates"], ["custom-fields", "Custom Fields"], ["approvals", "Approvals"], ["review-cycles", "Review Cycles"]] },
   { title: "Integrations", sections: [["jira", "Jira"], ["linear", "Linear"], ["github-issues", "GitHub Issues"], ["slack", "Slack"], ["teams", "Teams"], ["api-keys", "API Keys"], ["webhooks", "Webhooks"]] },
   { title: "Personal", sections: [["email", "Email"]] },
 ] as const
+const sectionIds: ReadonlySet<string> = new Set(groups.flatMap(group => group.sections.map(([id]) => id)))
 const Selection = createContext<{ active: string; select: (value: string) => void }>({ active: "organization", select: () => {} })
 
 export function SettingsSections({ defaultValue, children }: { defaultValue: string; children: ReactNode }) {
-  const [active, select] = useState(defaultValue)
+  const [active, setActive] = useState(defaultValue)
+  const select = useCallback((value: string) => {
+    if (!sectionIds.has(value)) return
+    setActive(value)
+    const hash = `#${value}`
+    if (window.location.hash !== hash) window.history.replaceState(null, "", hash)
+  }, [])
+
+  useEffect(() => {
+    const selectFromHash = () => {
+      const value = window.location.hash.slice(1)
+      if (sectionIds.has(value)) setActive(value)
+    }
+    selectFromHash()
+    window.addEventListener("hashchange", selectFromHash)
+    return () => window.removeEventListener("hashchange", selectFromHash)
+  }, [])
+
   return <Selection.Provider value={{ active, select }}>
     <div className="grid min-w-0 gap-6 lg:grid-cols-[12rem_minmax(0,1fr)]">{children}</div>
   </Selection.Provider>

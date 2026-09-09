@@ -129,7 +129,7 @@ export async function updateRequestCustomFields(
   const result = await query(
     `UPDATE feature_requests
      SET custom_fields = $1::jsonb, updated_at = NOW()
-     WHERE id = $2 AND organization_id = $3
+     WHERE id = $2 AND organization_id = $3 AND archived_at IS NULL
      RETURNING *`,
     [JSON.stringify(values), requestId, orgId]
   );

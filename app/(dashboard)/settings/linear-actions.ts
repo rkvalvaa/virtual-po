@@ -7,16 +7,17 @@ import {
   upsertIntegration,
   deactivateIntegration,
 } from "@/lib/db/queries/jira-sync"
-import {
-  logLinearSync,
-
-
-} from "@/lib/db/queries/linear-sync"
 import { getLinearClientFromIntegration } from "@/lib/linear/client"
 import { getEpicByRequestId } from "@/lib/db/queries/epics"
-import { createFeatureRequest, getFeatureRequestById } from "@/lib/db/queries/feature-requests"
+import { getFeatureRequestById } from "@/lib/db/queries/feature-requests"
 import { canAccess } from "@/lib/auth/rbac"
 import { exportLinear } from "@/lib/export/adapters"
+import { previewLinearPage } from "@/lib/import/provider-pages"
+import { importSelectedPreview, requireTrackerImportAccess, resolveImportConflictForProvider, trackerActionError } from "@/lib/import/actions"
+import type { TrackerConflictResolution, TrackerImportField } from "@/lib/import/tracker-imports"
+import { getStatusSyncOverview, upsertStatusSyncConfig } from "@/lib/db/queries/tracker-status-sync"
+import { reconcileLinearStatuses, resolveLinearStatusConflict } from "@/lib/status-sync/linear"
+import type { StatusMapping } from "@/lib/status-sync/types"
 import "@/lib/auth/types"
 
 export async function connectLinear(
@@ -179,49 +180,144 @@ export async function importFromLinear(
   imported?: number
   error?: string
 }> {
-  const session = await requireAuth()
+  const preview = await previewLinearImport({ teamId, searchQuery })
+  if (!preview.success) return { success: false, error: preview.error }
+  const result = await importLinearPage({ teamId, searchQuery, remoteEntityIds: preview.page.items.map(item => item.remoteEntityId) })
+  return result.success ? { success: true, imported: result.result.created + result.result.updated } : result
+}
 
-  if (!canAccess(session.user.role, "REVIEWER")) {
-    return { success: false, error: "Insufficient permissions." }
-  }
+export interface LinearImportInput { teamId: string; searchQuery?: string; cursor?: string | null }
 
-  const orgId = session.user.orgId
-  if (!orgId) {
-    return { success: false, error: "No organization found." }
-  }
+async function loadLinearImportPage(input: LinearImportInput) {
+  const access = await requireTrackerImportAccess('LINEAR')
+  if (!access.success) return access
+  const client = getLinearClientFromIntegration(access.integration)
+  const teams = await client.getTeams()
+  if (!teams.some(team => team.id === input.teamId)) return { success: false as const, error: 'Select an accessible Linear team.' }
+  const page = await previewLinearPage(client, input)
+  return { success: true as const, access, page }
+}
 
+export async function previewLinearImport(input: LinearImportInput) {
   try {
-    const integration = await getIntegrationByType(orgId, "LINEAR")
-    if (!integration) {
-      return { success: false, error: "No Linear integration found." }
-    }
+    const loaded = await loadLinearImportPage(input)
+    return loaded.success ? { success: true as const, page: loaded.page } : loaded
+  } catch (error) {
+    return { success: false as const, error: trackerActionError(error, 'Failed to preview Linear issues.') }
+  }
+}
 
-    const client = getLinearClientFromIntegration(integration)
-    const query = searchQuery ?? `team:${teamId}`
-    const issues = await client.searchIssues(query, teamId)
+export async function importLinearPage(input: LinearImportInput & { remoteEntityIds: string[] }) {
+  try {
+    const loaded = await loadLinearImportPage(input)
+    if (!loaded.success) return loaded
+    const result = await importSelectedPreview(loaded.access.context, loaded.page, input.remoteEntityIds)
+    if (result.success) revalidatePath('/requests')
+    return result
+  } catch (error) {
+    return { success: false as const, error: trackerActionError(error, 'Failed to import from Linear.') }
+  }
+}
 
-    let imported = 0
-    for (const issue of issues) {
-      const featureRequest = await createFeatureRequest(
-        orgId,
-        session.user.id,
-        issue.title
-      )
+export async function resolveLinearImportConflict(linkId: string, resolutions: Partial<Record<TrackerImportField, TrackerConflictResolution>>) {
+  try {
+    const result = await resolveImportConflictForProvider('LINEAR', linkId, resolutions)
+    if (result.success) revalidatePath('/requests')
+    return result
+  } catch (error) {
+    return { success: false as const, error: trackerActionError(error, 'Failed to resolve Linear import conflict.') }
+  }
+}
 
-      await logLinearSync(
-        orgId,
-        "FEATURE_REQUEST",
-        featureRequest.id,
-        issue.id,
-        "PULL",
-        "SUCCESS"
-      )
-      imported++
-    }
+function serializeStatusOverview(overview: Awaited<ReturnType<typeof getStatusSyncOverview>>) {
+  return {
+    config: overview.config ? {
+      ...overview.config,
+      checkpointAt: overview.config.checkpointAt?.toISOString() ?? null,
+      lastSyncAt: overview.config.lastSyncAt?.toISOString() ?? null,
+      lastReconciledAt: overview.config.lastReconciledAt?.toISOString() ?? null,
+      nextAttemptAt: overview.config.nextAttemptAt.toISOString(),
+      createdAt: overview.config.createdAt.toISOString(),
+      updatedAt: overview.config.updatedAt.toISOString(),
+    } : null,
+    conflicts: overview.conflicts.map(conflict => ({ ...conflict, createdAt: conflict.createdAt.toISOString() })),
+  }
+}
 
-    revalidatePath("/requests")
-    return { success: true, imported }
+async function requireLinearStatusAccess(requiredRole: "REVIEWER" | "ADMIN") {
+  const session = await requireAuth()
+  if (!canAccess(session.user.role, requiredRole)) {
+    return { success: false as const, error: requiredRole === "ADMIN" ? "Only admins can configure Linear status sync." : "Insufficient permissions." }
+  }
+  if (!session.user.orgId) return { success: false as const, error: "No organization found." }
+  const integration = await getIntegrationByType(session.user.orgId, "LINEAR")
+  if (!integration) return { success: false as const, error: "No active Linear integration found." }
+  return { success: true as const, session, integration, client: getLinearClientFromIntegration(integration) }
+}
+
+export async function getLinearStatusSyncOverview(destination: string) {
+  const access = await requireLinearStatusAccess("REVIEWER")
+  if (!access.success) return access
+  const overview = await getStatusSyncOverview(access.session.user.orgId!, "LINEAR", destination.trim())
+  return { success: true as const, overview: serializeStatusOverview(overview) }
+}
+
+export async function loadLinearStatusWorkflowStates(destination: string) {
+  const access = await requireLinearStatusAccess("ADMIN")
+  if (!access.success) return access
+  try {
+    const teamId = destination.trim()
+    if (!(await access.client.getTeams()).some(team => team.id === teamId)) return { success: false as const, error: "Select an accessible Linear team." }
+    return { success: true as const, states: await access.client.getWorkflowStates(teamId) }
   } catch {
-    return { success: false, error: "Failed to import from Linear." }
+    return { success: false as const, error: "Unable to load Linear statuses. Reconnect Linear if its credentials were revoked." }
+  }
+}
+
+export async function saveLinearStatusSync(input: { destination: string; enabled: boolean; mappings: StatusMapping[] }) {
+  const access = await requireLinearStatusAccess("ADMIN")
+  if (!access.success) return access
+  try {
+    const destination = input.destination.trim()
+    const teams = await access.client.getTeams()
+    if (!teams.some(team => team.id === destination)) return { success: false as const, error: "Select an accessible Linear team." }
+    const available = await access.client.getWorkflowStates(destination)
+    const byId = new Map(available.map(state => [state.id, state]))
+    const mappings = input.mappings.map(mapping => {
+      const state = byId.get(mapping.remoteStatusId)
+      if (!state) throw new Error("A selected Linear status is no longer available.")
+      return { ...mapping, remoteStatusName: state.name }
+    })
+    if (input.enabled && mappings.length === 0) throw new Error("Map at least one Linear status before enabling sync.")
+    await upsertStatusSyncConfig({ organizationId: access.session.user.orgId!, provider: "LINEAR", destination, enabled: input.enabled, mappings, updatedBy: access.session.user.id })
+    revalidatePath("/settings")
+    return { success: true as const }
+  } catch (error) {
+    return { success: false as const, error: error instanceof Error ? error.message : "Unable to save Linear status sync." }
+  }
+}
+
+export async function reconcileLinearStatusSync(destination: string) {
+  const access = await requireLinearStatusAccess("ADMIN")
+  if (!access.success) return access
+  try {
+    const result = await reconcileLinearStatuses({ organizationId: access.session.user.orgId!, destination: destination.trim(), client: access.client })
+    revalidatePath("/settings")
+    return { success: true as const, result }
+  } catch (error) {
+    return { success: false as const, error: error instanceof Error ? error.message : "Linear reconciliation failed." }
+  }
+}
+
+export async function resolveLinearStatusSyncConflict(destination: string, conflictId: string, resolution: "KEEP_LOCAL" | "APPLY_REMOTE") {
+  const access = await requireLinearStatusAccess("ADMIN")
+  if (!access.success) return access
+  try {
+    await resolveLinearStatusConflict({ organizationId: access.session.user.orgId!, conflictId, resolution, resolvedBy: access.session.user.id })
+    revalidatePath("/settings")
+    revalidatePath("/requests")
+    return { success: true as const }
+  } catch (error) {
+    return { success: false as const, error: error instanceof Error ? error.message : "Unable to resolve the status conflict." }
   }
 }

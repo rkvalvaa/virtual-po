@@ -27,6 +27,7 @@ interface DecisionPanelProps {
    * DEFER and REQUEST_INFO stay here.
    */
   hasApprovalChain?: boolean
+  readOnly?: boolean
 }
 
 const STATUS_TO_DECISION: Record<string, DecisionType> = {
@@ -59,13 +60,14 @@ export function DecisionPanel({
   userRole,
   decisions,
   hasApprovalChain = false,
+  readOnly = false,
 }: DecisionPanelProps) {
   const router = useRouter()
   const [activeAction, setActiveAction] = useState<string | null>(null)
   const [rationale, setRationale] = useState("")
   const [isPending, setIsPending] = useState(false)
 
-  const allActions = getAvailableActions(
+  const allActions = readOnly ? [] : getAvailableActions(
     currentStatus as RequestStatus,
     userRole as UserRole
   )

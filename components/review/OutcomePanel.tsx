@@ -11,6 +11,7 @@ import { submitOutcome, submitActualComplexity } from "@/app/(dashboard)/request
 import type { DecisionOutcome, Complexity } from "@/lib/types/database"
 
 interface OutcomePanelProps {
+  readOnly?: boolean
   requestId: string
   decisions: Array<{
     id: string
@@ -243,6 +244,7 @@ export function OutcomePanel({
   lessonsLearned,
   requestStatus,
   userRole,
+  readOnly = false,
 }: OutcomePanelProps) {
   const isReviewer = userRole === "REVIEWER" || userRole === "ADMIN"
   const showCalibration = requestStatus === "COMPLETED" || requestStatus === "IN_PROGRESS"
@@ -256,6 +258,7 @@ export function OutcomePanel({
         <CardTitle>Outcome Tracking</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <fieldset disabled={readOnly} className="min-w-0 space-y-4">
         {decisions.length > 0 && (
           <div className="space-y-3">
             <h4 className="text-sm font-semibold">Decision Outcomes</h4>
@@ -279,6 +282,7 @@ export function OutcomePanel({
             />
           </div>
         )}
+        </fieldset>
       </CardContent>
     </Card>
   )

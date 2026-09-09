@@ -106,6 +106,7 @@ Copy `.env.example` to `.env.local` and configure:
 - `AUTH_SECRET` — Generate with `openssl rand -base64 32`
 - `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` — GitHub OAuth app credentials
 - `ANTHROPIC_API_KEY` — Anthropic API key for Claude
+- `AI_BUDGET_MAX_MONTHLY_USD` — optional positive USD ceiling per workspace; when set, workspace admins may configure only a lower monthly AI limit
 
 **Optional integrations** (configured via Settings UI):
 - Jira, Linear, GitHub Issues — credentials entered through the settings page

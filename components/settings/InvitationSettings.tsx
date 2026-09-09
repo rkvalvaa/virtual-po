@@ -44,7 +44,7 @@ export function InvitationSettings({ invitations, readiness }: { invitations: Pe
       {!invitations.length && <p className="text-sm text-muted-foreground">No pending invitations.</p>}
       {invitations.map(invite => <div key={invite.id} className="space-y-2 border-t pt-3">
         <p className="break-all text-sm">{invite.email} · {invite.role}</p>
-        <p className="text-xs text-muted-foreground">{invite.deliveryStatus === 'SENT' ? 'Email sent' : invite.deliveryStatus === 'FAILED' ? 'Email failed' : 'Delivery pending'} · Expires {new Date(invite.expiresAt).toLocaleDateString()}</p>
+        <p className="text-xs text-muted-foreground">{invite.deliveryStatus === 'SENT' ? 'Accepted by email provider; this does not confirm inbox delivery' : invite.deliveryStatus === 'FAILED' ? 'Email failed' : 'Delivery pending'} · Expires {new Date(invite.expiresAt).toLocaleDateString()}</p>
         {invite.deliveryError && <p className="text-sm text-destructive">{invite.deliveryError}</p>}
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" disabled={pending || !!readiness} onClick={() => submit({ kind: 'resend', id: invite.id })}>Resend to {invite.email}</Button>

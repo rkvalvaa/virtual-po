@@ -6,19 +6,18 @@ import {
   getIntegrationByType,
   upsertIntegration,
   deactivateIntegration,
-  logGitHubSync,
-
-
-  updateFeatureRequestGitHubKeys,
 } from "@/lib/db/queries/github-sync"
 import {
   getGitHubIssuesClientFromToken,
 } from "@/lib/github/issues-client"
 import { getGitHubToken } from "@/lib/github/client"
 import { getEpicByRequestId } from "@/lib/db/queries/epics"
-import { createFeatureRequest, getFeatureRequestById } from "@/lib/db/queries/feature-requests"
+import { getFeatureRequestById } from "@/lib/db/queries/feature-requests"
 import { canAccess } from "@/lib/auth/rbac"
 import { exportGitHub } from "@/lib/export/adapters"
+import { previewGitHubPage } from "@/lib/import/provider-pages"
+import { importSelectedPreview, requireTrackerImportAccess, resolveImportConflictForProvider, trackerActionError } from "@/lib/import/actions"
+import type { TrackerConflictResolution, TrackerImportField } from "@/lib/import/tracker-imports"
 import "@/lib/auth/types"
 
 function parseRepo(repoFullName: string): { owner: string; repo: string } {
@@ -213,65 +212,55 @@ export async function importFromGitHub(
   imported?: number
   error?: string
 }> {
-  const session = await requireAuth()
+  const query = label ? `is:issue is:open label:"${label}"` : undefined
+  const preview = await previewGitHubImport({ repoFullName, query })
+  if (!preview.success) return { success: false, error: preview.error }
+  const result = await importGitHubPage({ repoFullName, query, remoteEntityIds: preview.page.items.map(item => item.remoteEntityId) })
+  return result.success ? { success: true, imported: result.result.created + result.result.updated } : result
+}
 
-  if (!canAccess(session.user.role, "REVIEWER")) {
-    return { success: false, error: "Insufficient permissions." }
-  }
+export interface GitHubImportInput { repoFullName: string; query?: string; cursor?: string | null }
 
-  const orgId = session.user.orgId
-  if (!orgId) {
-    return { success: false, error: "No organization found." }
-  }
+async function loadGitHubImportPage(input: GitHubImportInput) {
+  const access = await requireTrackerImportAccess('GITHUB_ISSUES')
+  if (!access.success) return access
+  if (input.repoFullName !== access.integration.config.defaultRepo) return { success: false as const, error: 'Select the repository configured by your workspace administrator.' }
+  const token = await getGitHubToken(access.context.requesterId)
+  if (!token) return { success: false as const, error: 'No GitHub account connected.' }
+  const client = getGitHubIssuesClientFromToken(token)
+  const { owner, repo } = parseRepo(input.repoFullName)
+  await client.listLabels(owner, repo)
+  const page = await previewGitHubPage(client, input)
+  return { success: true as const, access, page }
+}
 
+export async function previewGitHubImport(input: GitHubImportInput) {
   try {
-    const integration = await getIntegrationByType(orgId, "GITHUB_ISSUES")
-    if (!integration) {
-      return { success: false, error: "No GitHub Issues integration found." }
-    }
+    const loaded = await loadGitHubImportPage(input)
+    return loaded.success ? { success: true as const, page: loaded.page } : loaded
+  } catch (error) {
+    return { success: false as const, error: trackerActionError(error, 'Failed to preview GitHub issues.') }
+  }
+}
 
-    const token = await getGitHubToken(session.user.id)
-    if (!token) {
-      return { success: false, error: "No GitHub account connected." }
-    }
+export async function importGitHubPage(input: GitHubImportInput & { remoteEntityIds: string[] }) {
+  try {
+    const loaded = await loadGitHubImportPage(input)
+    if (!loaded.success) return loaded
+    const result = await importSelectedPreview(loaded.access.context, loaded.page, input.remoteEntityIds)
+    if (result.success) revalidatePath('/requests')
+    return result
+  } catch (error) {
+    return { success: false as const, error: trackerActionError(error, 'Failed to import from GitHub.') }
+  }
+}
 
-    const client = getGitHubIssuesClientFromToken(token)
-    const { owner, repo } = parseRepo(repoFullName)
-
-    const searchQuery = label
-      ? `is:issue is:open label:"${label}"`
-      : "is:issue is:open"
-
-    const { items: issues } = await client.searchIssues(owner, repo, searchQuery)
-
-    let imported = 0
-    for (const issue of issues) {
-      const featureRequest = await createFeatureRequest(
-        orgId,
-        session.user.id,
-        issue.title
-      )
-
-      await updateFeatureRequestGitHubKeys(
-        featureRequest.id,
-        issue.number,
-        issue.html_url
-      )
-
-      await logGitHubSync(
-        orgId,
-        "FEATURE_REQUEST",
-        featureRequest.id,
-        issue.number,
-        "PULL",
-        "SUCCESS"
-      )
-      imported++
-    }
-
-    revalidatePath("/requests")
-    return { success: true, imported }
-  } catch {
-    return { success: false, error: "Failed to import from GitHub." }
+export async function resolveGitHubImportConflict(linkId: string, resolutions: Partial<Record<TrackerImportField, TrackerConflictResolution>>) {
+  try {
+    const result = await resolveImportConflictForProvider('GITHUB_ISSUES', linkId, resolutions)
+    if (result.success) revalidatePath('/requests')
+    return result
+  } catch (error) {
+    return { success: false as const, error: trackerActionError(error, 'Failed to resolve GitHub import conflict.') }
   }
 }

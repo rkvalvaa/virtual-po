@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AssessmentView } from "@/components/requests/AssessmentView"
+import { DocumentCitations } from '@/components/requests/DocumentCitations'
 import { EpicView } from "@/components/requests/EpicView"
 import { StoryList } from "@/components/requests/StoryList"
 import { StatusBadge } from "@/components/requests/StatusBadge"
@@ -28,9 +29,11 @@ import { AttachmentsCard } from "@/components/requests/AttachmentsCard"
 import type { AttachmentView } from "@/components/requests/AttachmentsCard"
 import { ArrowLeft, FileDown } from "lucide-react"
 import { assessmentScoringPolicy } from '@/config/scoring-policy'
+import type { MentionableMember } from '@/lib/db/queries/collaboration'
 
 interface RequestDetailProps {
   request: {
+    archived?: boolean
     id: string
     title: string
     summary: string | null
@@ -88,7 +91,10 @@ interface RequestDetailProps {
     authorName: string
     parentId: string | null
     createdAt: string
+    mentionNames: string[]
   }>
+  mentionableMembers: MentionableMember[]
+  following: boolean
   similarRequests: Array<{
     id: string
     title: string
@@ -167,6 +173,8 @@ export function RequestDetail({
   stories,
   decisions,
   comments,
+  mentionableMembers,
+  following,
   similarRequests,
   userRole,
   requestId,
@@ -241,11 +249,13 @@ export function RequestDetail({
         userRole={userRole}
         decisions={decisions}
         hasApprovalChain={hasApprovalChain}
+        readOnly={request.archived}
       />
 
       {/* Outcome Panel */}
       {decisions.length > 0 && (
         <OutcomePanel
+          readOnly={request.archived}
           requestId={request.id}
           decisions={decisions}
           predictedComplexity={request.complexity}
@@ -262,6 +272,7 @@ export function RequestDetail({
 
       {/* Stakeholder Voting */}
       <VoteWidget
+        readOnly={request.archived}
         requestId={request.id}
         currentVote={currentVote}
         votes={votes}
@@ -329,7 +340,7 @@ export function RequestDetail({
             />
           )}
 
-          <AttachmentsCard requestId={request.id} attachments={attachments} />
+          <AttachmentsCard requestId={request.id} attachments={attachments} canSelectContext={canEditCustomFields} />
 
           {Object.keys(request.intakeData).length > 0 && (
             <div className="space-y-4">
@@ -359,6 +370,7 @@ export function RequestDetail({
             priorityScore={request.priorityScore}
             complexity={request.complexity}
           />
+          <DocumentCitations value={request.assessmentData?.documentCitations} attachmentIds={attachments.map(attachment => attachment.id)} omissions={request.assessmentData?.documentOmissions} />
         </TabsContent>
 
         {/* Epic & Stories Tab */}
@@ -372,7 +384,7 @@ export function RequestDetail({
                 jiraEpicUrl={jiraEpicUrl}
                 hasJiraIntegration={hasJiraIntegration}
                 initial={exportResults.find(result => result.provider === 'JIRA')}
-                canExport={userRole === 'ADMIN' || userRole === 'REVIEWER'}
+                canExport={!request.archived && (userRole === 'ADMIN' || userRole === 'REVIEWER')}
               />
               <LinearSyncButton
                 requestId={requestId}
@@ -380,9 +392,9 @@ export function RequestDetail({
                 linearProjectUrl={linearProjectUrl}
                 hasLinearIntegration={hasLinearIntegration}
                 initial={exportResults.find(result => result.provider === 'LINEAR')}
-                canExport={userRole === 'ADMIN' || userRole === 'REVIEWER'}
+                canExport={!request.archived && (userRole === 'ADMIN' || userRole === 'REVIEWER')}
               />
-              {hasGitHubIntegration && <TrackerExport requestId={requestId} provider="GITHUB_ISSUES" url={githubIssueUrl} initial={exportResults.find(result => result.provider === 'GITHUB_ISSUES')} canExport={userRole === 'ADMIN' || userRole === 'REVIEWER'} />}
+              {hasGitHubIntegration && <TrackerExport requestId={requestId} provider="GITHUB_ISSUES" url={githubIssueUrl} initial={exportResults.find(result => result.provider === 'GITHUB_ISSUES')} canExport={!request.archived && (userRole === 'ADMIN' || userRole === 'REVIEWER')} />}
               <StoryList stories={stories} />
             </>
           ) : (
@@ -396,7 +408,7 @@ export function RequestDetail({
 
         {/* Discussion Tab */}
         <TabsContent value="discussion" className="space-y-6">
-          <CommentThread comments={comments} requestId={request.id} />
+          <CommentThread comments={comments} requestId={request.id} members={mentionableMembers} following={following} />
         </TabsContent>
 
         {/* Activity Tab */}

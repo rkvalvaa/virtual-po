@@ -58,11 +58,19 @@ export interface OrganizationUser {
 }
 
 export interface FeatureRequest {
+  archivedAt: Date | null;
+  archivedBy: string | null;
   humanRefined: boolean;
   id: string;
   organizationId: string;
   requesterId: string;
   assigneeId: string | null;
+  planningCommitment: 'NOW' | 'NEXT' | 'LATER' | null;
+  targetPeriod: string | null;
+  manualRank: number | null;
+  planningObjectiveId: string | null;
+  plannedEffortDays: number | null;
+  planningVersion: number;
   title: string;
   summary: string | null;
   status: RequestStatus;
@@ -226,6 +234,9 @@ export interface TeamCapacity {
   quarter: string;
   totalCapacityDays: number;
   allocatedDays: number;
+  allocationReconciliation: 'REPLACED_BY_REQUESTS' | 'RETAINED_AS_OUTSIDE_WORK' | null;
+  allocationReconciledAt: Date | null;
+  allocationReconciledBy: string | null;
   notes: string | null;
   updatedBy: string | null;
   createdAt: Date;
@@ -432,6 +443,7 @@ export const NOTIFICATION_TYPES = [
   'ASSESSMENT_COMPLETE',
   'SECURITY_REVIEW_COMPLETE',
   'REVIEW_NEEDED',
+  'AI_BUDGET_WARNING',
 ] as const;
 export type NotificationType = typeof NOTIFICATION_TYPES[number];
 

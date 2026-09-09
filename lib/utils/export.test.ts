@@ -4,11 +4,19 @@ import type { CustomFieldDefinition, CustomFieldType, FeatureRequest } from '@/l
 
 function makeRequest(overrides: Partial<FeatureRequest> = {}): FeatureRequest {
   return {
+    archivedAt: null,
+    archivedBy: null,
     humanRefined: false,
     id: 'req-1',
     organizationId: 'org-1',
     requesterId: 'user-1',
     assigneeId: null,
+    planningCommitment: null,
+    targetPeriod: null,
+    manualRank: null,
+    planningObjectiveId: null,
+    plannedEffortDays: null,
+    planningVersion: 0,
     title: 'Add dark mode',
     summary: null,
     status: 'UNDER_REVIEW',

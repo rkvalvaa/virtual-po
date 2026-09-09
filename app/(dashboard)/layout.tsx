@@ -4,6 +4,9 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { KeyboardShortcuts } from "@/components/layout/KeyboardShortcuts";
 import { getNotificationsByUser, getUnreadCount } from "@/lib/db/queries/notifications";
+import { listUserWorkspaces } from '@/lib/db/queries/workspaces';
+import { WorkspaceSessionGuard } from '@/components/layout/WorkspaceSessionGuard';
+import { redirect } from 'next/navigation';
 import "@/lib/auth/types";
 
 export default async function DashboardLayout({
@@ -13,10 +16,12 @@ export default async function DashboardLayout({
 }) {
   const session = await requireAuth();
   const user = session.user;
+  if (!user.orgId) redirect('/login');
 
-  const [notifications, unreadCount] = await Promise.all([
-    getNotificationsByUser(user.id, 20),
-    getUnreadCount(user.id),
+  const [notifications, unreadCount, workspaces] = await Promise.all([
+    getNotificationsByUser(user.id, user.orgId, 20),
+    getUnreadCount(user.id, user.orgId),
+    listUserWorkspaces(user.id),
   ]);
 
   async function handleSignOut() {
@@ -25,8 +30,11 @@ export default async function DashboardLayout({
   }
 
   return (
+    <WorkspaceSessionGuard userId={user.id} orgId={user.orgId} role={user.role}>
     <div className="min-h-screen bg-background">
       <Sidebar
+        activeOrgId={user.orgId}
+        workspaces={workspaces}
         user={{
           name: user.name ?? null,
           email: user.email ?? null,
@@ -53,5 +61,6 @@ export default async function DashboardLayout({
       </main>
       <KeyboardShortcuts />
     </div>
+    </WorkspaceSessionGuard>
   );
 }

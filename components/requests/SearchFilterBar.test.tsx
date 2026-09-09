@@ -111,6 +111,12 @@ describe('SearchFilterBar', () => {
   })
 
   describe('clear-all behavior', () => {
+    it('keeps the archived view when clearing its search filters', async () => {
+      setSearchParams('archived=true&search=old')
+      render(<SearchFilterBar />)
+      await userEvent.setup().click(screen.getByRole('button', { name: /clear all/i }))
+      expect(mockPush).toHaveBeenCalledWith('/requests?archived=true')
+    })
     it('should push the bare pathname when Clear all is clicked', async () => {
       setSearchParams('search=foo&status=UNDER_REVIEW')
       const user = userEvent.setup()

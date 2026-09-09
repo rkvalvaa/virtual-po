@@ -6,6 +6,7 @@ import authConfig from "./auth.config"
 import { ensureUserOrganization } from "@/lib/auth/org-setup"
 import { getUserByEmail } from "@/lib/db/queries/users"
 import { getOrganizationRole } from "@/lib/db/queries/organizations"
+import { rememberWorkspace } from "@/lib/db/queries/workspaces"
 import "@/lib/auth/types"
 import { z } from 'zod'
 
@@ -63,7 +64,9 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
       }
       if (trigger === 'update' && token.id) {
         const target = z.object({ user: z.object({ orgId: z.uuid() }) }).safeParse(session)
-        if (target.success && await getOrganizationRole(target.data.user.orgId, token.id)) token.orgId = target.data.user.orgId
+        if (target.success && await rememberWorkspace(token.id, target.data.user.orgId)) {
+          token.orgId = target.data.user.orgId
+        }
       }
       // JWTs identify the session; current membership authorizes access. Never
       // provision an organization when refreshing an existing/revoked token.

@@ -33,6 +33,7 @@ import {
 } from "@/app/(dashboard)/bulk-actions"
 import type { RequestStatus } from "@/lib/types/database"
 import type { ScoringConfig } from '@/config/scoring'
+import { archiveRequests } from '@/app/(dashboard)/requests/archive-actions'
 
 interface RequestRow {
   scoringConfig?: ScoringConfig
@@ -53,6 +54,7 @@ interface VoteSummaryRow {
 }
 
 interface BulkRequestTableProps {
+  archiveMode?: 'archive' | 'restore'
   requests: RequestRow[]
   voteSummaries: VoteSummaryRow[]
   columns: ("quality" | "complexity")[]
@@ -72,12 +74,27 @@ export function BulkRequestTable({
   voteSummaries,
   columns,
   statusActions,
+  archiveMode,
 }: BulkRequestTableProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [showTagInput, setShowTagInput] = useState(false)
   const [tagInput, setTagInput] = useState("")
   const [tagMode, setTagMode] = useState<"add" | "remove">("add")
+  const [archiveFeedback, setArchiveFeedback] = useState('')
+
+  async function handleArchive() {
+    setLoading(true)
+    setArchiveFeedback('')
+    try {
+      const results = await archiveRequests([...selected], archiveMode === 'archive')
+      const failed = results.filter(result => !result.success)
+      setSelected(new Set(failed.map(result => result.requestId)))
+      const succeeded = results.length - failed.length
+      setArchiveFeedback(`${succeeded} request${succeeded === 1 ? '' : 's'} ${archiveMode === 'archive' ? 'archived' : 'restored'}.${failed.length ? ` ${failed.length} unchanged: ${[...new Set(failed.map(result => result.error))].join(' ')}` : ''}`)
+    } catch { setArchiveFeedback('Unable to update requests. Please retry.') }
+    finally { setLoading(false) }
+  }
 
   const voteMap = new Map(voteSummaries.map((v) => [v.requestId, v]))
   const allSelected = requests.length > 0 && selected.size === requests.length
@@ -136,6 +153,7 @@ export function BulkRequestTable({
 
   return (
     <div className="space-y-3">
+      {archiveFeedback && <p role="status" className="text-sm">{archiveFeedback}</p>}
       {selected.size > 0 && (
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="flex flex-wrap items-center gap-2 py-3">
@@ -143,6 +161,7 @@ export function BulkRequestTable({
               {selected.size} selected
             </span>
             <span className="text-muted-foreground">|</span>
+            {archiveMode && <Button size="sm" variant="outline" disabled={loading} onClick={handleArchive}>{archiveMode === 'archive' ? 'Archive selected' : 'Restore selected'}</Button>}
 
             {statusActions.map((action) => (
               <Button

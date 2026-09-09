@@ -37,8 +37,9 @@ test('machine endpoints authenticate without browser cookies through the real pr
     data: { type: 'url_verification', challenge: 'unsigned' }, maxRedirects: 0,
   })).status()).toBe(401);
   const teams = await request.post('/api/teams/messages', { data: { type: 'message' }, maxRedirects: 0 });
-  expect([302, 303, 307]).toContain(teams.status());
-  expect(teams.headers().location).toContain('/login');
+  expect(teams.status()).toBe(503);
+  expect((await teams.json()).code).toBe('TEAMS_COMMANDS_UNAVAILABLE');
+  expect(teams.headers().location).toBeUndefined();
   const dashboard = await request.get('/requests', { maxRedirects: 0 });
   expect([302, 303, 307]).toContain(dashboard.status());
   expect(dashboard.headers().location).toContain('/login');

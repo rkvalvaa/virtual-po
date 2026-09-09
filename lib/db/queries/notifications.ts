@@ -1,8 +1,9 @@
-import { query } from '@/lib/db/pool';
+import { query, transaction } from '@/lib/db/pool';
 import { mapRow, mapRows } from '@/lib/db/mappers';
 import type { Notification, NotificationType } from '@/lib/types/database';
 import { getUserEmailForNotification } from '@/lib/db/queries/email-preferences';
-import { sendNotificationEmail } from '@/lib/email/send';
+import { enqueueNotificationEmail } from '@/lib/email/outbox';
+import { listRequestEventNotificationRecipients } from '@/lib/db/queries/collaboration';
 
 export async function createNotification(params: {
   organizationId: string;
@@ -34,39 +35,71 @@ export async function createNotification(params: {
 
 export async function getNotificationsByUser(
   userId: string,
+  orgId: string,
   limit = 20,
   offset = 0
 ): Promise<Notification[]> {
   const result = await query(
-    `SELECT * FROM notifications
-     WHERE user_id = $1
-     ORDER BY created_at DESC
-     LIMIT $2 OFFSET $3`,
-    [userId, limit, offset]
+    `SELECT n.* FROM notifications n
+     WHERE n.user_id = $1
+       AND n.organization_id = $2
+       AND EXISTS (
+         SELECT 1 FROM organization_users ou
+         WHERE ou.user_id = $1 AND ou.organization_id = $2
+       )
+     ORDER BY n.created_at DESC
+     LIMIT $3 OFFSET $4`,
+    [userId, orgId, limit, offset]
   );
   return mapRows<Notification>(result.rows);
 }
 
-export async function getUnreadCount(userId: string): Promise<number> {
+export async function getUnreadCount(userId: string, orgId: string): Promise<number> {
   const result = await query(
-    `SELECT COUNT(*)::int AS count FROM notifications
-     WHERE user_id = $1 AND is_read = false`,
-    [userId]
+    `SELECT COUNT(*)::int AS count FROM notifications n
+     WHERE n.user_id = $1
+       AND n.organization_id = $2
+       AND n.is_read = false
+       AND EXISTS (
+         SELECT 1 FROM organization_users ou
+         WHERE ou.user_id = $1 AND ou.organization_id = $2
+       )`,
+    [userId, orgId]
   );
   return result.rows[0].count;
 }
 
-export async function markAsRead(notificationId: string, userId: string): Promise<void> {
+export async function markAsRead(
+  notificationId: string,
+  userId: string,
+  orgId: string,
+): Promise<void> {
   await query(
-    `UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2`,
-    [notificationId, userId]
+    `UPDATE notifications n
+     SET is_read = true
+     WHERE n.id = $1
+       AND n.user_id = $2
+       AND n.organization_id = $3
+       AND EXISTS (
+         SELECT 1 FROM organization_users ou
+         WHERE ou.user_id = $2 AND ou.organization_id = $3
+       )`,
+    [notificationId, userId, orgId]
   );
 }
 
-export async function markAllAsRead(userId: string): Promise<void> {
+export async function markAllAsRead(userId: string, orgId: string): Promise<void> {
   await query(
-    `UPDATE notifications SET is_read = true WHERE user_id = $1 AND is_read = false`,
-    [userId]
+    `UPDATE notifications n
+     SET is_read = true
+     WHERE n.user_id = $1
+       AND n.organization_id = $2
+       AND n.is_read = false
+       AND EXISTS (
+         SELECT 1 FROM organization_users ou
+         WHERE ou.user_id = $1 AND ou.organization_id = $2
+       )`,
+    [userId, orgId]
   );
 }
 
@@ -98,26 +131,27 @@ export async function notifyUser(params: {
 }): Promise<void> {
   // Don't notify the actor about their own action
   if (params.actorId && params.userId === params.actorId) return;
-  await createNotification(params);
-
-  // Send email if user has email enabled for this notification type
-  const emailInfo = await getUserEmailForNotification(
-    params.userId,
-    params.organizationId,
-    params.type
-  );
-  if (emailInfo) {
-    sendNotificationEmail({
-      to: emailInfo.email,
-      recipientName: emailInfo.name,
-      type: params.type,
-      title: params.title,
-      message: params.message,
-      link: params.link,
-    }).catch(() => {
-      // fire-and-forget, errors already logged inside sendNotificationEmail
-    });
-  }
+  await transaction(async () => {
+    const notification = await createNotification(params);
+    const emailInfo = await getUserEmailForNotification(
+      params.userId,
+      params.organizationId,
+      params.type
+    );
+    if (emailInfo) {
+      await enqueueNotificationEmail({
+        organizationId: params.organizationId,
+        notificationId: notification.id,
+        recipientUserId: params.userId,
+        recipientEmail: emailInfo.email,
+        recipientName: emailInfo.name,
+        type: params.type,
+        title: params.title,
+        message: params.message,
+        link: params.link,
+      });
+    }
+  });
 }
 
 export async function notifyRequestOwner(params: {
@@ -130,14 +164,25 @@ export async function notifyRequestOwner(params: {
   requestId: string;
   actorId: string;
 }): Promise<void> {
-  await notifyUser({
-    organizationId: params.organizationId,
-    userId: params.requesterId,
-    type: params.type,
-    title: params.title,
-    message: params.message,
-    link: params.link,
-    requestId: params.requestId,
-    actorId: params.actorId,
+  await transaction(async () => {
+    const includeSubscribers = params.type === 'STATUS_CHANGED' || params.type === 'DECISION_MADE';
+    const recipients = await listRequestEventNotificationRecipients(
+      params.requestId,
+      params.organizationId,
+      params.actorId,
+      includeSubscribers,
+    );
+    for (const userId of recipients) {
+      await notifyUser({
+        organizationId: params.organizationId,
+        userId,
+        type: params.type,
+        title: params.title,
+        message: params.message,
+        link: params.link,
+        requestId: params.requestId,
+        actorId: params.actorId,
+      });
+    }
   });
 }
