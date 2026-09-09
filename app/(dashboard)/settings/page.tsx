@@ -21,6 +21,10 @@ import type { NotificationType } from "@/lib/types/database"
 import { NOTIFICATION_TYPES } from "@/lib/types/database"
 import "@/lib/auth/types"
 import { SettingsContent } from "./SettingsContent"
+import { listPendingInvitations } from '@/lib/db/queries/invitations'
+import { invitationEmailReadiness } from '@/lib/email/invitation'
+import { getActivityByOrganization } from '@/lib/db/queries/activity-log'
+import { getScoringPolicy } from '@/lib/db/queries/scoring-policy'
 
 export default async function SettingsPage() {
   const session = await requireAuth()
@@ -97,6 +101,10 @@ export default async function SettingsPage() {
     joinedAt: ou.createdAt.toISOString(),
   }))
 
+  const [invitations, administrationHistory] = session.user.role === 'ADMIN'
+    ? await Promise.all([listPendingInvitations(orgId), getActivityByOrganization(orgId, 100)])
+    : [[], []]
+
   const objectives = objectivesWithKr.map((obj) => ({
     id: obj.id,
     title: obj.title,
@@ -134,6 +142,12 @@ export default async function SettingsPage() {
         createdAt: organization.createdAt.toISOString(),
       }}
       members={members}
+      scoringPolicy={await getScoringPolicy(orgId)}
+      invitations={invitations}
+      invitationReadiness={invitationEmailReadiness()}
+      administrationHistory={administrationHistory.filter(event => ['ORGANIZATION_UPDATED', 'MEMBER_UPDATED', 'INVITATION_UPDATED'].includes(event.action)).map(event => ({
+        id: event.id, action: event.action, metadata: event.metadata, userName: event.userName, createdAt: event.createdAt.toISOString(),
+      }))}
       userRole={session.user.role}
       currentUserId={session.user.id}
       repositories={repositories.map((r) => ({

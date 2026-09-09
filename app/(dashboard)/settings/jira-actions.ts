@@ -7,17 +7,18 @@ import {
   upsertIntegration,
   deactivateIntegration,
   logJiraSync,
-  updateEpicJiraKeys,
-  updateStoryJiraKeys,
+
+
   updateFeatureRequestJiraKeys,
 } from "@/lib/db/queries/jira-sync"
 import {
   createJiraClient,
   getJiraClientFromIntegration,
 } from "@/lib/jira/client"
-import { getEpicByRequestId, getStoriesByEpicId } from "@/lib/db/queries/epics"
-import { createFeatureRequest } from "@/lib/db/queries/feature-requests"
+import { getEpicByRequestId } from "@/lib/db/queries/epics"
+import { createFeatureRequest, getFeatureRequestById } from "@/lib/db/queries/feature-requests"
 import { canAccess } from "@/lib/auth/rbac"
+import { exportJira } from "@/lib/export/adapters"
 import "@/lib/auth/types"
 
 export async function connectJira(
@@ -151,12 +152,17 @@ export async function syncEpicToJira(
       return { success: false, error: "No Jira integration found." }
     }
 
-    const epic = await getEpicByRequestId(requestId)
+    const request = await getFeatureRequestById(requestId)
+    if (!request || request.organizationId !== orgId) {
+      return { success: false, error: "Request not found." }
+    }
+
+    const epic = await getEpicByRequestId(requestId, orgId)
     if (!epic) {
       return { success: false, error: "No epic found for this request." }
     }
 
-    const stories = await getStoriesByEpicId(epic.id)
+
     const client = getJiraClientFromIntegration(integration)
     const resolvedProjectKey =
       projectKey ?? (integration.config.defaultProjectKey as string)
@@ -165,57 +171,14 @@ export async function syncEpicToJira(
       return { success: false, error: "No project key specified." }
     }
 
-    // Create the Jira epic
-    const jiraEpic = await client.createIssue(
-      resolvedProjectKey,
-      "Epic",
-      epic.title,
-      epic.description ?? undefined
-    )
-
-    const baseUrl = (integration.config.baseUrl as string).replace(/\/$/, "")
-    const epicUrl = `${baseUrl}/browse/${jiraEpic.key}`
-
-    await updateEpicJiraKeys(epic.id, jiraEpic.key, epicUrl)
-    await logJiraSync(orgId, "EPIC", epic.id, jiraEpic.key, "PUSH", "SUCCESS")
-
-    // Create Jira stories linked to the epic
-    for (const story of stories) {
-      try {
-        const description = `As ${story.asA}, I want ${story.iWant}, so that ${story.soThat}`
-        const jiraStory = await client.createIssue(
-          resolvedProjectKey,
-          "Story",
-          story.title,
-          description,
-          { parent: { key: jiraEpic.key } }
-        )
-
-        const storyUrl = `${baseUrl}/browse/${jiraStory.key}`
-        await updateStoryJiraKeys(story.id, jiraStory.key, storyUrl)
-        await logJiraSync(
-          orgId,
-          "STORY",
-          story.id,
-          jiraStory.key,
-          "PUSH",
-          "SUCCESS"
-        )
-      } catch {
-        await logJiraSync(
-          orgId,
-          "STORY",
-          story.id,
-          "",
-          "PUSH",
-          "FAILED",
-          `Failed to create Jira story for: ${story.title}`
-        )
-      }
+    const projects = await client.getProjects()
+    if (!projects.some(project => project.key === resolvedProjectKey)) {
+      return { success: false, error: "Select an accessible Jira project." }
     }
 
+    const result = await exportJira({ requestId, orgId, userId: session.user.id }, resolvedProjectKey, integration.config.baseUrl as string, client)
     revalidatePath(`/requests/${requestId}`)
-    return { success: true, jiraEpicKey: jiraEpic.key, jiraEpicUrl: epicUrl }
+    return { ...result, jiraEpicKey: result.items[0]?.external?.id, jiraEpicUrl: result.items[0]?.external?.url }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to sync to Jira."
     return { success: false, error: message }

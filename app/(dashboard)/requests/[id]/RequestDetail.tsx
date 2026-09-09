@@ -18,6 +18,8 @@ import { CommentThread } from "@/components/review/CommentThread"
 import { QualityIndicator } from "@/components/chat/QualityIndicator"
 import { JiraSyncButton } from "@/components/requests/JiraSyncButton"
 import { LinearSyncButton } from "@/components/requests/LinearSyncButton"
+import { TrackerExport } from '@/components/requests/TrackerExport'
+import type { ExportResult } from '@/lib/export/durable'
 import { VoteWidget } from "@/components/requests/VoteWidget"
 import { ActivityTimeline } from "@/components/requests/ActivityTimeline"
 import { CustomFieldsCard } from "@/components/requests/CustomFieldsCard"
@@ -25,6 +27,7 @@ import type { CustomFieldsCardProps } from "@/components/requests/CustomFieldsCa
 import { AttachmentsCard } from "@/components/requests/AttachmentsCard"
 import type { AttachmentView } from "@/components/requests/AttachmentsCard"
 import { ArrowLeft, FileDown } from "lucide-react"
+import { assessmentScoringPolicy } from '@/config/scoring-policy'
 
 interface RequestDetailProps {
   request: {
@@ -101,6 +104,9 @@ interface RequestDetailProps {
   linearProjectId: string | null
   linearProjectUrl: string | null
   hasLinearIntegration: boolean
+  hasGitHubIntegration?: boolean
+  githubIssueUrl?: string | null
+  exportResults?: Array<ExportResult & { provider: string }>
   currentVote: {
     voteValue: number
     rationale: string | null
@@ -170,6 +176,9 @@ export function RequestDetail({
   linearProjectId,
   linearProjectUrl,
   hasLinearIntegration,
+  hasGitHubIntegration = false,
+  githubIssueUrl,
+  exportResults = [],
   currentVote,
   votes,
   voteSummary,
@@ -197,6 +206,7 @@ export function RequestDetail({
       </div>
 
       {/* Header */}
+      {canEditCustomFields && <Button variant="outline" asChild><Link href={`/requests/${request.id}/edit`}>Refine request / reassess</Link></Button>}
       {canEditCustomFields && <Button asChild><Link href={`/requests/${request.id}/workflow`}>
         {request.intakeComplete ? "Continue request workflow" : "Resume intake"}
       </Link></Button>}
@@ -204,7 +214,7 @@ export function RequestDetail({
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight">{request.title}</h1>
           <StatusBadge status={request.status} />
-          <PriorityBadge score={request.priorityScore} />
+          <PriorityBadge score={request.priorityScore} config={assessmentScoringPolicy(request.assessmentData).config} />
           {request.complexity && (
             <Badge variant="outline">Complexity: {request.complexity}</Badge>
           )}
@@ -361,13 +371,18 @@ export function RequestDetail({
                 jiraEpicKey={jiraEpicKey}
                 jiraEpicUrl={jiraEpicUrl}
                 hasJiraIntegration={hasJiraIntegration}
+                initial={exportResults.find(result => result.provider === 'JIRA')}
+                canExport={userRole === 'ADMIN' || userRole === 'REVIEWER'}
               />
               <LinearSyncButton
                 requestId={requestId}
                 linearProjectId={linearProjectId}
                 linearProjectUrl={linearProjectUrl}
                 hasLinearIntegration={hasLinearIntegration}
+                initial={exportResults.find(result => result.provider === 'LINEAR')}
+                canExport={userRole === 'ADMIN' || userRole === 'REVIEWER'}
               />
+              {hasGitHubIntegration && <TrackerExport requestId={requestId} provider="GITHUB_ISSUES" url={githubIssueUrl} initial={exportResults.find(result => result.provider === 'GITHUB_ISSUES')} canExport={userRole === 'ADMIN' || userRole === 'REVIEWER'} />}
               <StoryList stories={stories} />
             </>
           ) : (

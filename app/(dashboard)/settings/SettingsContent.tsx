@@ -4,21 +4,9 @@ import { SettingsSections, SettingsNavigation, SettingsPanel } from "@/component
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
 import { RepositorySettings } from "@/components/settings/RepositorySettings"
 import { OkrSettings } from "@/components/settings/OkrSettings"
 import { CapacitySettings } from "@/components/settings/CapacitySettings"
@@ -47,8 +35,18 @@ import { ReviewCycleSettings } from "@/components/settings/ReviewCycleSettings"
 import type { ReviewCycleSettingsProps } from "@/components/settings/ReviewCycleSettings"
 import type { NotificationType } from "@/lib/types/database"
 import { defaultScoringConfig } from "@/config/scoring"
+import type { ScoringPolicy } from '@/config/scoring-policy'
+import { ScoringSettings } from '@/components/settings/ScoringSettings'
+import { OrganizationSettings } from "@/components/settings/OrganizationSettings"
+import { MemberSettings } from "@/components/settings/MemberSettings"
+import { InvitationSettings } from '@/components/settings/InvitationSettings'
+import type { PendingInvitation } from '@/lib/db/queries/invitations'
 
 interface SettingsContentProps {
+  scoringPolicy?: ScoringPolicy
+  invitations?: PendingInvitation[]
+  invitationReadiness?: string | null
+  administrationHistory?: { id: string; action: string; metadata: Record<string, unknown>; userName: string | null; createdAt: string }[]
   organization: {
     id: string
     name: string
@@ -114,20 +112,6 @@ interface SettingsContentProps {
   emailPreferences: Record<NotificationType, boolean>
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
-}
-
-const roleBadgeVariant: Record<string, "default" | "secondary" | "outline"> = {
-  ADMIN: "default",
-  REVIEWER: "secondary",
-  STAKEHOLDER: "outline",
-}
-
 export function SettingsContent({
   organization,
   members,
@@ -155,32 +139,11 @@ export function SettingsContent({
   reviewCycleConfig,
   reviewCycles,
   emailPreferences,
+  invitations = [],
+  invitationReadiness = null,
+  administrationHistory = [],
+  scoringPolicy = { version: 0, config: defaultScoringConfig },
 }: SettingsContentProps) {
-  const scoringSettings = organization.settings?.scoring as
-    | Record<string, unknown>
-    | undefined
-  const frameworkName =
-    (scoringSettings?.framework as string) ?? defaultScoringConfig.framework
-  const weights = {
-    business:
-      (scoringSettings?.weights as Record<string, number>)?.business ??
-      defaultScoringConfig.weights.business,
-    technical:
-      (scoringSettings?.weights as Record<string, number>)?.technical ??
-      defaultScoringConfig.weights.technical,
-    risk:
-      (scoringSettings?.weights as Record<string, number>)?.risk ??
-      defaultScoringConfig.weights.risk,
-  }
-  const thresholds = {
-    highPriority:
-      (scoringSettings?.thresholds as Record<string, number>)?.highPriority ??
-      defaultScoringConfig.thresholds.highPriority,
-    mediumPriority:
-      (scoringSettings?.thresholds as Record<string, number>)
-        ?.mediumPriority ?? defaultScoringConfig.thresholds.mediumPriority,
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -194,187 +157,25 @@ export function SettingsContent({
         <SettingsNavigation />
 
         <SettingsPanel value="organization">
-          <Card>
-            <CardHeader>
-              <CardTitle>Organization Details</CardTitle>
-              <CardDescription>
-                Your organization information. Editing will be available in a
-                future update.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-1">
-                <p className="text-muted-foreground text-sm font-medium">
-                  Name
-                </p>
-                <p className="text-sm">{organization.name}</p>
-              </div>
-              <Separator />
-              <div className="grid gap-1">
-                <p className="text-muted-foreground text-sm font-medium">
-                  Slug
-                </p>
-                <p className="text-sm font-mono">{organization.slug}</p>
-              </div>
-              <Separator />
-              <div className="grid gap-1">
-                <p className="text-muted-foreground text-sm font-medium">
-                  Created
-                </p>
-                <p className="text-sm">{formatDate(organization.createdAt)}</p>
-              </div>
-            </CardContent>
-          </Card>
+          <OrganizationSettings organization={organization} userRole={userRole} />
         </SettingsPanel>
 
         <SettingsPanel value="scoring">
-          <Card>
-            <CardHeader>
-              <CardTitle>Scoring Configuration</CardTitle>
-              <CardDescription>
-                Priority scoring framework and weights. Editing will be
-                available in a future update.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-1">
-                <p className="text-muted-foreground text-sm font-medium">
-                  Framework
-                </p>
-                <p className="text-sm">{frameworkName}</p>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-3">
-                <p className="text-muted-foreground text-sm font-medium">
-                  Weights
-                </p>
-                <div className="flex h-8 w-full overflow-hidden rounded-md">
-                  <div
-                    className="bg-primary flex items-center justify-center text-xs font-medium text-primary-foreground"
-                    style={{ width: `${weights.business * 100}%` }}
-                  >
-                    Business {Math.round(weights.business * 100)}%
-                  </div>
-                  <div
-                    className="bg-secondary flex items-center justify-center text-xs font-medium text-secondary-foreground"
-                    style={{ width: `${weights.technical * 100}%` }}
-                  >
-                    Technical {Math.round(weights.technical * 100)}%
-                  </div>
-                  <div
-                    className="bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground"
-                    style={{ width: `${weights.risk * 100}%` }}
-                  >
-                    Risk {Math.round(weights.risk * 100)}%
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-3">
-                <p className="text-muted-foreground text-sm font-medium">
-                  Priority Thresholds
-                </p>
-                <div className="grid gap-2 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="flex items-center gap-2">
-                      <span className="bg-green-500 inline-block h-2.5 w-2.5 rounded-full" />
-                      High Priority
-                    </span>
-                    <span className="text-muted-foreground">
-                      Score &ge; {thresholds.highPriority}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <span className="bg-yellow-500 inline-block h-2.5 w-2.5 rounded-full" />
-                      Medium Priority
-                    </span>
-                    <span className="text-muted-foreground">
-                      Score &ge; {thresholds.mediumPriority}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <span className="bg-muted-foreground inline-block h-2.5 w-2.5 rounded-full" />
-                      Low Priority
-                    </span>
-                    <span className="text-muted-foreground">
-                      Score &lt; {thresholds.mediumPriority}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <ScoringSettings policy={scoringPolicy} userRole={userRole} />
         </SettingsPanel>
 
         <SettingsPanel value="members">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <CardTitle>Members</CardTitle>
-                  <CardDescription>
-                    {members.length} member{members.length !== 1 ? "s" : ""} in
-                    your organization.
-                  </CardDescription>
-                </div>
-                {userRole === "ADMIN" && (
-                  <Button disabled title="Coming soon">
-                    Invite Member
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Joined</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {members.map((member) => (
-                    <TableRow
-                      key={member.userId}
-                      className={
-                        member.userId === currentUserId
-                          ? "bg-muted/50"
-                          : undefined
-                      }
-                    >
-                      <TableCell className="font-medium">
-                        {member.userName ?? "Unknown"}
-                        {member.userId === currentUserId && (
-                          <span className="text-muted-foreground ml-2 text-xs">
-                            (you)
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>{member.userEmail}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={roleBadgeVariant[member.role] ?? "outline"}
-                        >
-                          {member.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatDate(member.joinedAt)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <MemberSettings members={members} currentUserId={currentUserId} userRole={userRole} />
+          {userRole === 'ADMIN' && <div className="mt-4 space-y-4">
+            <InvitationSettings invitations={invitations} readiness={invitationReadiness} />
+            <Card><CardHeader><CardTitle>Administration history</CardTitle></CardHeader><CardContent className="space-y-3">
+              {!administrationHistory.length && <p className="text-sm text-muted-foreground">No administration changes recorded.</p>}
+              {administrationHistory.map(event => <div key={event.id} className="border-b pb-2 text-sm">
+                <p>{event.userName ?? 'Member'} · {event.action.replaceAll('_', ' ').toLowerCase()} · {new Date(event.createdAt).toLocaleString()}</p>
+                <p className="break-words text-muted-foreground">{Object.entries(event.metadata).map(([key, value]) => `${key}: ${String(value)}`).join(' · ')}</p>
+              </div>)}
+            </CardContent></Card>
+          </div>}
         </SettingsPanel>
 
         <SettingsPanel value="repositories">

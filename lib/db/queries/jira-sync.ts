@@ -116,25 +116,37 @@ export async function updateFeatureRequestJiraKeys(
 export async function updateEpicJiraKeys(
   epicId: string,
   jiraKey: string,
-  jiraUrl: string
+  jiraUrl: string,
+  scope: { requestId: string; orgId: string }
 ): Promise<void> {
-  await query(
+  const result = await query(
     `UPDATE epics
      SET jira_epic_key = $1, jira_epic_url = $2, updated_at = NOW()
-     WHERE id = $3`,
-    [jiraKey, jiraUrl, epicId]
+     WHERE id = $3 AND EXISTS (
+       SELECT 1 FROM feature_requests r
+       WHERE r.id = $4 AND r.organization_id = $5
+         AND epics.request_id = r.id
+     )`,
+    [jiraKey, jiraUrl, epicId, scope.requestId, scope.orgId]
   );
+  if (result.rowCount !== 1) throw new Error('Export target not found in this organization.');
 }
 
 export async function updateStoryJiraKeys(
   storyId: string,
   jiraKey: string,
-  jiraUrl: string
+  jiraUrl: string,
+  scope: { requestId: string; orgId: string }
 ): Promise<void> {
-  await query(
+  const result = await query(
     `UPDATE user_stories
      SET jira_story_key = $1, jira_story_url = $2, updated_at = NOW()
-     WHERE id = $3`,
-    [jiraKey, jiraUrl, storyId]
+     WHERE id = $3 AND EXISTS (
+       SELECT 1 FROM feature_requests r JOIN epics e ON e.request_id = r.id
+       WHERE r.id = $4 AND r.organization_id = $5
+         AND user_stories.epic_id = e.id
+     )`,
+    [jiraKey, jiraUrl, storyId, scope.requestId, scope.orgId]
   );
+  if (result.rowCount !== 1) throw new Error('Export target not found in this organization.');
 }

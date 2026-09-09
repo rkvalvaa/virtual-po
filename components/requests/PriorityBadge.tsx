@@ -2,22 +2,24 @@
 
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
+import { defaultScoringConfig, getPriorityLabel, type ScoringConfig } from '@/config/scoring'
 
 interface PriorityBadgeProps {
   score: number | null
+  config?: ScoringConfig
 }
 
-export function PriorityBadge({ score }: PriorityBadgeProps) {
+export function PriorityBadge({ score, config = defaultScoringConfig }: PriorityBadgeProps) {
   if (score === null) return null
 
   const colorClass =
-    score >= 75
+    score >= config.thresholds.highPriority
       ? "bg-green-500/15 text-green-600 border-transparent"
-      : score >= 50
+      : score >= config.thresholds.mediumPriority
         ? "bg-yellow-500/15 text-yellow-600 border-transparent"
         : "bg-red-500/15 text-red-600 border-transparent"
 
-  const label = score >= 75 ? "High" : score >= 50 ? "Medium" : "Low"
+  const label = getPriorityLabel(score, config)
 
   return (
     <Badge variant="outline" className={cn(colorClass)}>

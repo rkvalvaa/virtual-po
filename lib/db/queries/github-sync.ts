@@ -62,25 +62,37 @@ export async function updateFeatureRequestGitHubKeys(
 export async function updateEpicGitHubKeys(
   epicId: string,
   issueNumber: number,
-  issueUrl: string
+  issueUrl: string,
+  scope: { requestId: string; orgId: string }
 ): Promise<void> {
-  await query(
+  const result = await query(
     `UPDATE epics
      SET github_issue_number = $1, github_issue_url = $2, updated_at = NOW()
-     WHERE id = $3`,
-    [issueNumber, issueUrl, epicId]
+     WHERE id = $3 AND EXISTS (
+       SELECT 1 FROM feature_requests r
+       WHERE r.id = $4 AND r.organization_id = $5
+         AND epics.request_id = r.id
+     )`,
+    [issueNumber, issueUrl, epicId, scope.requestId, scope.orgId]
   );
+  if (result.rowCount !== 1) throw new Error('Export target not found in this organization.');
 }
 
 export async function updateStoryGitHubKeys(
   storyId: string,
   issueNumber: number,
-  issueUrl: string
+  issueUrl: string,
+  scope: { requestId: string; orgId: string }
 ): Promise<void> {
-  await query(
+  const result = await query(
     `UPDATE user_stories
      SET github_issue_number = $1, github_issue_url = $2, updated_at = NOW()
-     WHERE id = $3`,
-    [issueNumber, issueUrl, storyId]
+     WHERE id = $3 AND EXISTS (
+       SELECT 1 FROM feature_requests r JOIN epics e ON e.request_id = r.id
+       WHERE r.id = $4 AND r.organization_id = $5
+         AND user_stories.epic_id = e.id
+     )`,
+    [issueNumber, issueUrl, storyId, scope.requestId, scope.orgId]
   );
+  if (result.rowCount !== 1) throw new Error('Export target not found in this organization.');
 }

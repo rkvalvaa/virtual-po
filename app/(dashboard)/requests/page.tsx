@@ -18,6 +18,7 @@ import { Plus } from "lucide-react"
 import { ExportButton } from "@/components/shared/ExportButton"
 import type { RequestStatus, Complexity } from "@/lib/types/database"
 import type { SearchFilters } from "@/lib/db/queries/feature-requests"
+import { assessmentScoringPolicy } from '@/config/scoring-policy'
 
 interface RequestsPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -178,6 +179,7 @@ export default async function RequestsPage({
               title: r.title,
               status: r.status,
               priorityScore: r.priorityScore,
+              scoringConfig: assessmentScoringPolicy(r.assessmentData).config,
               qualityScore: r.qualityScore,
               complexity: r.complexity,
               tags: r.tags,

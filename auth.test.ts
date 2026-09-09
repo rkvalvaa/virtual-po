@@ -38,6 +38,18 @@ describe.skipIf(!hasDb())('existing JWT membership revalidation', () => {
     expect(await refresh()).toMatchObject({ orgId: org.id, role: 'STAKEHOLDER' });
   });
 
+  it('switches only to a workspace with a current membership and derives its role from the database', async () => {
+    const target = await createTestOrg('session-destination');
+    try {
+      const callback = capture.config!.callbacks!.jwt!;
+      const token: JWT = { id: user.id, orgId: org.id, role: 'ADMIN' };
+      const update = { token, account: null, trigger: 'update', session: { user: { orgId: target.id, role: 'ADMIN' } } };
+      expect(await callback(update as Parameters<typeof callback>[0])).toMatchObject({ orgId: org.id });
+      await query("INSERT INTO organization_users (organization_id, user_id, role) VALUES ($1, $2, 'STAKEHOLDER')", [target.id, user.id]);
+      expect(await callback(update as Parameters<typeof callback>[0])).toMatchObject({ orgId: target.id, role: 'STAKEHOLDER' });
+    } finally { await cleanupTestOrg(target); }
+  });
+
   it('invalidates a token for a removed member without provisioning new access', async () => {
     await query('DELETE FROM organization_users WHERE organization_id = $1 AND user_id = $2', [org.id, user.id]);
     expect(await refresh()).toBeNull();

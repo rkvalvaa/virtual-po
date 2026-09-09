@@ -3,6 +3,8 @@
 import { cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { assessmentScoringPolicy } from '@/config/scoring-policy'
+import { getPriorityLabel, type ScoringConfig } from '@/config/scoring'
 
 interface AssessmentViewProps {
   assessmentData: Record<string, unknown> | null
@@ -13,16 +15,10 @@ interface AssessmentViewProps {
   complexity: string | null
 }
 
-function getPriorityColor(score: number): string {
-  if (score >= 75) return "text-green-500"
-  if (score >= 50) return "text-yellow-500"
+function getPriorityColor(score: number, config: ScoringConfig): string {
+  if (score >= config.thresholds.highPriority) return "text-green-500"
+  if (score >= config.thresholds.mediumPriority) return "text-yellow-500"
   return "text-red-500"
-}
-
-function getPriorityLabel(score: number): string {
-  if (score >= 75) return "High Priority"
-  if (score >= 50) return "Medium Priority"
-  return "Low Priority"
 }
 
 function getComplexityColor(complexity: string): string {
@@ -90,6 +86,7 @@ export function AssessmentView({
   priorityScore,
   complexity,
 }: AssessmentViewProps) {
+  const policy = assessmentScoringPolicy(assessmentData)
   const allScoresNull =
     businessScore === null &&
     technicalScore === null &&
@@ -127,11 +124,11 @@ export function AssessmentView({
           <div className="flex flex-col items-center">
             {priorityScore !== null ? (
               <>
-                <span className={cn("text-4xl font-bold", getPriorityColor(priorityScore))}>
+                <span className={cn("text-4xl font-bold", getPriorityColor(priorityScore, policy.config))}>
                   {priorityScore}
                 </span>
                 <span className="text-muted-foreground text-sm">
-                  {getPriorityLabel(priorityScore)}
+                  {getPriorityLabel(priorityScore, policy.config)} Priority
                 </span>
               </>
             ) : (
@@ -158,6 +155,7 @@ export function AssessmentView({
       </Card>
 
       {/* Score Breakdown */}
+      <p className="text-xs text-muted-foreground">Scoring policy version {policy.version} · {policy.config.framework}{!assessmentData?.scoringPolicy ? ' · Legacy assessment; original policy was not recorded.' : ''}</p>
       <Card>
         <CardHeader>
           <CardTitle>Score Breakdown</CardTitle>

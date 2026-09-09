@@ -1,6 +1,7 @@
 import { auth, signIn } from "@/auth";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { loginReturnTo } from '@/lib/auth/return-to';
 import {
   Card,
   CardContent,
@@ -28,8 +29,9 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-export default async function LoginPage() {
-  if ((await auth())?.user) redirect('/requests');
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ returnTo?: string }> }) {
+  const returnTo = loginReturnTo((await searchParams).returnTo);
+  if ((await auth())?.user) redirect(returnTo);
   return (
     <Card>
       <CardHeader className="text-center">
@@ -42,7 +44,7 @@ export default async function LoginPage() {
         <form
           action={async () => {
             "use server";
-            await signIn("github", { redirectTo: "/" });
+            await signIn("github", { redirectTo: returnTo });
           }}
         >
           <Button type="submit" className="w-full" size="lg">
@@ -53,7 +55,7 @@ export default async function LoginPage() {
         <form
           action={async () => {
             "use server";
-            await signIn("google", { redirectTo: "/" });
+            await signIn("google", { redirectTo: returnTo });
           }}
         >
           <Button

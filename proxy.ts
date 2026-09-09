@@ -28,7 +28,7 @@ export const proxy = auth((req) => {
   }
 
   // Public routes that don't require authentication
-  if (pathname === "/" || pathname === "/login") {
+  if (pathname === "/" || pathname === "/login" || /^\/invite\/[a-f0-9]{64}$/.test(pathname)) {
     // Only the server session can determine whether membership was revoked.
     // A stale JWT must not bounce a revoked user away from the login page.
     return

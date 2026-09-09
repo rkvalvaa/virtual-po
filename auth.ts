@@ -7,6 +7,7 @@ import { ensureUserOrganization } from "@/lib/auth/org-setup"
 import { getUserByEmail } from "@/lib/db/queries/users"
 import { getOrganizationRole } from "@/lib/db/queries/organizations"
 import "@/lib/auth/types"
+import { z } from 'zod'
 
 /**
  * Test-only sign-in provider for the Playwright E2E suite.
@@ -42,13 +43,13 @@ const e2eProviders = e2eEnabled
     ]
   : []
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update: updateSession } = NextAuth({
   adapter: PgAdapter(pool),
   session: { strategy: "jwt" },
   ...authConfig,
   providers: [...authConfig.providers, ...e2eProviders],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user?.id) {
         token.id = user.id
 
@@ -59,6 +60,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         )
         token.orgId = orgId
         token.role = role
+      }
+      if (trigger === 'update' && token.id) {
+        const target = z.object({ user: z.object({ orgId: z.uuid() }) }).safeParse(session)
+        if (target.success && await getOrganizationRole(target.data.user.orgId, token.id)) token.orgId = target.data.user.orgId
       }
       // JWTs identify the session; current membership authorizes access. Never
       // provision an organization when refreshing an existing/revoked token.

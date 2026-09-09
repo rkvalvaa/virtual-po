@@ -1,0 +1,23 @@
+import { expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { RefinementEditor } from './RefinementEditor';
+import { saveRequestRefinement } from '@/app/(dashboard)/requests/[id]/edit/actions';
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
+vi.mock('@/app/(dashboard)/requests/[id]/edit/actions', () => ({ saveRequestRefinement: vi.fn(), reassessRequest: vi.fn() }));
+const view = { content: { title: 'Original', summary: 'Summary', epic: { title: 'Epic', description: 'Description', goals: [], successCriteria: [], technicalNotes: '' }, stories: [] }, revision: 'hash', history: [], canEdit: true, canReassess: true, exported: false, status: 'UNDER_REVIEW' };
+it('supports editing and adding a story, retaining the draft on a conflict', async () => {
+  const user = userEvent.setup();
+  render(<RefinementEditor requestId="request" view={view} />);
+  await user.clear(screen.getByLabelText('Request title')); await user.type(screen.getByLabelText('Request title'), 'Human title');
+  await user.click(screen.getByRole('button', { name: 'Add story' }));
+  await user.type(screen.getByLabelText('Story 1 title'), 'New story');
+  await user.type(screen.getByLabelText('Story 1 As a'), 'reviewer');
+  await user.type(screen.getByLabelText('Story 1 I want'), 'editing');
+  await user.type(screen.getByLabelText('Story 1 So that'), 'quality improves');
+  vi.mocked(saveRequestRefinement).mockResolvedValue({ success: false, error: 'Request changed. Reload first.' });
+  await user.click(screen.getByRole('button', { name: 'Save revision' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Request changed');
+  expect(screen.getByLabelText('Request title')).toHaveValue('Human title');
+  expect(saveRequestRefinement).toHaveBeenCalledWith('request', 'hash', expect.objectContaining({ title: 'Human title', stories: [expect.objectContaining({ title: 'New story' })] }));
+});

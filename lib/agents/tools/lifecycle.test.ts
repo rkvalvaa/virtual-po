@@ -5,6 +5,8 @@ import { beginAgentRun } from '@/lib/agents/runs';
 import { createIntakeTools } from './intake-tools';
 import { createAssessmentTools } from './assessment-tools';
 import { getFeatureRequestById } from '@/lib/db/queries/feature-requests';
+import { saveScoringPolicy } from '@/lib/db/queries/scoring-policy';
+import { defaultScoringConfig } from '@/config/scoring';
 import { cleanupTestOrg, createTestOrg, createTestUser, createTestRequest, hasDb, type TestOrg, type TestUser, type TestRequest } from '@/test/db-helpers';
 
 describe.skipIf(!hasDb())('AI tool lifecycle enforcement', () => {
@@ -36,11 +38,25 @@ describe.skipIf(!hasDb())('AI tool lifecycle enforcement', () => {
     const run = await beginAgentRun({ requestId: request.id, orgId: org.id, userId: owner.id, agent: 'assessment' });
     const tools = createAssessmentTools(request.id, org.id, owner.id, run.id);
     const save = () => tools.save_assessment.execute!({ businessScore: 50, technicalScore: 40, riskScore: 30,
-      priorityScore: 45, complexity: 'M', assessmentData: { rationale: 'Verified' } }, toolOptions);
+      policyVersion: 0, scoringInputs: { reach: 5, impact: 3, confidence: 60, effort: 2 },
+      priorityScore: 99, complexity: 'M', assessmentData: { rationale: 'Verified' } }, toolOptions);
     const results = await Promise.allSettled([save(), save()]);
     expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
     expect(await getFeatureRequestById(request.id)).toMatchObject({ status: 'UNDER_REVIEW', priorityScore: 45,
       complexity: 'M', assessmentData: { rationale: 'Verified' } });
+  });
+
+  it('uses canonical policy in context and saves a historical snapshot with a server-calculated score', async () => {
+    await query("UPDATE organization_users SET role = 'ADMIN' WHERE user_id = $1", [owner.id]);
+    const policy = await saveScoringPolicy(org.id, owner.id, { ...defaultScoringConfig, framework: 'CUSTOM', thresholds: { highPriority: 90, mediumPriority: 70 } }, 0);
+    await query("UPDATE feature_requests SET status = 'PENDING_ASSESSMENT', intake_complete = true WHERE id = $1", [request.id]);
+    const run = await beginAgentRun({ requestId: request.id, orgId: org.id, userId: owner.id, agent: 'assessment' });
+    const tools = createAssessmentTools(request.id, org.id, owner.id, run.id);
+    expect(await tools.get_organization_context.execute!({}, toolOptions)).toMatchObject({ version: 1, framework: 'CUSTOM', thresholds: { highPriority: 90, mediumPriority: 70 } });
+    await tools.save_assessment.execute!({ businessScore: 80, technicalScore: 70, riskScore: 30, priorityScore: 99, policyVersion: 1, scoringInputs: {}, complexity: 'M', assessmentData: {} }, toolOptions);
+    expect(await getFeatureRequestById(request.id)).toMatchObject({ priorityScore: 74, assessmentData: { scoringPolicy: policy } });
+    await saveScoringPolicy(org.id, owner.id, defaultScoringConfig, 1);
+    expect(await getFeatureRequestById(request.id)).toMatchObject({ priorityScore: 74, assessmentData: { scoringPolicy: policy } });
   });
 
   it('rejects a live intake tool after requester membership is removed', async () => {

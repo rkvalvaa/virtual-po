@@ -58,6 +58,7 @@ export interface OrganizationUser {
 }
 
 export interface FeatureRequest {
+  humanRefined: boolean;
   id: string;
   organizationId: string;
   requesterId: string;
@@ -508,6 +509,9 @@ export interface SecurityReview {
 }
 
 export const ACTIVITY_ACTIONS = [
+  'ORGANIZATION_UPDATED',
+  'MEMBER_UPDATED',
+  'INVITATION_UPDATED',
   'STATUS_CHANGED',
   'COMMENT_ADDED',
   'DECISION_MADE',
@@ -524,7 +528,7 @@ export const ACTIVITY_ACTIONS = [
 ] as const;
 export type ActivityAction = typeof ACTIVITY_ACTIONS[number];
 
-export const ACTIVITY_ENTITY_TYPES = ['REQUEST', 'COMMENT', 'DECISION', 'VOTE', 'EPIC', 'STORY', 'SECURITY_REVIEW'] as const;
+export const ACTIVITY_ENTITY_TYPES = ['ORGANIZATION', 'REQUEST', 'COMMENT', 'DECISION', 'VOTE', 'EPIC', 'STORY', 'SECURITY_REVIEW'] as const;
 export type ActivityEntityType = typeof ACTIVITY_ENTITY_TYPES[number];
 
 export interface ActivityLog {

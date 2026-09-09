@@ -111,7 +111,7 @@ function workflowCalls(body) {
     if (!used("check_quality_score")) return [{ name: "check_quality_score", input: {} }];
     if (!used("mark_intake_complete")) return [{ name: "mark_intake_complete", input: { summary: "E2E_WORKFLOW CSV export" } }];
   } else if (tools.has("save_assessment")) {
-    if (!used("save_assessment")) return [{ name: "save_assessment", input: { businessScore: 70, technicalScore: 80, riskScore: 20, priorityScore: 75, complexity: "S", assessmentData: { executive_summary: "E2E_WORKFLOW useful CSV export" } } }];
+    if (!used("save_assessment")) return [{ name: "save_assessment", input: { businessScore: 70, technicalScore: 80, riskScore: 20, priorityScore: 75, policyVersion: 0, scoringInputs: { reach: 5, impact: 3, confidence: 100, effort: 2 }, complexity: "S", assessmentData: { executive_summary: "E2E_WORKFLOW useful CSV export" } } }];
   } else if (tools.has("save_security_review")) {
     if (!used("save_security_review")) return [{ name: "save_security_review", input: { categories: [], overallSeverity: "none", summary: "E2E_WORKFLOW no additional concerns", recommendations: [], requiresSecurityReview: false, gaps: [] } }];
   } else if (tools.has("save_epic")) {

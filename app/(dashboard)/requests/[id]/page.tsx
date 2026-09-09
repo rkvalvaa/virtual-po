@@ -6,6 +6,7 @@ import { getDecisionsByRequestId } from "@/lib/db/queries/decisions"
 import { getCommentsWithAuthorByRequestId } from "@/lib/db/queries/comments"
 import { findSimilarByKeywords } from "@/lib/db/queries/outcomes"
 import { getIntegrationByType } from "@/lib/db/queries/jira-sync"
+import { getExportStatus } from '@/lib/export/durable'
 import { getVoteByUser, getVotesByRequest, getVoteSummary } from "@/lib/db/queries/votes"
 import { getActivityByRequest } from "@/lib/db/queries/activity-log"
 import { listCustomFieldDefinitions } from "@/lib/db/queries/custom-fields"
@@ -78,6 +79,10 @@ export default async function RequestDetailPage({
     listRequestApprovalsWithApprover(request.id),
   ])
   const stories = epic ? await getStoriesByEpicId(epic.id) : []
+  const [exports, githubIntegration] = await Promise.all([
+    getExportStatus(request.id, request.organizationId),
+    getIntegrationByType(request.organizationId, 'GITHUB_ISSUES'),
+  ])
 
   // An active workflow with no steps is no gate at all — treat it as absent.
   const hasApprovalChain =
@@ -221,6 +226,9 @@ export default async function RequestDetailPage({
       linearProjectId={epic?.linearProjectId ?? null}
       linearProjectUrl={epic?.linearProjectUrl ?? null}
       hasLinearIntegration={linearIntegration !== null}
+      exportResults={exports}
+      hasGitHubIntegration={githubIntegration !== null}
+      githubIssueUrl={epic?.githubIssueUrl ?? null}
       currentVote={
         currentVote
           ? { voteValue: currentVote.voteValue, rationale: currentVote.rationale }

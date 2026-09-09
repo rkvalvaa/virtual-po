@@ -1,3 +1,5 @@
+import { ExportRejected } from '@/lib/export/errors';
+
 export interface JiraClientConfig {
   baseUrl: string;
   email: string;
@@ -31,12 +33,14 @@ export function createJiraClient(config: JiraClientConfig) {
     const url = `${baseUrl}/rest/api/3${path}`;
     const response = await fetch(url, {
       ...options,
+      signal: AbortSignal.timeout(30_000),
       headers: { ...headers, ...options.headers },
     });
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(
+      const ErrorType = [400, 401, 403, 404, 422, 429].includes(response.status) ? ExportRejected : Error;
+      throw new ErrorType(
         `Jira API error ${response.status} ${response.statusText} on ${options.method ?? 'GET'} ${path}: ${body}`
       );
     }
@@ -72,7 +76,7 @@ export function createJiraClient(config: JiraClientConfig) {
         body: JSON.stringify({ fields }),
       });
 
-      return request<JiraIssue>(`/issue/${created.key}`);
+      return { ...created, fields: { ...fields, summary } };
     },
 
     async updateIssue(issueKey: string, fields: Record<string, unknown>): Promise<void> {
@@ -101,10 +105,11 @@ export function createJiraClient(config: JiraClientConfig) {
     },
 
     async searchIssues(jql: string, maxResults = 50): Promise<{ issues: JiraIssue[]; total: number }> {
-      return request<{ issues: JiraIssue[]; total: number }>('/search', {
+      const result = await request<{ issues: JiraIssue[]; total?: number }>('/search/jql', {
         method: 'POST',
-        body: JSON.stringify({ jql, maxResults }),
+        body: JSON.stringify({ jql, maxResults, fields: ['summary', 'description', 'status', 'project', 'issuetype'] }),
       });
+      return { issues: result.issues, total: result.total ?? result.issues.length };
     },
 
     async getProjects(): Promise<Array<{ id: string; key: string; name: string }>> {

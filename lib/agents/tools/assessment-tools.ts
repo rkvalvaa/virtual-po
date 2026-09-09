@@ -5,9 +5,10 @@ import {
   updateFeatureRequestStatus,
 } from '@/lib/db/queries/feature-requests';
 import { query } from '@/lib/db/pool';
-import { mapRow, mapRows } from '@/lib/db/mappers';
-import type { FeatureRequest, PriorityConfig, Complexity } from '@/lib/types/database';
-import { defaultScoringConfig } from '@/config/scoring';
+import { mapRows } from '@/lib/db/mappers';
+import type { FeatureRequest, Complexity } from '@/lib/types/database';
+import { getScoringPolicy } from '@/lib/db/queries/scoring-policy';
+import { calculatePolicyScore } from '@/config/scoring-policy';
 import { getGitHubToken, getRepoTree, getFileContent } from '@/lib/github/client';
 import { getActiveRepositoriesForOrg } from '@/lib/db/queries/repositories';
 import { getActiveObjectives, getKeyResultsByObjectiveId } from '@/lib/db/queries/okrs';
@@ -24,21 +25,8 @@ export function createAssessmentTools(requestId: string, orgId: string, userId: 
         "Retrieve the organization's scoring configuration and priorities",
       inputSchema: z.object({}),
       execute: async () => {
-        const result = await query(
-          `SELECT * FROM priority_configs WHERE organization_id = $1 AND is_default = true LIMIT 1`,
-          [orgId]
-        );
-
-        if (result.rows.length > 0) {
-          const config = mapRow<PriorityConfig>(result.rows[0]);
-          return {
-            framework: config.framework,
-            weights: config.weights,
-            thresholds: defaultScoringConfig.thresholds,
-          };
-        }
-
-        return defaultScoringConfig;
+        const policy = await getScoringPolicy(orgId);
+        return { ...policy.config, version: policy.version };
       },
     }),
 
@@ -221,7 +209,9 @@ export function createAssessmentTools(requestId: string, orgId: string, userId: 
         businessScore: z.number().min(0).max(100),
         technicalScore: z.number().min(0).max(100),
         riskScore: z.number().min(0).max(100),
-        priorityScore: z.number().min(0).max(100),
+        priorityScore: z.number().min(0).max(100).optional().describe('Optional recommendation; the server calculates the authoritative score.'),
+        policyVersion: z.number().int().nonnegative().describe('Version returned by get_organization_context. Refresh context if the policy changed.'),
+        scoringInputs: z.record(z.string(), z.number()).describe('RICE: reach, impact (0-3), confidence (0-100), effort (>0). WSJF: businessValue, timeCriticality, riskReduction (0-10), jobSize (>0). CUSTOM: empty object.'),
         complexity: z.enum(['XS', 'S', 'M', 'L', 'XL']),
         assessmentData: z
           .record(z.string(), z.unknown())
@@ -233,11 +223,15 @@ export function createAssessmentTools(requestId: string, orgId: string, userId: 
         businessScore,
         technicalScore,
         riskScore,
-        priorityScore,
+        policyVersion,
+        scoringInputs,
         complexity,
         assessmentData,
       }) => {
-        await updateAssessmentData(requestId, assessmentData, {
+        const policy = await getScoringPolicy(orgId);
+        if (policy.version !== policyVersion) throw new Error('Scoring policy changed. Call get_organization_context and assess using the current policy.');
+        const priorityScore = calculatePolicyScore(policy.config, { businessScore, technicalScore, riskScore }, scoringInputs);
+        await updateAssessmentData(requestId, { ...assessmentData, scoringPolicy: policy, scoringInputs }, {
           businessScore,
           technicalScore,
           riskScore,
