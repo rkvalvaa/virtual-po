@@ -4,6 +4,7 @@ import { PgAdapter } from "@/lib/auth/adapter"
 import pool from "@/lib/db/pool"
 import authConfig from "./auth.config"
 import { ensureUserOrganization } from "@/lib/auth/org-setup"
+import { isSignInAllowed } from "@/lib/auth/sign-in-policy"
 import { getUserByEmail } from "@/lib/db/queries/users"
 import { getOrganizationRole } from "@/lib/db/queries/organizations"
 import { rememberWorkspace } from "@/lib/db/queries/workspaces"
@@ -50,6 +51,13 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
   ...authConfig,
   providers: [...authConfig.providers, ...e2eProviders],
   callbacks: {
+    // Closed registration: OAuth identities must be invited, already members,
+    // or on an allowlisted domain. The E2E credentials provider only ever
+    // returns users that already exist, so it needs no further gate.
+    async signIn({ user, account }) {
+      if (account?.provider === "credentials") return true
+      return isSignInAllowed(user.email ?? "")
+    },
     async jwt({ token, user, trigger, session }) {
       if (user?.id) {
         token.id = user.id
