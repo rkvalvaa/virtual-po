@@ -39,7 +39,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <CardHeader className="text-center">
         <CardTitle className="text-xl">Sign in to Virtual Product Owner</CardTitle>
         <CardDescription>
-          Choose a provider to sign in and manage your feature requests.
+          Access is by invitation. Sign in with the account your invitation
+          was sent to.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
