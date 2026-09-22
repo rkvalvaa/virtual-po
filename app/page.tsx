@@ -687,9 +687,6 @@ export default function Home() {
               </Link>
             </Button>
           </div>
-          <p className="mt-4 text-sm text-muted-foreground">
-            Free to try. No credit card required.
-          </p>
         </div>
       </section>
     </div>
