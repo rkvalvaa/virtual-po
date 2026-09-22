@@ -1,7 +1,5 @@
-import NextAuth from "next-auth"
-import authConfig from "./auth.config"
-
-const { auth } = NextAuth(authConfig)
+import type { NextRequest } from "next/server"
+import { getToken } from "next-auth/jwt"
 
 // These handlers authenticate API keys, signed Slack requests, or cron tokens
 // themselves. Keep this list explicit; other APIs still require a user session.
@@ -14,9 +12,23 @@ function usesMachineAuthentication(pathname: string): boolean {
   ].includes(pathname)
 }
 
-export const proxy = auth((req) => {
+const SECURE_SESSION_COOKIE = "__Secure-authjs.session-token"
+
+/**
+ * Read-only session check. The Auth.js `auth()` middleware wrapper re-issues
+ * the session cookie on every response, so a slow prefetch finishing after a
+ * workspace switch would overwrite the new token with the stale one. Decoding
+ * the JWT directly sets nothing.
+ */
+async function hasSession(req: NextRequest): Promise<boolean> {
+  // Auth.js chunks large cookies (`name.0`, `name.1`), so match by prefix.
+  const secureCookie = req.cookies.getAll().some(c => c.name.startsWith(SECURE_SESSION_COOKIE))
+  const token = await getToken({ req, secret: process.env.AUTH_SECRET ?? "", secureCookie })
+  return token !== null
+}
+
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
-  const isLoggedIn = !!req.auth
 
   if (usesMachineAuthentication(pathname)) return
 
@@ -37,10 +49,10 @@ export const proxy = auth((req) => {
   }
 
   // Protected routes
-  if (!isLoggedIn) {
+  if (!(await hasSession(req))) {
     return Response.redirect(new URL("/login", req.nextUrl.origin))
   }
-})
+}
 
 export const config = {
   matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico).*)"],
