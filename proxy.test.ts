@@ -28,7 +28,13 @@ describe('proxy machine authentication boundary', () => {
 })
 
 describe('proxy session check', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks(); process.env.AUTH_SECRET = 'test-secret' })
+
+  it('refuses to gate protected routes without AUTH_SECRET', async () => {
+    delete process.env.AUTH_SECRET
+    await expect(invoke('/requests')).rejects.toThrow('AUTH_SECRET is required')
+    expect(getToken).not.toHaveBeenCalled()
+  })
 
   it('admits a valid session', async () => {
     getToken.mockResolvedValue({ id: 'user' })
