@@ -13,7 +13,7 @@ const invoke = (pathname: string, cookies: string[] = []) => proxy({
 } as unknown as NextRequest)
 
 describe('proxy machine authentication boundary', () => {
-  beforeEach(() => { vi.clearAllMocks(); getToken.mockResolvedValue(null) })
+  beforeEach(() => { vi.clearAllMocks(); process.env.AUTH_SECRET = 'test-secret'; getToken.mockResolvedValue(null) })
 
   it('passes the exact tracker status cron through to its CRON_SECRET authentication', async () => {
     expect(await invoke('/api/cron/tracker-status-sync')).toBeUndefined()
