@@ -17,30 +17,75 @@ import {
   Layers,
   Github,
   MessagesSquare,
+  Webhook,
+  Workflow,
+  Coins,
+  CalendarClock,
+  Globe,
+  ClipboardList,
+  Clock,
+  Scale,
+  Inbox,
+  UserCheck,
 } from "lucide-react";
+
+const benefits = [
+  {
+    icon: Clock,
+    title: "Weeks become one session",
+    description:
+      "Chasing context, rewriting one-liners, estimating, security triage and story drafting used to take weeks of back-and-forth. Here it finishes in one guided conversation or form.",
+    color: "text-indigo-600 dark:text-indigo-400",
+    bg: "bg-indigo-100 dark:bg-indigo-950/60",
+  },
+  {
+    icon: Scale,
+    title: "Every priority is defensible",
+    description:
+      "Scores are reconstructible from stored inputs and the exact scoring policy version they were computed under. No more arguing about why something ranked where it did.",
+    color: "text-emerald-600 dark:text-emerald-400",
+    bg: "bg-emerald-100 dark:bg-emerald-950/60",
+  },
+  {
+    icon: Inbox,
+    title: "Nothing falls through",
+    description:
+      "Every request gets a reference, an owner, a status and a durable delivery to the right tracker or queue. Requesters can see where it stands without asking.",
+    color: "text-sky-600 dark:text-sky-400",
+    bg: "bg-sky-100 dark:bg-sky-950/60",
+  },
+  {
+    icon: UserCheck,
+    title: "Humans stay in the decision seat",
+    description:
+      "AI drafts, scores and classifies. People approve, reject and defer — with approval chains that cannot be bypassed and a full audit trail.",
+    color: "text-amber-600 dark:text-amber-400",
+    bg: "bg-amber-100 dark:bg-amber-950/60",
+  },
+] as const;
 
 const features = [
   {
     icon: MessageSquare,
-    title: "Intelligent Intake",
+    title: "Conversational Intake",
     description:
-      "Conversational AI guides stakeholders through structured feature request gathering with real-time quality scoring.",
+      "A streaming AI interview turns a one-line idea into a complete request — problem, solution, justification, success metrics — with server-validated quality scoring and resumable drafts.",
     color: "text-indigo-600 dark:text-indigo-400",
     bg: "bg-indigo-100 dark:bg-indigo-950/60",
   },
   {
     icon: BarChart3,
-    title: "Priority Scoring",
+    title: "Defensible Prioritization",
     description:
-      "RICE and WSJF framework analysis across business value, technical feasibility, and risk dimensions.",
+      "RICE, WSJF or custom-weighted scoring across business value, complexity and risk. Every score is snapshotted against the policy version it was computed under.",
     color: "text-emerald-600 dark:text-emerald-400",
     bg: "bg-emerald-100 dark:bg-emerald-950/60",
   },
   {
     icon: FileText,
-    title: "Epic & Story Generation",
+    title: "Epics & User Stories",
     description:
-      "Automatically generate well-structured epics with INVEST-compliant user stories and Given/When/Then acceptance criteria.",
+      "Generated epics with INVEST-compliant stories and Given/When/Then acceptance criteria — editable with revision history before anything is exported.",
     color: "text-violet-600 dark:text-violet-400",
     bg: "bg-violet-100 dark:bg-violet-950/60",
   },
@@ -48,33 +93,49 @@ const features = [
     icon: ShieldAlert,
     title: "Security Triage",
     description:
-      "Automated ISO 27001-aligned security classification flags PII, auth, payments, and compliance concerns for specialist review.",
+      "ISO 27001 and OWASP-aligned classification flags PII, auth, payments and compliance concerns before estimation, not during implementation.",
     color: "text-red-600 dark:text-red-400",
     bg: "bg-red-100 dark:bg-red-950/60",
   },
   {
     icon: Shield,
-    title: "Review Workflow",
+    title: "Approvals & Review Cycles",
     description:
-      "Streamlined approval process with role-based access for stakeholders, reviewers, and admins.",
+      "Multi-step approval chains that cannot be bypassed, recurring review cycles that sweep stale requests back into the queue, and a full audit trail on every decision.",
     color: "text-amber-600 dark:text-amber-400",
     bg: "bg-amber-100 dark:bg-amber-950/60",
   },
   {
     icon: Zap,
-    title: "Smart Assessment",
+    title: "Context-Aware Assessment",
     description:
-      "AI-powered analysis calibrated against your existing backlog and historical estimates.",
+      "Agents read your objectives, current backlog, historical estimates, supporting documents and codebase impact — with citations for what they relied on.",
     color: "text-rose-600 dark:text-rose-400",
     bg: "bg-rose-100 dark:bg-rose-950/60",
   },
   {
     icon: Users,
-    title: "Team Collaboration",
+    title: "Collaboration",
     description:
-      "Multi-tenant workspaces with configurable scoring weights and organization-specific priorities.",
+      "Threaded comments, mentions and subscriptions, private attachments, custom fields, request templates and an immutable activity log.",
     color: "text-cyan-600 dark:text-cyan-400",
     bg: "bg-cyan-100 dark:bg-cyan-950/60",
+  },
+  {
+    icon: CalendarClock,
+    title: "Planning & Analytics",
+    description:
+      "Capacity-aware planning, priority distribution, decision breakdowns, burndown and agent cost — exportable as PDF, CSV and JSON.",
+    color: "text-sky-600 dark:text-sky-400",
+    bg: "bg-sky-100 dark:bg-sky-950/60",
+  },
+  {
+    icon: Coins,
+    title: "AI Cost Controls",
+    description:
+      "Per-organization monthly budgets with alerts, per-run token accounting, and hard rate limits enforced in the database before any model call.",
+    color: "text-orange-600 dark:text-orange-400",
+    bg: "bg-orange-100 dark:bg-orange-950/60",
   },
 ] as const;
 
@@ -83,7 +144,7 @@ const steps = [
     number: 1,
     title: "Describe",
     description:
-      "Stakeholders describe their feature request in natural conversation. The AI guides them through structured intake with smart follow-up questions.",
+      "Stakeholders describe what they need in a guided conversation; clients and departments use published forms. Every request gets a reference and a workflow.",
     gradient: "from-indigo-500 to-blue-600",
   },
   {
@@ -104,7 +165,7 @@ const steps = [
     number: 4,
     title: "Deliver",
     description:
-      "Structured epics and user stories are generated automatically with acceptance criteria and security tags, ready for your development team.",
+      "Approved work is delivered durably to Linear, Jira, GitHub or a service queue — with epics, stories and acceptance criteria where they apply, and status visible to the requester.",
     gradient: "from-emerald-500 to-teal-600",
   },
 ] as const;
@@ -176,27 +237,27 @@ const integrations = [
   {
     icon: Ticket,
     name: "Jira",
-    badge: "Two-Way Sync",
+    badge: "Export · Import · Status sync",
     badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
-    description: "Push epics and stories to Jira, import existing issues back.",
+    description: "Durable, idempotent export of epics and stories; import existing issues; conflict-aware status sync.",
     color: "text-blue-600 dark:text-blue-400",
     bg: "bg-blue-100 dark:bg-blue-950/60",
   },
   {
     icon: Layers,
     name: "Linear",
-    badge: "Two-Way Sync",
+    badge: "Export · Import · Status sync",
     badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
-    description: "Sync projects and issues with Linear teams and workflows.",
+    description: "Export to Linear teams and projects, import backlogs, keep statuses in step both ways.",
     color: "text-violet-600 dark:text-violet-400",
     bg: "bg-violet-100 dark:bg-violet-950/60",
   },
   {
     icon: Github,
     name: "GitHub Issues",
-    badge: "Two-Way Sync",
+    badge: "Export · Import",
     badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
-    description: "Create issues from epics and stories, link to projects.",
+    description: "Create issues from epics and stories, import existing issues with source context.",
     color: "text-gray-800 dark:text-gray-300",
     bg: "bg-gray-100 dark:bg-gray-800/60",
   },
@@ -205,18 +266,73 @@ const integrations = [
     name: "Slack",
     badge: "Notifications",
     badgeClass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-    description: "Channel notifications, slash commands, and approval workflows.",
+    description: "Signed webhooks, /vpo slash commands, and approve/reject buttons that record real decisions.",
     color: "text-emerald-600 dark:text-emerald-400",
     bg: "bg-emerald-100 dark:bg-emerald-950/60",
   },
   {
     icon: MessagesSquare,
     name: "Microsoft Teams",
-    badge: "Connection preview",
+    badge: "Notifications & Commands",
     badgeClass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-    description: "Test a channel webhook connection. Create and track requests in the web app; Teams commands are unavailable.",
+    description: "Channel notifications, authenticated request commands, and approve/reject actions from Teams.",
     color: "text-sky-600 dark:text-sky-400",
     bg: "bg-sky-100 dark:bg-sky-950/60",
+  },
+  {
+    icon: Webhook,
+    name: "REST API & Webhooks",
+    badge: "Versioned API",
+    badgeClass: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+    description: "API-key authenticated, rate-limited REST API plus signed, retried outbound webhooks for your own systems.",
+    color: "text-amber-600 dark:text-amber-400",
+    bg: "bg-amber-100 dark:bg-amber-950/60",
+  },
+] as const;
+
+const platform = [
+  {
+    icon: Globe,
+    title: "Client portal",
+    description:
+      "External clients submit, track and discuss requests through published forms and a portal — without ever seeing the internal workspace.",
+    items: [
+      "Configurable published request forms",
+      "Client organizations with portal-only access",
+      "Private by default; publication is explicit and audited",
+      "Curated roadmaps and controlled upvotes per audience",
+      "Submission tracking with public-safe updates and replies",
+    ],
+    accent: "border-t-sky-500",
+    iconColor: "text-sky-500",
+  },
+  {
+    icon: Workflow,
+    title: "Service workflows",
+    description:
+      "One intake platform for every department, not only product. Each request type follows its own versioned workflow.",
+    items: [
+      "Versioned workflows by request type",
+      "Service groups with accountable queues",
+      "Rule-based routing to projects, people or groups",
+      "Reliable delivery of routed requests to Linear and Jira",
+      "Response targets, escalation and queue monitoring",
+    ],
+    accent: "border-t-violet-500",
+    iconColor: "text-violet-500",
+  },
+  {
+    icon: ClipboardList,
+    title: "Beyond product requests",
+    description:
+      "Operational requests skip scoring and story generation and follow their own configured path.",
+    items: [
+      "Invoice queries and approval requests to Finance",
+      "Change requests with implementation evidence",
+      "Restricted security incident reports with responder escalation",
+    ],
+    accent: "border-t-amber-500",
+    iconColor: "text-amber-500",
   },
 ] as const;
 
@@ -239,8 +355,9 @@ export default function Home() {
             Virtual Product Owner
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
-            Transform vague feature requests into structured, prioritized epics
-            and user stories — powered by AI agents
+            Turn any request — from a stakeholder, a client or a department —
+            into structured, prioritized, review-ready work in one session
+            instead of weeks. AI drafts; your team decides.
           </p>
           <div className="mt-10 flex items-center justify-center gap-4">
             <Button
@@ -265,6 +382,46 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Benefits */}
+      <section className="border-t py-24 sm:py-32">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="text-center">
+            <Badge className="mb-4 border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300">
+              Why It Matters
+            </Badge>
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">
+              The Front of the Funnel, Fixed
+            </h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              Product and service owners lose most of their time before work
+              even starts. This removes that cost.
+            </p>
+          </div>
+
+          <div className="mt-16 grid gap-6 sm:grid-cols-2">
+            {benefits.map((benefit) => (
+              <Card key={benefit.title}>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${benefit.bg}`}
+                    >
+                      <benefit.icon className={`size-5 ${benefit.color}`} />
+                    </div>
+                    <CardTitle className="text-lg">{benefit.title}</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {benefit.description}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* How It Works */}
       <section className="border-t bg-muted/50 py-24 sm:py-32">
         <div className="mx-auto max-w-6xl px-4">
@@ -276,7 +433,7 @@ export default function Home() {
               How It Works
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              From idea to security-reviewed, actionable backlog in four steps
+              From request to security-reviewed, delivered work in four steps
             </p>
           </div>
 
@@ -317,8 +474,8 @@ export default function Home() {
               Everything You Need
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              A complete toolkit for transforming feature requests into
-              development-ready work items
+              From first conversation to delivered backlog — intake, scoring,
+              security, approvals, delivery and cost control in one place
             </p>
           </div>
 
@@ -358,12 +515,12 @@ export default function Home() {
               Works With Your Tools
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              Seamlessly connect with the project management and communication
-              tools your team already uses
+              Durable, idempotent delivery to the trackers and chat tools your
+              team already uses
             </p>
           </div>
 
-          <div className="mt-16 grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+          <div className="mt-16 grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3">
             {integrations.map((integration) => (
               <Card
                 key={integration.name}
@@ -451,6 +608,56 @@ export default function Home() {
                     </div>
                   </div>
                 )}
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Whole-organization intake */}
+      <section className="border-t py-24 sm:py-32">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="text-center">
+            <Badge className="mb-4 border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-300">
+              Across the Organization
+            </Badge>
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">
+              One Front Door for Every Request
+            </h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              External clients, internal departments and product teams share one
+              intake platform — each with the workflow, visibility and routing
+              they need
+            </p>
+          </div>
+
+          <div className="mt-16 grid gap-6 md:grid-cols-3">
+            {platform.map((theme) => (
+              <Card key={theme.title} className={`border-t-4 ${theme.accent}`}>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <theme.icon className={`size-5 ${theme.iconColor}`} />
+                    <CardTitle className="text-lg">{theme.title}</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {theme.description}
+                  </p>
+                  <div className="space-y-2">
+                    {theme.items.map((item) => (
+                      <div
+                        key={item}
+                        className="flex items-start gap-2 text-sm"
+                      >
+                        <CheckCircle2
+                          className={`mt-0.5 size-4 shrink-0 ${theme.iconColor}`}
+                        />
+                        <span className="text-muted-foreground">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
               </Card>
             ))}
           </div>
