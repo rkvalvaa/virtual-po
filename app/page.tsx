@@ -366,7 +366,7 @@ export default function Home() {
               className="bg-gradient-to-r from-indigo-600 to-violet-600 shadow-lg shadow-indigo-500/25 hover:from-indigo-700 hover:to-violet-700 dark:shadow-indigo-500/10"
             >
               <Link href="/requests">
-                Get Started
+                Sign In
                 <ArrowRight className="ml-2 size-4" />
               </Link>
             </Button>
@@ -669,11 +669,12 @@ export default function Home() {
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-violet-50 to-purple-50 dark:from-indigo-950/20 dark:via-violet-950/20 dark:to-purple-950/20" />
         <div className="relative mx-auto max-w-6xl px-4 text-center">
           <h2 className="text-3xl font-bold tracking-tight text-foreground">
-            Ready to streamline your product backlog?
+            Ready to streamline your request intake?
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
-            Stop losing time on unstructured feature requests. Let AI handle the
-            heavy lifting so you can focus on building what matters.
+            Stop losing time on unstructured requests. Let AI handle the
+            heavy lifting so your team can focus on deciding what matters.
+            Access is by invitation from your workspace administrator.
           </p>
           <div className="mt-10">
             <Button
@@ -682,7 +683,7 @@ export default function Home() {
               className="bg-gradient-to-r from-indigo-600 to-violet-600 shadow-lg shadow-indigo-500/25 hover:from-indigo-700 hover:to-violet-700 dark:shadow-indigo-500/10"
             >
               <Link href="/login">
-                Get Started
+                Sign In
                 <ArrowRight className="ml-2 size-4" />
               </Link>
             </Button>
