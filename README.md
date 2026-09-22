@@ -107,6 +107,7 @@ Copy `.env.example` to `.env.local` and configure:
 - `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` — GitHub OAuth app credentials
 - `ANTHROPIC_API_KEY` — Anthropic API key for Claude
 - `AI_BUDGET_MAX_MONTHLY_USD` — optional positive USD ceiling per workspace; when set, workspace admins may configure only a lower monthly AI limit
+- `ALLOWED_EMAIL_DOMAINS` — optional comma-separated domains that may sign in without an invitation. Sign-in is otherwise invite-only: the first user of an empty database bootstraps the deployment, after that new people need a pending invitation or an existing membership.
 
 **Optional integrations** (configured via Settings UI):
 - Jira, Linear, GitHub Issues — credentials entered through the settings page

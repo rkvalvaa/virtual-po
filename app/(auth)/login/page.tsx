@@ -29,9 +29,11 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ returnTo?: string }> }) {
-  const returnTo = loginReturnTo((await searchParams).returnTo);
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ returnTo?: string; error?: string }> }) {
+  const params = await searchParams;
+  const returnTo = loginReturnTo(params.returnTo);
   if ((await auth())?.user) redirect(returnTo);
+  const accessDenied = params.error === "AccessDenied";
   return (
     <Card>
       <CardHeader className="text-center">
@@ -41,6 +43,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
+        {accessDenied && (
+          <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            This account is not invited. Ask a workspace administrator for an invitation, then sign in with the same email address.
+          </p>
+        )}
         <form
           action={async () => {
             "use server";
