@@ -21,9 +21,12 @@ const SECURE_SESSION_COOKIE = "__Secure-authjs.session-token"
  * the JWT directly sets nothing.
  */
 async function hasSession(req: NextRequest): Promise<boolean> {
+  // Fail closed: an empty secret would let a token forged with an empty key through.
+  const secret = process.env.AUTH_SECRET
+  if (!secret) throw new Error("AUTH_SECRET is required")
   // Auth.js chunks large cookies (`name.0`, `name.1`), so match by prefix.
   const secureCookie = req.cookies.getAll().some(c => c.name.startsWith(SECURE_SESSION_COOKIE))
-  const token = await getToken({ req, secret: process.env.AUTH_SECRET ?? "", secureCookie })
+  const token = await getToken({ req, secret, secureCookie })
   return token !== null
 }
 

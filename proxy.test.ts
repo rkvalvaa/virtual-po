@@ -13,7 +13,7 @@ const invoke = (pathname: string, cookies: string[] = []) => proxy({
 } as unknown as NextRequest)
 
 describe('proxy machine authentication boundary', () => {
-  beforeEach(() => { vi.clearAllMocks(); getToken.mockResolvedValue(null) })
+  beforeEach(() => { vi.clearAllMocks(); process.env.AUTH_SECRET = 'test-secret'; getToken.mockResolvedValue(null) })
 
   it('passes the exact tracker status cron through to its CRON_SECRET authentication', async () => {
     expect(await invoke('/api/cron/tracker-status-sync')).toBeUndefined()
@@ -28,7 +28,13 @@ describe('proxy machine authentication boundary', () => {
 })
 
 describe('proxy session check', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks(); process.env.AUTH_SECRET = 'test-secret' })
+
+  it('refuses to gate protected routes without AUTH_SECRET', async () => {
+    delete process.env.AUTH_SECRET
+    await expect(invoke('/requests')).rejects.toThrow('AUTH_SECRET is required')
+    expect(getToken).not.toHaveBeenCalled()
+  })
 
   it('admits a valid session', async () => {
     getToken.mockResolvedValue({ id: 'user' })
