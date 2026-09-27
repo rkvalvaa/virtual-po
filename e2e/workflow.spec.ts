@@ -10,7 +10,7 @@ test('an organization with all templates disabled can explicitly start exactly o
   const owner = await createTestUser(org);
   try {
     const template = await createTemplate({ organizationId: org.id, name: 'Disabled template', category: 'CUSTOM' });
-    await updateTemplate(template.id, { isActive: false });
+    await updateTemplate(template.id, org.id, { isActive: false });
     await loginAs(page, owner.email);
     await page.goto('/requests/new');
     expect((await query('SELECT id FROM feature_requests WHERE organization_id = $1', [org.id])).rows).toHaveLength(0);

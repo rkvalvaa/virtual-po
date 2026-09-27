@@ -51,9 +51,12 @@ export async function editTemplate(
   }
 ) {
   const session = await requireAuth()
+  const orgId = session.user.orgId
+  if (!orgId) throw new Error("No organization")
   if (session.user.role !== "ADMIN") throw new Error("Admin access required")
 
-  await updateTemplate(id, params)
+  const updated = await updateTemplate(id, orgId, params)
+  if (!updated) throw new Error("Template not found")
 
   revalidatePath("/settings")
   revalidatePath("/requests/new")
@@ -61,9 +64,12 @@ export async function editTemplate(
 
 export async function removeTemplate(id: string) {
   const session = await requireAuth()
+  const orgId = session.user.orgId
+  if (!orgId) throw new Error("No organization")
   if (session.user.role !== "ADMIN") throw new Error("Admin access required")
 
-  await deleteTemplate(id)
+  const deleted = await deleteTemplate(id, orgId)
+  if (!deleted) throw new Error("Template not found")
 
   revalidatePath("/settings")
   revalidatePath("/requests/new")
