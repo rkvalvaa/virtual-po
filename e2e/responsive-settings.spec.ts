@@ -6,7 +6,7 @@ import { connectRepository } from '@/lib/db/queries/repositories';
 import { upsertIntegration } from '@/lib/db/queries/jira-sync';
 import { upsertTeamsNotification } from '@/lib/db/queries/teams';
 
-const sections = ['Organization', 'Members', 'Repositories', 'AI Budget', 'Scoring', 'OKRs', 'Capacity', 'Templates', 'Custom Fields', 'Approvals', 'Review Cycles', 'Jira', 'Linear', 'GitHub Issues', 'Slack', 'Teams', 'API Keys', 'Webhooks', 'Email'];
+const sections = ['Organization', 'Members', 'Clients', 'Repositories', 'AI Budget', 'Scoring', 'OKRs', 'Capacity', 'Templates', 'Custom Fields', 'Approvals', 'Review Cycles', 'Jira', 'Linear', 'GitHub Issues', 'Slack', 'Teams', 'API Keys', 'Webhooks', 'Email'];
 async function noOverflow(page: Page) {
   // Retry the actual layout assertion, as with other browser UI checks.
   await expect(async () => {
@@ -29,6 +29,10 @@ for (const width of [390, 768, 1366]) test(`settings sections and intake remain 
   try {
     await query(`INSERT INTO webhook_subscriptions(organization_id,url,secret,events)
       VALUES($1,'https://example.com/a-long-webhook-path-for-overflow-verification','test-only-secret','{request.created,assessment.completed}')`, [org.id]);
+    const client = await query<{ id: string }>(`INSERT INTO client_accounts(organization_id,name)
+      VALUES($1,'A client account with a long name for overflow verification') RETURNING id`, [org.id]);
+    await query(`INSERT INTO client_contacts(client_account_id,email,name)
+      VALUES($1,'a-very-long-contact-address-for-overflow-verification@client-example.test','Contact Person')`, [client.rows[0].id]);
     await connectRepository(org.id, 42, 'a-long-organization-name', 'a-long-repository-name', 'a-long-organization-name/a-long-repository-name', 'main', admin.id);
     await page.setViewportSize({ width, height: 900 });
     await loginAs(page, admin.email);
