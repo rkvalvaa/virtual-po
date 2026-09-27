@@ -2,7 +2,7 @@ import { query, transaction } from '@/lib/db/pool'
 import { mapRow, mapRows } from '@/lib/db/mappers'
 import { REQUEST_STATUSES, type RequestStatus } from '@/lib/types/database'
 import { canTransition } from '@/lib/utils/workflow'
-import { assertNoApprovalChainBypass } from '@/lib/approvals/engine'
+import { assertNoApprovalChainBypass } from '@/lib/decisions/apply'
 import type { StatusMapping } from '@/lib/status-sync/types'
 import { enqueueTeamsActivity } from '@/lib/teams/outbox'
 

@@ -201,6 +201,7 @@ describe('maybeAutoApprove', () => {
       userId: 'user-admin',
       decision: 'APPROVE',
       rationale: 'Auto-approved: priority ≥ 80',
+      chainVetted: true,
     })
   })
 

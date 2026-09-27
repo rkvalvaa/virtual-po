@@ -3,6 +3,10 @@ import { validateApiKey, hasScope } from '@/lib/api/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/api/rate-limit';
 import { getFeatureRequestById, updateFeatureRequest } from '@/lib/db/queries/feature-requests';
 import { getEpicByRequestId, getStoriesByEpicId } from '@/lib/db/queries/epics';
+import { getOrganizationRole } from '@/lib/db/queries/organizations';
+import { applyDecision, decisionForStatus } from '@/lib/decisions/apply';
+import { canAccess } from '@/lib/auth/rbac';
+import { canTransition } from '@/lib/utils/workflow';
 import { REQUEST_STATUSES } from '@/lib/types/database';
 import type { RequestStatus } from '@/lib/types/database';
 
@@ -119,11 +123,8 @@ export async function PATCH(
     updateData.summary = body.summary.trim();
   }
 
-  if (body.status !== undefined) {
-    if (!REQUEST_STATUSES.includes(body.status as RequestStatus)) {
-      return errorResponse(`Invalid status: ${body.status}`, 'INVALID_PARAMETER', 400, rlHeaders);
-    }
-    updateData.status = body.status;
+  if (body.status !== undefined && !REQUEST_STATUSES.includes(body.status as RequestStatus)) {
+    return errorResponse(`Invalid status: ${body.status}`, 'INVALID_PARAMETER', 400, rlHeaders);
   }
 
   if (body.tags !== undefined) {
@@ -133,12 +134,38 @@ export async function PATCH(
     updateData.tags = body.tags;
   }
 
-  if (Object.keys(updateData).length === 0) {
-    return NextResponse.json({ data: existing }, { headers: rlHeaders });
+  // Status last, after every field has validated, so a refused body changes nothing.
+  const status = body.status as RequestStatus | undefined;
+  if (status && status !== existing.status) {
+    const decision = decisionForStatus(status);
+    if (decision) {
+      const actorId = auth.createdBy;
+      const role = actorId ? await getOrganizationRole(auth.orgId, actorId) : null;
+      if (!actorId || !role || !canAccess(role, 'REVIEWER')) {
+        return errorResponse('Decisions need an API key created by a current REVIEWER or ADMIN', 'FORBIDDEN', 403, rlHeaders);
+      }
+      try {
+        await applyDecision({
+          requestId: id,
+          organizationId: auth.orgId,
+          userId: actorId,
+          decision,
+          rationale: 'Decision recorded through the API',
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Decision refused';
+        return errorResponse(message, 'DECISION_REFUSED', 409, rlHeaders);
+      }
+    } else if (!canTransition(existing.status, status)) {
+      return errorResponse(`Cannot transition from ${existing.status} to ${status}`, 'INVALID_TRANSITION', 409, rlHeaders);
+    } else {
+      updateData.status = status;
+    }
   }
 
-  const updated = await updateFeatureRequest(id, updateData);
-
+  const updated = Object.keys(updateData).length > 0
+    ? await updateFeatureRequest(id, updateData)
+    : await getFeatureRequestById(id);
 
   return NextResponse.json({ data: updated }, { headers: rlHeaders });
 }

@@ -2,10 +2,8 @@ import type {
   ApprovalDecision,
   ApprovalStep,
   ApprovalWorkflowWithSteps,
-  DecisionType,
   FeatureRequest,
   RequestApproval,
-  RequestStatus,
   UserRole,
 } from '@/lib/types/database';
 import { canAccess } from '@/lib/auth/rbac';
@@ -100,32 +98,6 @@ export function canActOnStep(
   if (step.approverUserId) return step.approverUserId === userId;
   if (step.approverRole) return canAccess(role, step.approverRole);
   return false;
-}
-
-/**
- * Reject a direct APPROVE/REJECT that would skip the org's active chain.
- *
- * Hiding the buttons in DecisionPanel is not enforcement — the server action
- * and the Slack interaction webhook both reach applyDecision on their own.
- *
- * ponytail: guards the two entry points rather than applyDecision itself,
- * since the chain finishes *through* applyDecision. If a third caller ever
- * appears, move the check into applyDecision behind an "already vetted" flag.
- */
-export async function assertNoApprovalChainBypass(
-  orgId: string | null,
-  requestStatus: RequestStatus,
-  decision: DecisionType
-): Promise<void> {
-  if (decision !== 'APPROVE' && decision !== 'REJECT') return;
-  if (requestStatus !== 'UNDER_REVIEW' || !orgId) return;
-
-  const workflow = await getActiveWorkflow(orgId);
-  if (workflow && workflow.steps.length > 0) {
-    throw new Error(
-      `The "${workflow.name}" approval chain governs this request — approve or reject it step by step`
-    );
-  }
 }
 
 /** Who to ping when a step becomes the pending one. */
@@ -239,6 +211,7 @@ export async function submitStepApproval(params: {
       userId,
       decision: 'REJECT',
       rationale: trimmed || `Rejected at approval step ${step.stepOrder}: ${step.name}`,
+      chainVetted: true,
     });
     return { status: 'REJECTED' };
   }
@@ -252,6 +225,7 @@ export async function submitStepApproval(params: {
       userId,
       decision: 'APPROVE',
       rationale: trimmed || `Completed approval workflow "${workflow.name}"`,
+      chainVetted: true,
     });
     return { status: 'APPROVED' };
   }
@@ -295,6 +269,7 @@ export async function maybeAutoApprove(request: FeatureRequest): Promise<boolean
     userId: admin.userId,
     decision: 'APPROVE',
     rationale: `Auto-approved: priority ≥ ${threshold}`,
+    chainVetted: true,
   });
   return true;
 }
