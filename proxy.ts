@@ -20,15 +20,16 @@ const SECURE_SESSION_COOKIE = "__Secure-authjs.session-token"
  * workspace switch would overwrite the new token with the stale one. Decoding
  * the JWT directly sets nothing.
  */
-async function hasSession(req: NextRequest): Promise<boolean> {
+async function readSession(req: NextRequest) {
   // Fail closed: an empty secret would let a token forged with an empty key through.
   const secret = process.env.AUTH_SECRET
   if (!secret) throw new Error("AUTH_SECRET is required")
   // Auth.js chunks large cookies (`name.0`, `name.1`), so match by prefix.
   const secureCookie = req.cookies.getAll().some(c => c.name.startsWith(SECURE_SESSION_COOKIE))
-  const token = await getToken({ req, secret, secureCookie })
-  return token !== null
+  return getToken({ req, secret, secureCookie })
 }
+
+const isPortal = (pathname: string) => pathname === "/portal" || pathname.startsWith("/portal/")
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
@@ -52,8 +53,20 @@ export async function proxy(req: NextRequest) {
   }
 
   // Protected routes
-  if (!(await hasSession(req))) {
+  const token = await readSession(req)
+  if (!token) {
     return Response.redirect(new URL("/login", req.nextUrl.origin))
+  }
+
+  // Client contacts live in /portal only. requireAuth() enforces the same
+  // boundary server-side, since Server Actions can be POSTed to any path.
+  if (token.clientContactId) {
+    if (isPortal(pathname)) return
+    if (pathname.startsWith("/api/")) return Response.json({ error: "Forbidden" }, { status: 403 })
+    return Response.redirect(new URL("/portal", req.nextUrl.origin))
+  }
+  if (isPortal(pathname)) {
+    return Response.redirect(new URL("/requests", req.nextUrl.origin))
   }
 }
 

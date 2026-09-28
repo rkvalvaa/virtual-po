@@ -3,7 +3,8 @@ import Credentials from "next-auth/providers/credentials"
 import { PgAdapter } from "@/lib/auth/adapter"
 import pool from "@/lib/db/pool"
 import authConfig from "./auth.config"
-import { ensureUserOrganization } from "@/lib/auth/org-setup"
+import { resolveSessionIdentity } from "@/lib/auth/org-setup"
+import { findActiveClientContact } from "@/lib/db/queries/client-accounts"
 import { isSignInAllowed } from "@/lib/auth/sign-in-policy"
 import { getUserByEmail } from "@/lib/db/queries/users"
 import { getOrganizationRole } from "@/lib/db/queries/organizations"
@@ -61,24 +62,32 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
     async jwt({ token, user, trigger, session }) {
       if (user?.id) {
         token.id = user.id
-
-        // Auto-create org for new users, or fetch existing membership
-        const { orgId, role } = await ensureUserOrganization(
-          user.id,
-          user.email ?? ""
-        )
-        token.orgId = orgId
-        token.role = role
+        const identity = await resolveSessionIdentity(user.id, user.email ?? "")
+        if (identity.kind === "client") {
+          Object.assign(token, { orgId: null, role: null, clientContactId: identity.clientContactId, clientAccountId: identity.clientAccountId })
+        } else {
+          Object.assign(token, { orgId: identity.orgId, role: identity.role, clientContactId: null, clientAccountId: null })
+        }
       }
       if (trigger === 'update' && token.id) {
         const target = z.object({ user: z.object({ orgId: z.uuid() }) }).safeParse(session)
         if (target.success && await rememberWorkspace(token.id, target.data.user.orgId)) {
-          token.orgId = target.data.user.orgId
+          // A contact who accepted a workspace invitation becomes a member.
+          Object.assign(token, { orgId: target.data.user.orgId, clientContactId: null, clientAccountId: null })
         }
+      }
+      if (!token.id) return null
+      // Client contacts: the contact row authorizes the portal, revalidated on
+      // every access so revocation or archiving ends the session.
+      if (token.clientContactId) {
+        const contact = await findActiveClientContact(token.id, token.clientContactId)
+        if (!contact) return null
+        token.clientAccountId = contact.clientAccountId
+        return token
       }
       // JWTs identify the session; current membership authorizes access. Never
       // provision an organization when refreshing an existing/revoked token.
-      if (!token.id || !token.orgId) return null
+      if (!token.orgId) return null
       const currentRole = await getOrganizationRole(token.orgId, token.id)
       if (!currentRole) return null
       token.role = currentRole
@@ -89,6 +98,8 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
         session.user.id = token.id
         session.user.role = token.role
         session.user.orgId = token.orgId
+        session.user.clientContactId = token.clientContactId ?? null
+        session.user.clientAccountId = token.clientAccountId ?? null
       }
       return session
     },

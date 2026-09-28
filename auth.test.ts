@@ -4,6 +4,7 @@ import type { NextAuthConfig } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
 import { query } from '@/lib/db/pool';
 import { cleanupTestOrg, createTestOrg, createTestUser, hasDb, type TestOrg, type TestUser } from '@/test/db-helpers';
+import { addClientContact, createClientAccount } from '@/lib/db/queries/client-accounts';
 
 const capture = vi.hoisted(() => ({ config: undefined as NextAuthConfig | undefined }));
 // Keep the production callbacks and membership queries real; only avoid the
@@ -126,5 +127,74 @@ describe.skipIf(!hasDb())('existing JWT membership revalidation', () => {
     expect(await refresh()).toBeNull();
     const result = await query('SELECT * FROM organization_users WHERE user_id = $1', [user.id]);
     expect(result.rows).toHaveLength(0);
+  });
+});
+
+describe.skipIf(!hasDb())('client contact sessions', () => {
+  let org: TestOrg;
+  let admin: TestUser;
+  let accountId: string;
+  let contactId: string;
+  let clientUser: { id: string; email: string };
+  const callback = () => capture.config!.callbacks!.jwt!;
+  type JwtArgs = Parameters<ReturnType<typeof callback>>[0];
+
+  beforeAll(async () => {
+    org = await createTestOrg('client-session');
+    admin = await createTestUser(org, 'ADMIN');
+    const email = `contact-${crypto.randomUUID()}@client.example`;
+    const inserted = await query<{ id: string }>('INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id', [email, 'Client Contact']);
+    clientUser = { id: inserted.rows[0].id, email };
+    accountId = (await createClientAccount(org.id, admin.id, `Client ${crypto.randomUUID()}`)).id;
+    contactId = (await addClientContact(org.id, admin.id, accountId, email.toUpperCase())).id;
+  });
+  afterAll(async () => { await cleanupTestOrg(org, [admin.id, clientUser.id]); });
+
+  const signIn = () => callback()({ token: {} as JWT, user: { id: clientUser.id, email: clientUser.email }, account: null } as JwtArgs);
+  const refresh = (token: JWT) => callback()({ token, account: null } as JwtArgs);
+
+  it('signs a contact without a membership in as a client and provisions no workspace', async () => {
+    const token = await signIn();
+    expect(token).toMatchObject({ id: clientUser.id, orgId: null, role: null, clientContactId: contactId, clientAccountId: accountId });
+    const memberships = await query('SELECT 1 FROM organization_users WHERE user_id = $1', [clientUser.id]);
+    expect(memberships.rowCount).toBe(0);
+  });
+
+  it('keeps a client token while the contact is active', async () => {
+    const token = (await signIn()) as JWT;
+    expect(await refresh(token)).toMatchObject({ clientContactId: contactId, orgId: null });
+  });
+
+  it('ends a client session once the contact is revoked or the client archived', async () => {
+    const token = (await signIn()) as JWT;
+    await query('UPDATE client_contacts SET revoked_at = NOW() WHERE id = $1', [contactId]);
+    expect(await refresh(token)).toBeNull();
+    await query('UPDATE client_contacts SET revoked_at = NULL WHERE id = $1', [contactId]);
+    await query('UPDATE client_accounts SET archived_at = NOW() WHERE id = $1', [accountId]);
+    expect(await refresh(token)).toBeNull();
+    await query('UPDATE client_accounts SET archived_at = NULL WHERE id = $1', [accountId]);
+  });
+
+  it('gives a person with a membership an internal session even if they are also a contact', async () => {
+    await query("INSERT INTO organization_users (organization_id, user_id, role) VALUES ($1, $2, 'STAKEHOLDER')", [org.id, clientUser.id]);
+    try {
+      const token = await signIn();
+      expect(token).toMatchObject({ orgId: org.id, role: 'STAKEHOLDER' });
+      expect(token?.clientContactId ?? null).toBeNull();
+    } finally {
+      await query('DELETE FROM organization_users WHERE organization_id = $1 AND user_id = $2', [org.id, clientUser.id]);
+    }
+  });
+
+  it('turns a client session into a member session after an accepted invitation', async () => {
+    const token = (await signIn()) as JWT;
+    await query("INSERT INTO organization_users (organization_id, user_id, role) VALUES ($1, $2, 'REVIEWER')", [org.id, clientUser.id]);
+    try {
+      const updated = await callback()({ token, account: null, trigger: 'update', session: { user: { orgId: org.id } } } as JwtArgs);
+      expect(updated).toMatchObject({ orgId: org.id, role: 'REVIEWER' });
+      expect(updated?.clientContactId ?? null).toBeNull();
+    } finally {
+      await query('DELETE FROM organization_users WHERE organization_id = $1 AND user_id = $2', [org.id, clientUser.id]);
+    }
   });
 });

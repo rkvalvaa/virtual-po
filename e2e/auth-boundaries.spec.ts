@@ -3,7 +3,8 @@ import crypto from 'node:crypto';
 import { readSeed } from './helpers/seed';
 import { createTestApiKey, createTestOrg, createTestUser, createTestRequest, cleanupTestOrg } from '@/test/db-helpers';
 import { query } from '@/lib/db/pool';
-import { loginAs } from './helpers/auth';
+import { loginAs, signInAs } from './helpers/auth';
+import { addClientContact, createClientAccount } from '@/lib/db/queries/client-accounts';
 
 test('machine endpoints authenticate without browser cookies through the real proxy', async ({ request }) => {
   const seed = readSeed();
@@ -95,4 +96,30 @@ test('authenticated webhook scheduler consumes a durable event through the real 
       JOIN webhook_events e ON e.id=d.event_id WHERE e.organization_id=$1`, [org.id]);
     expect(delivery.rows).toEqual([{ status: 'FAILED', error_code: 'DESTINATION_REJECTED', attempt_count: 1 }]);
   } finally { await cleanupTestOrg(org, [owner.id]); }
+});
+
+test('a client contact session stays inside the portal', async ({ page }) => {
+  const org = await createTestOrg('e2e-client-portal');
+  const admin = await createTestUser(org, 'ADMIN');
+  const email = `contact-${crypto.randomUUID()}@client.example`;
+  const user = await query<{ id: string }>('INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id', [email, 'Client Contact']);
+  const account = await createClientAccount(org.id, admin.id, 'E2E client');
+  await addClientContact(org.id, admin.id, account.id, email);
+  try {
+    await signInAs(page, email);
+    await page.goto('/portal');
+    await expect(page.getByRole('heading', { name: 'Client portal' })).toBeVisible();
+
+    for (const path of ['/requests', '/review', '/backlog', '/analytics', '/planning', '/settings']) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/portal$/);
+    }
+    for (const path of ['/api/export/requests', '/api/organizations']) {
+      expect((await page.request.get(path, { maxRedirects: 0 })).status()).toBe(403);
+    }
+    const memberships = await query('SELECT 1 FROM organization_users WHERE user_id = $1', [user.rows[0].id]);
+    expect(memberships.rowCount).toBe(0);
+  } finally {
+    await cleanupTestOrg(org, [admin.id, user.rows[0].id]);
+  }
 });

@@ -25,6 +25,24 @@ export async function listClientAccounts(orgId: string): Promise<ClientAccount[]
   }));
 }
 
+/**
+ * The active contact row for a signed-in user, matched on their email: not
+ * revoked, client not archived. Pass contactId to revalidate a session's
+ * current contact; otherwise the oldest active contact wins.
+ */
+export async function findActiveClientContact(
+  userId: string,
+  contactId?: string
+): Promise<{ clientContactId: string; clientAccountId: string } | null> {
+  const result = await query(`SELECT c.id, c.client_account_id FROM client_contacts c
+    JOIN client_accounts a ON a.id = c.client_account_id AND a.archived_at IS NULL
+    JOIN users u ON u.id = $1 AND lower(u.email) = c.email
+    WHERE c.revoked_at IS NULL AND ($2::uuid IS NULL OR c.id = $2)
+    ORDER BY c.created_at LIMIT 1`, [userId, contactId ?? null]);
+  const row = result.rows[0];
+  return row ? { clientContactId: row.id, clientAccountId: row.client_account_id } : null;
+}
+
 export async function createClientAccount(orgId: string, actorId: string, name: string): Promise<{ id: string }> {
   const clean = accountName.parse(name);
   return transaction(async () => {
