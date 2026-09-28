@@ -4,7 +4,7 @@ import { cleanupTestOrg, createTestOrg, createTestUser, hasDb, type TestOrg } fr
 import { query } from '@/lib/db/pool'
 import { addClientContact, createClientAccount } from './client-accounts'
 import { createForm, publishForm, saveFormDraft, setFormPaused } from './intake-forms'
-import { getPortalForm, listPortalForms, submitPortalRequest, PORTAL_SUBMISSIONS_PER_HOUR } from './portal'
+import { getMyRequest, getPortalForm, listMyRequests, listPortalForms, submitPortalRequest, PORTAL_SUBMISSIONS_PER_HOUR } from './portal'
 import { applyDecision } from '@/lib/decisions/apply'
 import { getPortalOrigin } from './feature-requests'
 import type { FormDefinition } from '@/lib/forms/definition'
@@ -120,5 +120,32 @@ describe.skipIf(!hasDb())('portal form submissions', () => {
       await submitPortalRequest({ formId, contact: who, submissionKey: crypto.randomUUID(), answers })
     }
     await expect(submitPortalRequest({ formId, contact: who, submissionKey: crypto.randomUUID(), answers })).rejects.toThrow(/Try again later/)
+  })
+
+  it('lists and shows a contact only their own requests, with a client-safe history', async () => {
+    const { org, admin, reviewer, client, formId, who } = await setup()
+    const mine = await submitPortalRequest({ formId, contact: who, submissionKey: crypto.randomUUID(), answers })
+    if (mine.status !== 'received') throw new Error('not received')
+    const { id } = (await query('SELECT id FROM feature_requests WHERE public_reference = $1', [mine.reference])).rows[0]
+    await query(`INSERT INTO comments (request_id, author_id, content) VALUES ($1, $2, 'INTERNAL: margin is thin')`, [id, reviewer.id])
+    await applyDecision({ requestId: id, organizationId: org.id, userId: reviewer.id, decision: 'APPROVE', rationale: 'Cheap win' })
+
+    const colleagueEmail = `colleague-${crypto.randomUUID()}@client.example`
+    const colleague = await addClientContact(org.id, admin.id, client.id, colleagueEmail)
+    const colleagueUser = await query<{ id: string }>('INSERT INTO users (email) VALUES ($1) RETURNING id', [colleagueEmail])
+    fixtures[fixtures.length - 1].users.push(colleagueUser.rows[0].id)
+    const other = { userId: colleagueUser.rows[0].id, clientContactId: colleague.id, clientAccountId: client.id }
+
+    const list = await listMyRequests(who)
+    expect(list).toEqual([{ reference: mine.reference, title: 'Update the hero image', status: 'Planned', submittedAt: expect.any(String) }])
+    expect(await listMyRequests(other)).toEqual([])
+
+    const detail = await getMyRequest(who, mine.reference)
+    expect(Object.keys(detail!).sort()).toEqual(['answers', 'history', 'reference', 'status', 'submittedAt', 'title'])
+    expect(detail!.status).toBe('Planned')
+    expect(detail!.history.map(h => h.label)).toEqual(['Received', 'Under review', 'Planned'])
+    expect(JSON.stringify(detail)).not.toMatch(/margin is thin|Cheap win|UNDER_REVIEW|APPROVED/)
+    expect(await getMyRequest(other, mine.reference)).toBeNull()
+    expect(await getMyRequest({ ...who, clientAccountId: crypto.randomUUID() }, mine.reference)).toBeNull()
   })
 })

@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState, useState } from 'react';
+import Link from 'next/link';
 import { RequestForm } from './RequestForm';
 import type { FormDefinition } from '@/lib/forms/definition';
 import type { SubmitState } from '@/app/portal/forms/[id]/actions';
@@ -20,6 +21,7 @@ export function PortalFormSubmission({ definition, organizationName, submit }: {
       <p className="text-sm">We have your request. Keep this reference for any follow-up:</p>
       <p className="font-mono text-lg tracking-widest">{state.reference}</p>
       <p className="text-sm text-muted-foreground">The team will review it and contact you if they need more information.</p>
+      <Link href={`/portal/requests/${state.reference}`} className="text-sm underline">Follow this request</Link>
     </div>;
   }
   return <RequestForm definition={definition} organizationName={organizationName} action={action} pending={pending}

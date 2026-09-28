@@ -30,6 +30,7 @@ export default async function PortalPage() {
               {forms.map(form => <li key={form.id}><Link href={`/portal/forms/${form.id}`} className="underline">{form.title}</Link></li>)}
             </ul>
           ) : <p className="text-sm text-muted-foreground">No request forms are available to you yet.</p>}
+          <p className="text-sm"><Link href="/portal/requests" className="underline">My requests</Link></p>
           <form action={handleSignOut}>
             <Button type="submit" variant="outline">Sign out</Button>
           </form>

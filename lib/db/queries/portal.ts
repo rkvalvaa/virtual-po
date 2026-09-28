@@ -5,6 +5,7 @@ import type { RawCustomFieldValues } from '@/lib/utils/custom-fields';
 import { getOrganizationUsers } from './organizations';
 import { notifyUser } from './notifications';
 import { logActivity } from './activity-log';
+import { projectHistory, toExternalStatus, type ExternalStatus, type HistoryEntry, type StatusEvent } from '@/lib/portal/status';
 
 /**
  * Every read here is scoped to the signed-in contact's client account. Never
@@ -81,6 +82,52 @@ export async function submitPortalRequest(params: {
     await notifyReviewers(orgId, requestId, title, contact.userId);
     return { status: 'received', reference: inserted.rows[0].public_reference };
   });
+}
+
+export interface MyRequestSummary { reference: string; title: string; status: ExternalStatus; submittedAt: string }
+export interface MyRequest extends MyRequestSummary {
+  answers: { label: string; value: string | number | null }[];
+  history: HistoryEntry[];
+}
+
+/** The contact's own submissions only; colleagues at the same client see nothing here. */
+export async function listMyRequests(contact: PortalContact): Promise<MyRequestSummary[]> {
+  const result = await query(`SELECT public_reference, title, status, archived_at, created_at FROM feature_requests
+    WHERE submitter_contact_id = $1 AND client_account_id = $2 ORDER BY created_at DESC`, [contact.clientContactId, contact.clientAccountId]);
+  return result.rows.map(row => ({
+    reference: row.public_reference, title: row.title,
+    status: toExternalStatus(row.status, !!row.archived_at), submittedAt: row.created_at.toISOString(),
+  }));
+}
+
+/**
+ * One of the contact's submissions as the client may see it: title, answers,
+ * external status and dated history. Nothing internal (comments, scores,
+ * assessments, assignee, tracker links) is selected at all.
+ */
+export async function getMyRequest(contact: PortalContact, reference: string): Promise<MyRequest | null> {
+  const found = await query(`SELECT id, organization_id, public_reference, title, status, archived_at, created_at, form_answers
+    FROM feature_requests WHERE public_reference = $1 AND submitter_contact_id = $2 AND client_account_id = $3`,
+    [reference, contact.clientContactId, contact.clientAccountId]);
+  const row = found.rows[0];
+  if (!row) return null;
+  const activity = await query(`SELECT created_at, action, metadata FROM activity_log
+    WHERE request_id = $1 AND organization_id = $2
+      AND (action IN ('STATUS_CHANGED', 'DECISION_MADE') OR (action = 'REQUEST_UPDATED' AND metadata ? 'archiveAction'))
+    ORDER BY created_at, id`, [row.id, row.organization_id]);
+  const events: StatusEvent[] = activity.rows.map(entry => {
+    const at = entry.created_at.toISOString();
+    const meta = entry.metadata ?? {};
+    if (entry.action === 'DECISION_MADE') return { at, status: meta.targetStatus };
+    if (entry.action === 'REQUEST_UPDATED') return meta.archiveAction === 'ARCHIVE' ? { at, archived: true } : { at, status: meta.preservedStatus };
+    return { at, status: meta.to ?? meta.toStatus };
+  });
+  return {
+    reference: row.public_reference, title: row.title, submittedAt: row.created_at.toISOString(),
+    status: toExternalStatus(row.status, !!row.archived_at),
+    answers: (row.form_answers ?? []).map((a: { label: string; value: string | number | null }) => ({ label: a.label, value: a.value })),
+    history: projectHistory(row.created_at.toISOString(), events),
+  };
 }
 
 async function receiptFor(orgId: string, requesterId: string, key: string): Promise<SubmissionResult | null> {
