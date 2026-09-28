@@ -200,7 +200,7 @@ Rate limiting: 100 requests/minute per organization. Rate limit headers (`X-Rate
 3. Add environment variables in the Vercel dashboard
 4. Set up a PostgreSQL database (Vercel Postgres, Neon, Supabase, etc.)
 5. Connect a Vercel Blob store for file attachments (see below)
-6. Deploy — migrations run automatically via the build step
+6. Deploy. Production builds run `npm run migrate:up` before `next build` (`scripts/vercel-build.sh`), using `DATABASE_URL_UNPOOLED` (set by the Neon integration; any direct, non-pooled connection works). Preview builds skip migrations. Migrations must stay backward compatible, because the previous deployment keeps serving until the build finishes.
 
 ### Attachments
 
