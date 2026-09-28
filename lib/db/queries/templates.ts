@@ -61,6 +61,7 @@ export async function createTemplate(params: {
 
 export async function updateTemplate(
   id: string,
+  organizationId: string,
   params: {
     name?: string;
     description?: string | null;
@@ -71,7 +72,7 @@ export async function updateTemplate(
     isActive?: boolean;
     sortOrder?: number;
   }
-): Promise<RequestTemplate> {
+): Promise<RequestTemplate | null> {
   const fields: string[] = [];
   const values: unknown[] = [];
   let idx = 1;
@@ -85,16 +86,21 @@ export async function updateTemplate(
   if (params.isActive !== undefined) { fields.push(`is_active = $${idx++}`); values.push(params.isActive); }
   if (params.sortOrder !== undefined) { fields.push(`sort_order = $${idx++}`); values.push(params.sortOrder); }
 
-  values.push(id);
+  values.push(id, organizationId);
   const result = await query(
-    `UPDATE request_templates SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+    `UPDATE request_templates SET ${fields.join(', ')}
+     WHERE id = $${idx} AND organization_id = $${idx + 1} RETURNING *`,
     values
   );
-  return mapRow<RequestTemplate>(result.rows[0]);
+  return result.rows[0] ? mapRow<RequestTemplate>(result.rows[0]) : null;
 }
 
-export async function deleteTemplate(id: string): Promise<void> {
-  await query(`DELETE FROM request_templates WHERE id = $1`, [id]);
+export async function deleteTemplate(id: string, organizationId: string): Promise<boolean> {
+  const result = await query(
+    `DELETE FROM request_templates WHERE id = $1 AND organization_id = $2`,
+    [id, organizationId]
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
 export async function seedDefaultTemplates(orgId: string): Promise<void> {
