@@ -14,10 +14,11 @@ export async function requestPortalLink(formData: FormData): Promise<void> {
   if (emailReadiness().state !== "CONFIGURED") redirect("/portal/login?error=unavailable")
   let next: string
   try {
-    // Auth.js answers with its verify-request URL both after sending a link
-    // and for unknown or throttled addresses (auth.ts sends nothing then), so
-    // the page below never reveals who has access. A failed send comes back
-    // as an error-page URL instead.
+    // Auth.js answers with its verify-request URL both for contacts and for
+    // unknown or throttled addresses (auth.ts sends nothing then), so the page
+    // below never reveals who has access. The email itself goes out after the
+    // response (lib/email/portal-sign-in.ts), so a provider failure never shows
+    // here; an error-page URL means Auth.js itself failed, e.g. the database.
     next = await signIn("resend", { email: email.data, redirectTo: "/portal", redirect: false })
   } catch (error) {
     if (error instanceof AuthError) redirect("/portal/login?error=unavailable")
