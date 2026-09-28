@@ -20,7 +20,7 @@ async function getStepsForWorkflows(workflowIds: string[]): Promise<ApprovalStep
   if (workflowIds.length === 0) return [];
   const result = await query(
     `SELECT * FROM approval_steps
-     WHERE workflow_id = ANY($1)
+     WHERE workflow_id = ANY($1) AND retired_at IS NULL
      ORDER BY step_order`,
     [workflowIds]
   );
@@ -158,7 +158,14 @@ export async function updateWorkflow(
   }
 }
 
+/** Deleting would cascade to recorded approvals, so a chain with any is kept (deactivate it instead). */
 export async function deleteWorkflow(orgId: string, workflowId: string): Promise<void> {
+  const used = await query(
+    `SELECT 1 FROM request_approvals a JOIN approval_steps s ON s.id = a.step_id
+     WHERE s.workflow_id = $1 LIMIT 1`,
+    [workflowId]
+  );
+  if (used.rowCount) throw new Error('This chain has recorded approvals. Deactivate it instead of deleting it.');
   await query(
     `DELETE FROM approval_workflows WHERE id = $1 AND organization_id = $2`,
     [workflowId, orgId]
@@ -166,9 +173,15 @@ export async function deleteWorkflow(orgId: string, workflowId: string): Promise
 }
 
 /**
- * Replace a workflow's steps wholesale, numbering them by array position.
+ * Set a workflow's steps, numbered by array position.
  *
- * Transactional: a partial replace would leave an active chain with missing
+ * Never deletes a recorded approval. A step whose approver (role or named
+ * user) is unchanged at the same position is kept, renamed if needed, so its
+ * approvals still count. A step that changes or disappears is deleted when
+ * nothing references it, otherwise retired: its approvals stay as history and
+ * the replacement step needs a fresh approval.
+ *
+ * Transactional: a partial save would leave an active chain with missing
  * steps, silently changing who has to approve what.
  */
 export async function replaceSteps(
@@ -189,29 +202,44 @@ export async function replaceSteps(
     }
 
     const owned = await client.query(
-      `SELECT id FROM approval_workflows WHERE id = $1 AND organization_id = $2`,
+      `SELECT id FROM approval_workflows WHERE id = $1 AND organization_id = $2 FOR UPDATE`,
       [workflowId, orgId]
     );
-    if (owned.rows.length === 0) {
-      await client.query('ROLLBACK');
-      throw new Error('Approval workflow not found');
+    if (owned.rows.length === 0) throw new Error('Approval workflow not found');
+
+    const active = (await client.query(
+      `SELECT * FROM approval_steps WHERE workflow_id = $1 AND retired_at IS NULL ORDER BY step_order`,
+      [workflowId]
+    )).rows.map(row => mapRow<ApprovalStep>(row));
+    const sameApprover = (current: ApprovalStep | undefined, next: ApprovalStepInput | undefined) =>
+      !!current && !!next && current.approverRole === next.approverRole && current.approverUserId === next.approverUserId;
+
+    // Free the positions of steps that are not kept before inserting new ones.
+    for (const [index, current] of active.entries()) {
+      if (sameApprover(current, steps[index])) continue;
+      await client.query(
+        `DELETE FROM approval_steps WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM request_approvals WHERE step_id = $1)`,
+        [current.id]
+      );
+      await client.query(`UPDATE approval_steps SET retired_at = NOW() WHERE id = $1`, [current.id]);
     }
 
-    await client.query(`DELETE FROM approval_steps WHERE workflow_id = $1`, [workflowId]);
-
-    const inserted: ApprovalStep[] = [];
+    const saved: ApprovalStep[] = [];
     for (const [index, step] of steps.entries()) {
-      const result = await client.query(
-        `INSERT INTO approval_steps (workflow_id, step_order, name, approver_role, approver_user_id)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING *`,
-        [workflowId, index + 1, step.name, step.approverRole, step.approverUserId]
-      );
-      inserted.push(mapRow<ApprovalStep>(result.rows[0]));
+      const current = active[index];
+      const result = sameApprover(current, step)
+        ? await client.query(`UPDATE approval_steps SET name = $2 WHERE id = $1 RETURNING *`, [current.id, step.name])
+        : await client.query(
+          `INSERT INTO approval_steps (workflow_id, step_order, name, approver_role, approver_user_id)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING *`,
+          [workflowId, index + 1, step.name, step.approverRole, step.approverUserId]
+        );
+      saved.push(mapRow<ApprovalStep>(result.rows[0]));
     }
 
     await client.query('COMMIT');
-    return inserted;
+    return saved;
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
