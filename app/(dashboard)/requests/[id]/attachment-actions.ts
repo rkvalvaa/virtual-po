@@ -8,14 +8,16 @@ import {
   createAttachment,
   deleteAttachment as deleteAttachmentRow,
   getAttachmentById,
+  getAttachmentByStorageKey,
 } from "@/lib/db/queries/attachments";
 import { logActivity } from "@/lib/db/queries/activity-log";
 import {
   deleteAttachment as deleteBlob,
   isBlobConfigured,
-  uploadAttachment,
+  statAttachment,
 } from "@/lib/storage/blob";
-import { validateAttachment } from "@/lib/storage/validate";
+import { sanitizeFilename, validateAttachment } from "@/lib/storage/validate";
+import { attachmentPrefix } from "@/lib/storage/upload-authorization";
 import type { UserRole } from "@/lib/types/database";
 import "@/lib/auth/types";
 
@@ -24,85 +26,57 @@ export type AttachmentActionResult =
   | { success: false; errors: string[] };
 
 /**
- * Upload every file in `formData` under the key "files". Each file is
- * validated before it reaches the blob store; a rejected file does not stop
- * the others, its reason comes back in `errors`.
+ * Record a file the browser has just uploaded straight to Blob storage (see
+ * /api/attachments/upload). Size and type come from the store, not the
+ * browser; a stored file that breaks the rules is deleted, not recorded.
+ * Recording the same pathname twice is a no-op.
  */
-export async function uploadAttachments(
+export async function recordUploadedAttachment(
   requestId: string,
-  formData: FormData
+  pathname: string,
+  originalName: string
 ): Promise<AttachmentActionResult> {
   const session = await requireAuth();
   const orgId = session.user.orgId;
-  if (!orgId) {
-    throw new Error("No organization");
-  }
+  const filename = sanitizeFilename(originalName);
+  const failed: AttachmentActionResult = { success: false, errors: [`${filename}: upload failed`] };
 
   const request = await getFeatureRequestById(requestId);
-  if (!request || request.organizationId !== orgId) {
-    throw new Error("Feature request not found");
+  if (!request || request.organizationId !== orgId) return failed;
+  if (!pathname.startsWith(attachmentPrefix(orgId, requestId))) return failed;
+  if (!isBlobConfigured()) return { success: false, errors: ["File storage is not configured"] };
+
+  if (await getAttachmentByStorageKey(pathname)) return { success: true };
+  const stored = await statAttachment(pathname);
+  if (!stored) return failed;
+  const validation = validateAttachment({ name: filename, type: stored.contentType, size: stored.size });
+  if (!validation.ok) {
+    await deleteBlob(pathname);
+    return { success: false, errors: [validation.error] };
   }
 
-  if (!isBlobConfigured()) {
-    return {
-      success: false,
-      errors: ["File storage is not configured"],
-    };
-  }
-
-  const files = formData.getAll("files").filter((f): f is File => f instanceof File);
-  if (files.length === 0) {
-    return { success: false, errors: ["No files selected"] };
-  }
-
-  const errors: string[] = [];
-  let uploaded = 0;
-
-  for (const file of files) {
-    const validation = validateAttachment({
-      name: file.name,
-      type: file.type,
-      size: file.size,
+  await createAttachment({
+    requestId,
+    filename: validation.filename,
+    mimeType: stored.contentType,
+    size: stored.size,
+    url: stored.url,
+    storageKey: pathname,
+    uploadedBy: session.user.id,
+  });
+  try {
+    await logActivity({
+      organizationId: orgId,
+      requestId,
+      userId: session.user.id,
+      action: "REQUEST_UPDATED",
+      entityType: "REQUEST",
+      entityId: requestId,
+      metadata: { attachment: validation.filename },
     });
-    if (!validation.ok) {
-      errors.push(validation.error);
-      continue;
-    }
-
-    try {
-      const stored = await uploadAttachment({ orgId, requestId, file });
-      await createAttachment({
-        requestId,
-        filename: validation.filename,
-        mimeType: stored.contentType,
-        size: stored.size,
-        url: stored.url,
-        storageKey: stored.storageKey,
-        uploadedBy: session.user.id,
-      });
-      uploaded += 1;
-
-      try {
-        await logActivity({
-          organizationId: orgId,
-          requestId,
-          userId: session.user.id,
-          action: "REQUEST_UPDATED",
-          entityType: "REQUEST",
-          entityId: requestId,
-          metadata: { attachment: validation.filename },
-        });
-      } catch { /* activity logging is non-critical */ }
-    } catch {
-      errors.push(`${validation.filename}: upload failed`);
-    }
-  }
-
-  if (uploaded > 0) {
-    revalidatePath("/requests/" + requestId);
-  }
-
-  return errors.length > 0 ? { success: false, errors } : { success: true };
+  } catch { /* activity logging is non-critical */ }
+  revalidatePath("/requests/" + requestId);
+  return { success: true };
 }
 
 /**

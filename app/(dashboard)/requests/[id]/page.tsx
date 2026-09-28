@@ -2,6 +2,8 @@ import { notFound } from "next/navigation"
 import { requireAuth } from "@/lib/auth/session"
 import { getFeatureRequestById, getPortalOrigin } from "@/lib/db/queries/feature-requests"
 import { listClientMessages } from "@/lib/db/queries/client-messages"
+import { attachmentPrefix } from "@/lib/storage/upload-authorization"
+import { isBlobConfigured } from "@/lib/storage/blob"
 import { getEpicByRequestId, getStoriesByEpicId } from "@/lib/db/queries/epics"
 import { getDecisionsByRequestId } from "@/lib/db/queries/decisions"
 import { getCommentsWithAuthorByRequestId } from "@/lib/db/queries/comments"
@@ -142,6 +144,8 @@ export default async function RequestDetailPage({
       canManage={canAccess(session.user.role as UserRole, 'REVIEWER') || (request.requesterId === session.user.id && request.status === 'DRAFT')} />
     <RequestDetail
       portalOrigin={portalOrigin}
+      attachmentUploadPrefix={attachmentPrefix(request.organizationId, request.id)}
+      storageConfigured={isBlobConfigured()}
       clientMessages={clientMessages}
       canMessageClient={canAccess(session.user.role as UserRole, 'REVIEWER')}
       request={{

@@ -1,5 +1,4 @@
-import { put, get, del } from '@vercel/blob';
-import { sanitizeFilename } from '@/lib/storage/validate';
+import { get, del, head, BlobNotFoundError } from '@vercel/blob';
 import { log } from '@/lib/logging/logger';
 
 /**
@@ -28,44 +27,26 @@ function assertConfigured(): void {
   if (!isBlobConfigured()) throw new BlobNotConfiguredError();
 }
 
-export interface UploadedAttachment {
-  /** Blob pathname including the random suffix — the handle for get/del. */
-  storageKey: string;
+export interface StoredAttachment {
+  pathname: string;
   url: string;
   contentType: string;
   size: number;
 }
 
 /**
- * Store one file. The pathname is org- and request-scoped so a listing of the
- * store is readable and a whole request's files share a prefix.
+ * What the store holds at `pathname`, or null if nothing does. Direct uploads
+ * are recorded from this, never from what the browser claims about the file.
  */
-export async function uploadAttachment(params: {
-  orgId: string;
-  requestId: string;
-  file: File;
-}): Promise<UploadedAttachment> {
+export async function statAttachment(pathname: string): Promise<StoredAttachment | null> {
   assertConfigured();
-  const { orgId, requestId, file } = params;
-  const filename = sanitizeFilename(file.name);
-
-  const result = await put(
-    `orgs/${orgId}/requests/${requestId}/${filename}`,
-    file,
-    {
-      access: 'private',
-      // Two uploads of "screenshot.png" must not collide or overwrite.
-      addRandomSuffix: true,
-      contentType: file.type,
-    }
-  );
-
-  return {
-    storageKey: result.pathname,
-    url: result.url,
-    contentType: result.contentType,
-    size: file.size,
-  };
+  try {
+    const blob = await head(pathname);
+    return { pathname: blob.pathname, url: blob.url, contentType: blob.contentType, size: blob.size };
+  } catch (err) {
+    if (err instanceof BlobNotFoundError) return null;
+    throw err;
+  }
 }
 
 export interface AttachmentStream {

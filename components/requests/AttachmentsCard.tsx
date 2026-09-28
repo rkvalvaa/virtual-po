@@ -1,10 +1,12 @@
 "use client"
 
 import { useRef, useState } from "react"
+import { useRouter } from "next/navigation"
+import { upload as blobUpload } from "@vercel/blob/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
-  uploadAttachments,
+  recordUploadedAttachment,
   removeAttachment,
 } from "@/app/(dashboard)/requests/[id]/attachment-actions"
 import {
@@ -12,6 +14,7 @@ import {
   IMAGE_MIME_TYPES,
   MAX_ATTACHMENT_BYTES,
   formatBytes,
+  sanitizeFilename,
   validateAttachment,
 } from "@/lib/storage/validate"
 import { Download, Paperclip, Trash2, Upload } from "lucide-react"
@@ -31,6 +34,10 @@ export interface AttachmentView {
 
 export interface AttachmentsCardProps {
   requestId: string
+  /** Blob folder for this request (orgs/<org>/requests/<id>/); the upload route only accepts it. */
+  uploadPrefix: string
+  /** False when the deployment has no Blob store; uploads are refused up front. */
+  storageConfigured?: boolean
   attachments: AttachmentView[]
   canSelectContext?: boolean
 }
@@ -43,7 +50,8 @@ function formatDate(dateStr: string): string {
   })
 }
 
-export function AttachmentsCard({ requestId, attachments, canSelectContext = false }: AttachmentsCardProps) {
+export function AttachmentsCard({ requestId, uploadPrefix, attachments, canSelectContext = false, storageConfigured = true }: AttachmentsCardProps) {
+  const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -53,6 +61,10 @@ export function AttachmentsCard({ requestId, attachments, canSelectContext = fal
   async function upload(files: FileList | File[]) {
     const list = Array.from(files)
     if (list.length === 0) return
+    if (!storageConfigured) {
+      setErrors(["File storage is not configured"])
+      return
+    }
 
     // Mirror of the server check — cheap rejection before a 10 MB round trip.
     const localErrors = list
@@ -65,20 +77,30 @@ export function AttachmentsCard({ requestId, attachments, canSelectContext = fal
       return
     }
 
-    const formData = new FormData()
-    for (const file of list) formData.append("files", file)
-
     setPending(true)
     setErrors([])
-    try {
-      const result = await uploadAttachments(requestId, formData)
-      if (!result.success) setErrors(result.errors)
-    } catch (err: unknown) {
-      setErrors([err instanceof Error ? err.message : "Upload failed"])
-    } finally {
-      setPending(false)
-      if (inputRef.current) inputRef.current.value = ""
+    const failures: string[] = []
+    // Each file goes straight to private Blob storage (no size-limited
+    // request body in between), then the server records what was stored.
+    for (const file of list) {
+      const name = sanitizeFilename(file.name)
+      try {
+        const stored = await blobUpload(`${uploadPrefix}${name}`, file, {
+          access: "private",
+          handleUploadUrl: "/api/attachments/upload",
+          clientPayload: JSON.stringify({ requestId }),
+          contentType: file.type,
+        })
+        const result = await recordUploadedAttachment(requestId, stored.pathname, file.name)
+        if (!result.success) failures.push(...result.errors)
+      } catch {
+        failures.push(`${name}: upload failed`)
+      }
     }
+    setErrors(failures)
+    setPending(false)
+    if (inputRef.current) inputRef.current.value = ""
+    router.refresh()
   }
 
   async function handleDelete(id: string, filename: string) {
