@@ -6,6 +6,11 @@ export interface AttachmentWithUploader extends Attachment {
   uploaderName: string | null;
 }
 
+export async function getAttachmentByStorageKey(storageKey: string): Promise<Attachment | null> {
+  const result = await query(`SELECT * FROM attachments WHERE storage_key = $1`, [storageKey]);
+  return result.rows[0] ? mapRow<Attachment>(result.rows[0]) : null;
+}
+
 export async function createAttachment(params: {
   requestId: string;
   filename: string;

@@ -61,6 +61,8 @@ interface RequestDetailProps {
   }
   /** Set when the request came in through a client portal form. */
   portalOrigin?: PortalOrigin | null
+  attachmentUploadPrefix: string
+  storageConfigured?: boolean
   clientMessages?: ClientMessage[]
   canMessageClient?: boolean
   customFieldDefinitions: CustomFieldsCardProps["definitions"]
@@ -176,6 +178,8 @@ function renderIntakeValue(value: unknown): string {
 export function RequestDetail({
   request,
   portalOrigin,
+  attachmentUploadPrefix,
+  storageConfigured = true,
   clientMessages = [],
   canMessageClient = false,
   customFieldDefinitions,
@@ -355,7 +359,7 @@ export function RequestDetail({
             />
           )}
 
-          <AttachmentsCard requestId={request.id} attachments={attachments} canSelectContext={canEditCustomFields} />
+          <AttachmentsCard requestId={request.id} uploadPrefix={attachmentUploadPrefix} storageConfigured={storageConfigured} attachments={attachments} canSelectContext={canEditCustomFields} />
 
           {Object.keys(request.intakeData).length > 0 && (
             <div className="space-y-4">
