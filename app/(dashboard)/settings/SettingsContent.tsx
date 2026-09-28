@@ -41,6 +41,8 @@ import { OrganizationSettings } from "@/components/settings/OrganizationSettings
 import { MemberSettings } from "@/components/settings/MemberSettings"
 import { InvitationSettings } from '@/components/settings/InvitationSettings'
 import type { PendingInvitation } from '@/lib/db/queries/invitations'
+import { ClientSettings } from '@/components/settings/ClientSettings'
+import type { ClientAccount } from '@/lib/db/queries/client-accounts'
 import type { EmailReadiness } from '@/lib/email/config'
 import type { EmailDeliverySummary } from '@/lib/email/outbox'
 import type { PlanningCapacity } from '@/lib/planning/types'
@@ -52,6 +54,7 @@ import type { AgentBudgetStatus } from '@/lib/db/queries/agent-budget'
 interface SettingsContentProps {
   scoringPolicy?: ScoringPolicy
   invitations?: PendingInvitation[]
+  clientAccounts?: ClientAccount[]
   invitationReadiness?: string | null
   administrationHistory?: { id: string; action: string; metadata: Record<string, unknown>; userName: string | null; createdAt: string }[]
   organization: {
@@ -156,6 +159,7 @@ export function SettingsContent({
   aiBudget,
   aiBudgetDeploymentConfiguration,
   invitations = [],
+  clientAccounts = [],
   invitationReadiness = null,
   administrationHistory = [],
   scoringPolicy = { version: 0, config: defaultScoringConfig },
@@ -192,6 +196,12 @@ export function SettingsContent({
               </div>)}
             </CardContent></Card>
           </div>}
+        </SettingsPanel>
+
+        <SettingsPanel value="clients">
+          {userRole === 'ADMIN'
+            ? <ClientSettings accounts={clientAccounts} />
+            : <p className="text-sm text-muted-foreground">Only administrators can manage clients.</p>}
         </SettingsPanel>
 
         <SettingsPanel value="repositories">
