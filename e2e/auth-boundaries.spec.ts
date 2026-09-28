@@ -30,6 +30,12 @@ test('machine endpoints authenticate without browser cookies through the real pr
   const unauthenticatedTrackerCron = await request.get('/api/cron/tracker-status-sync', { maxRedirects: 0 });
   expect(unauthenticatedTrackerCron.status()).toBe(401);
   expect(unauthenticatedTrackerCron.headers().location).toBeUndefined();
+  // The Blob store is shared by every environment, so the sweep refuses to run outside production.
+  const blobCleanup = await request.get('/api/cron/blob-cleanup', {
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET ?? 'e2e-cron-secret'}` }, maxRedirects: 0,
+  });
+  expect(blobCleanup.status()).toBe(403);
+  expect((await request.get('/api/cron/blob-cleanup', { maxRedirects: 0 })).status()).toBe(401);
 
   const body = JSON.stringify({ type: 'event_callback', event: { type: 'app_mention' } });
   const timestamp = String(Math.floor(Date.now() / 1000));
