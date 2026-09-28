@@ -15,7 +15,9 @@ import { slugifyFieldKey } from '@/lib/utils/custom-fields';
 const selectClass = 'w-full max-w-full rounded-md border bg-background p-2 text-sm';
 const TYPE_LABELS: Record<FormField['type'], string> = { TEXT: 'Short text', LONG_TEXT: 'Long text', NUMBER: 'Number', SELECT: 'Choice', DATE: 'Date' };
 
-export function FormSettings({ forms, clients, organizationName }: { forms: IntakeForm[]; clients: { id: string; name: string }[]; organizationName: string }) {
+export function FormSettings({ forms, clients, groups = [], organizationName }: {
+  forms: IntakeForm[]; clients: { id: string; name: string }[]; groups?: { id: string; name: string }[]; organizationName: string
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState('');
@@ -37,7 +39,7 @@ export function FormSettings({ forms, clients, organizationName }: { forms: Inta
   return <Card>
     <CardHeader><CardTitle>Request forms</CardTitle></CardHeader>
     <CardContent className="space-y-4">
-      <p className="text-sm text-muted-foreground">Each form is published to one client. Publishing freezes a version; later edits stay in the draft until you publish again.</p>
+      <p className="text-sm text-muted-foreground">A client form is published to one client. An internal form lets workspace members file change requests into a service group. Publishing freezes a version; later edits stay in the draft until you publish again.</p>
       {!clients.length ? <p className="text-sm text-muted-foreground">Add a client under Clients before creating a form.</p> :
         <form className="flex flex-wrap items-end gap-2" onSubmit={event => {
           event.preventDefault(); const data = new FormData(event.currentTarget);
@@ -52,11 +54,24 @@ export function FormSettings({ forms, clients, organizationName }: { forms: Inta
             </select></div>
           <Button type="submit" disabled={pending}>Create form</Button>
         </form>}
+      {groups.length > 0 && <form className="flex flex-wrap items-end gap-2" onSubmit={event => {
+          event.preventDefault(); const data = new FormData(event.currentTarget);
+          run({ kind: 'createInternal', serviceGroupId: String(data.get('group')), title: String(data.get('title')).trim() });
+          event.currentTarget.reset();
+        }}>
+          <div className="min-w-0 flex-1"><label htmlFor="new-internal-form-title" className="text-sm">Internal form title</label><Input id="new-internal-form-title" name="title" required maxLength={120} disabled={pending} /></div>
+          <div className="min-w-0 max-w-full"><label htmlFor="new-internal-form-group" className="block text-sm">Service group</label>
+            <select id="new-internal-form-group" name="group" required className={selectClass} disabled={pending} defaultValue="">
+              <option value="" disabled>Choose a group</option>
+              {groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
+            </select></div>
+          <Button type="submit" disabled={pending}>Create internal form</Button>
+        </form>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {!forms.length && <p className="text-sm text-muted-foreground">No forms yet.</p>}
       {forms.map(form => <div key={form.id} className="space-y-3 border-t pt-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm"><span className="font-medium">{form.draft.title}</span> · {form.clientName} · {statusLabel(form)}</p>
+          <p className="text-sm"><span className="font-medium">{form.draft.title}</span> · {form.audience === 'INTERNAL' ? `Internal · ${form.serviceGroupName} · change requests` : form.clientName} · {statusLabel(form)}</p>
           <Button variant="outline" size="sm" onClick={() => setEditing(editing === form.id ? null : form.id)}>{editing === form.id ? `Close ${form.draft.title}` : `Edit ${form.draft.title}`}</Button>
         </div>
         {editing === form.id && <FormEditor form={form} organizationName={organizationName} pending={pending} run={run} />}
@@ -75,6 +90,7 @@ interface Row { field: FormField; isNew: boolean; optionsText: string }
 function FormEditor({ form, organizationName, pending, run }: { form: IntakeForm; organizationName: string; pending: boolean; run: (...inputs: unknown[]) => void }) {
   const [meta, setMeta] = useState({ title: form.draft.title, instructions: form.draft.instructions, titleFieldKey: form.draft.titleFieldKey, maxAttachments: form.draft.maxAttachments });
   const [rows, setRows] = useState<Row[]>(form.draft.fields.map(field => ({ field, isNew: false, optionsText: field.options.join(', ') })));
+  const internal = form.audience === 'INTERNAL';
 
   const definition: FormDefinition = {
     ...meta,
@@ -87,12 +103,14 @@ function FormEditor({ form, organizationName, pending, run }: { form: IntakeForm
   }));
 
   return <div className="space-y-4 rounded-md border p-3">
-    <div><label htmlFor={`title-${form.id}`} className="text-sm">Title shown to clients</label>
+    <div><label htmlFor={`title-${form.id}`} className="text-sm">Title shown to {internal ? 'members' : 'clients'}</label>
       <Input id={`title-${form.id}`} value={meta.title} maxLength={120} onChange={e => setMeta({ ...meta, title: e.target.value })} /></div>
     <div><label htmlFor={`instructions-${form.id}`} className="text-sm">Instructions</label>
       <Textarea id={`instructions-${form.id}`} value={meta.instructions} maxLength={2000} onChange={e => setMeta({ ...meta, instructions: e.target.value })} /></div>
-    <div><label htmlFor={`attachments-${form.id}`} className="text-sm">Attachments allowed (0–10)</label>
-      <Input id={`attachments-${form.id}`} type="number" min={0} max={10} value={meta.maxAttachments} onChange={e => setMeta({ ...meta, maxAttachments: Number(e.target.value) })} /></div>
+    {internal
+      ? <p className="text-sm text-muted-foreground">Members attach files on the request page after they submit.</p>
+      : <div><label htmlFor={`attachments-${form.id}`} className="text-sm">Attachments allowed (0–10)</label>
+        <Input id={`attachments-${form.id}`} type="number" min={0} max={10} value={meta.maxAttachments} onChange={e => setMeta({ ...meta, maxAttachments: Number(e.target.value) })} /></div>}
 
     {rows.map((row, index) => {
       const n = index + 1;
@@ -139,7 +157,7 @@ function FormEditor({ form, organizationName, pending, run }: { form: IntakeForm
     </div>
 
     <section aria-label="Preview" className="rounded-md border bg-muted/30 p-3">
-      <p className="mb-2 text-xs font-medium text-muted-foreground">Preview: what the client sees</p>
+      <p className="mb-2 text-xs font-medium text-muted-foreground">Preview: what {internal ? 'members see' : 'the client sees'}</p>
       <RequestForm definition={definition} organizationName={organizationName} preview />
     </section>
   </div>;

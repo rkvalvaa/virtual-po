@@ -13,8 +13,13 @@ const draft = {
   fields: [{ key: 'summary', label: 'Summary', type: 'TEXT' as const, required: true, options: [], showIf: null }],
 }
 const form: IntakeForm = {
-  id: 'f1', clientAccountId: 'c1', clientName: 'Nordic Homes', status: 'DRAFT', version: 0,
-  publishedAt: null, draft, published: null,
+  id: 'f1', audience: 'CLIENT', requestType: 'PRODUCT', clientAccountId: 'c1', clientName: 'Nordic Homes',
+  serviceGroupId: null, serviceGroupName: null, status: 'DRAFT', version: 0, publishedAt: null, draft, published: null,
+}
+const groups = [{ id: 'g1', name: 'IT Operations' }]
+const internalForm: IntakeForm = {
+  ...form, id: 'f2', audience: 'INTERNAL', requestType: 'CHANGE', clientAccountId: null, clientName: null,
+  serviceGroupId: 'g1', serviceGroupName: 'IT Operations', draft: { ...draft, title: 'Change request', maxAttachments: 0 },
 }
 
 describe('FormSettings', () => {
@@ -54,5 +59,25 @@ describe('FormSettings', () => {
     rerender(<FormSettings forms={[{ ...form, status: 'PUBLISHED', version: 1, published: draft }]} clients={clients} organizationName="Acme" />)
     await user.click(screen.getByRole('button', { name: 'Pause' }))
     expect(manageForms).toHaveBeenCalledWith({ kind: 'pause', id: 'f1' })
+  })
+
+  it('creates an internal form that files change requests into a service group', async () => {
+    const user = userEvent.setup()
+    vi.mocked(manageForms).mockResolvedValue({ success: true })
+    render(<FormSettings forms={[]} clients={[]} groups={groups} organizationName="Acme" />)
+    await user.type(screen.getByLabelText('Internal form title'), 'Change request')
+    await user.selectOptions(screen.getByLabelText('Service group'), 'g1')
+    await user.click(screen.getByRole('button', { name: 'Create internal form' }))
+    expect(manageForms).toHaveBeenCalledWith({ kind: 'createInternal', serviceGroupId: 'g1', title: 'Change request' })
+  })
+
+  it('labels internal forms by group and leaves file uploads to the request page', async () => {
+    const user = userEvent.setup()
+    render(<FormSettings forms={[internalForm]} clients={clients} groups={groups} organizationName="Acme" />)
+    expect(screen.getByText(/Internal · IT Operations · change requests/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Edit Change request' }))
+    expect(screen.queryByLabelText(/Attachments allowed/)).not.toBeInTheDocument()
+    expect(screen.getByText(/attach files on the request page/i)).toBeInTheDocument()
+    expect(screen.getByText('Preview: what members see')).toBeInTheDocument()
   })
 })
