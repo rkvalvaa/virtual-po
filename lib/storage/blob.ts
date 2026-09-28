@@ -85,3 +85,26 @@ export async function deleteAttachment(storageKey: string): Promise<void> {
     log.error('blob.delete_failed', { storageKey, err });
   }
 }
+
+/**
+ * Content-Disposition filename. ASCII names go in the quoted form; anything
+ * else also gets the RFC 5987 `filename*` form so non-ASCII survives.
+ */
+function contentDisposition(filename: string): string {
+  const ascii = filename.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+  const encoded = encodeURIComponent(filename);
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
+/** Stream a stored file as a private download; shared by the app and portal routes. */
+export function attachmentDownload(blob: AttachmentStream, filename: string): Response {
+  return new Response(blob.stream, {
+    headers: {
+      "Content-Type": blob.contentType,
+      "Content-Length": String(blob.size),
+      "Content-Disposition": contentDisposition(filename),
+      // Private files must not land in a shared cache.
+      "Cache-Control": "private, no-store",
+    },
+  });
+}

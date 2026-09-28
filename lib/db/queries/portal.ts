@@ -5,6 +5,10 @@ import type { RawCustomFieldValues } from '@/lib/utils/custom-fields';
 import { getOrganizationUsers } from './organizations';
 import { notifyUser } from './notifications';
 import { logActivity } from './activity-log';
+import { createAttachment } from './attachments';
+import { isBlobConfigured, statAttachment, type StoredAttachment } from '@/lib/storage/blob';
+import { sanitizeFilename, validateAttachment } from '@/lib/storage/validate';
+import { portalStagingPrefix } from '@/lib/storage/portal-upload-authorization';
 import { projectHistory, toExternalStatus, type ExternalStatus, type HistoryEntry, type StatusEvent } from '@/lib/portal/status';
 
 /**
@@ -41,8 +45,10 @@ export async function getPortalForm(formId: string, clientAccountId: string): Pr
  * client come from the form row, never from the submission. A retried
  * submission (same key) returns the original receipt.
  */
+export interface StagedFile { pathname: string; name: string }
+
 export async function submitPortalRequest(params: {
-  formId: string; contact: PortalContact; submissionKey: string; answers: RawCustomFieldValues;
+  formId: string; contact: PortalContact; submissionKey: string; answers: RawCustomFieldValues; attachments?: StagedFile[];
 }): Promise<SubmissionResult> {
   const { formId, contact, submissionKey, answers } = params;
   return transaction(async () => {
@@ -61,6 +67,9 @@ export async function submitPortalRequest(params: {
     const definition = formDefinitionSchema.parse(form.rows[0].published);
     const validation = validateAnswers(definition, answers);
     if (!validation.ok) return { status: 'invalid', errors: validation.errors };
+    const files = await checkStagedFiles(params.attachments ?? [], definition.maxAttachments,
+      portalStagingPrefix(contact.clientAccountId, formId, submissionKey));
+    if ('error' in files) return { status: 'invalid', errors: { __attachments: files.error } };
 
     const snapshot = definition.fields.filter(f => f.key in validation.values)
       .map(f => ({ key: f.key, label: f.label, value: validation.values[f.key] }));
@@ -77,8 +86,12 @@ export async function submitPortalRequest(params: {
     if (!inserted.rowCount) return (await receiptFor(orgId, contact.userId, submissionKey))!;
 
     const requestId = inserted.rows[0].id;
+    for (const file of files.stored) {
+      await createAttachment({ requestId, filename: file.filename, mimeType: file.contentType, size: file.size, url: file.url,
+        storageKey: file.pathname, uploadedBy: contact.userId });
+    }
     await logActivity({ organizationId: orgId, requestId, userId: contact.userId, action: 'REQUEST_CREATED', entityType: 'REQUEST', entityId: requestId,
-      metadata: { source: 'portal', formId, formVersion: version, clientAccountId: contact.clientAccountId } });
+      metadata: { source: 'portal', formId, formVersion: version, clientAccountId: contact.clientAccountId, attachments: files.stored.length } });
     await notifyReviewers(orgId, requestId, title, contact.userId);
     return { status: 'received', reference: inserted.rows[0].public_reference };
   });
@@ -91,6 +104,8 @@ export interface MyRequest extends MyRequestSummary {
   history: HistoryEntry[];
   /** Team members stay anonymous to the client ("team"). */
   messages: PortalMessage[];
+  /** Only files the contact uploaded; files the team adds stay internal. */
+  files: { id: string; filename: string; size: number }[];
 }
 
 /** The contact's own submissions only; colleagues at the same client see nothing here. */
@@ -125,15 +140,29 @@ export async function getMyRequest(contact: PortalContact, reference: string): P
     if (entry.action === 'REQUEST_UPDATED') return meta.archiveAction === 'ARCHIVE' ? { at, archived: true } : { at, status: meta.preservedStatus };
     return { at, status: meta.to ?? meta.toStatus };
   });
+  const files = await query(`SELECT id, filename, size FROM attachments WHERE request_id = $1 AND uploaded_by = $2 ORDER BY created_at, id`,
+    [row.id, contact.userId]);
   const thread = await query(`SELECT direction, body, created_at FROM request_external_messages
     WHERE request_id = $1 AND organization_id = $2 ORDER BY created_at, id`, [row.id, row.organization_id]);
   return {
     reference: row.public_reference, title: row.title, submittedAt: row.created_at.toISOString(),
     messages: thread.rows.map(m => ({ from: m.direction === 'TO_CLIENT' ? 'team' : 'you', body: m.body, at: m.created_at.toISOString() })),
+    files: files.rows.map(f => ({ id: f.id, filename: f.filename, size: Number(f.size) })),
     status: toExternalStatus(row.status, !!row.archived_at),
     answers: (row.form_answers ?? []).map((a: { label: string; value: string | number | null }) => ({ label: a.label, value: a.value })),
     history: projectHistory(row.created_at.toISOString(), events),
   };
+}
+
+/** One of the contact's own uploads on their own request, for download; null otherwise. */
+export async function getMyAttachment(contact: PortalContact, reference: string, attachmentId: string): Promise<{ filename: string; storageKey: string } | null> {
+  const result = await query(`SELECT a.filename, a.storage_key FROM attachments a
+    JOIN feature_requests r ON r.id = a.request_id
+    WHERE a.id = $1 AND r.public_reference = $2 AND r.submitter_contact_id = $3 AND r.client_account_id = $4
+      AND a.uploaded_by = $5 AND a.storage_key IS NOT NULL`,
+    [attachmentId, reference, contact.clientContactId, contact.clientAccountId, contact.userId]);
+  const row = result.rows[0];
+  return row ? { filename: row.filename, storageKey: row.storage_key } : null;
 }
 
 /**
@@ -165,6 +194,29 @@ export async function replyToMyRequest(contact: PortalContact, reference: string
         message: `The client replied on "${request.title}"`, link: `/requests/${request.id}`, requestId: request.id, actorId: contact.userId });
     }
   });
+}
+
+/**
+ * Check files the browser staged for this visit: only this visit's folder,
+ * within the form's limit, and allowed by what the store reports (not by what
+ * the browser claims).
+ */
+async function checkStagedFiles(staged: StagedFile[], max: number, prefix: string):
+  Promise<{ stored: (StoredAttachment & { filename: string })[] } | { error: string }> {
+  const unique = [...new Map(staged.map(file => [file.pathname, file])).values()];
+  if (unique.length > max) return { error: `Attach at most ${max} file${max === 1 ? '' : 's'}.` };
+  if (unique.length && !isBlobConfigured()) return { error: 'File storage is not configured.' };
+  const stored: (StoredAttachment & { filename: string })[] = [];
+  for (const file of unique) {
+    const name = sanitizeFilename(file.name);
+    const rest = file.pathname.startsWith(prefix) ? file.pathname.slice(prefix.length) : '';
+    const blob = rest && !rest.includes('/') ? await statAttachment(file.pathname) : null;
+    if (!blob) return { error: `${name} could not be attached. Upload it again.` };
+    const validation = validateAttachment({ name, type: blob.contentType, size: blob.size });
+    if (!validation.ok) return { error: validation.error };
+    stored.push({ ...blob, filename: validation.filename });
+  }
+  return { stored };
 }
 
 async function receiptFor(orgId: string, requesterId: string, key: string): Promise<SubmissionResult | null> {

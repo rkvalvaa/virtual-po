@@ -15,7 +15,8 @@ vi.mock('@/lib/db/queries/attachments', () => ({
 }))
 
 const readAttachment = vi.fn<(key: string) => Promise<AttachmentStream | null>>()
-vi.mock('@/lib/storage/blob', () => ({
+vi.mock('@/lib/storage/blob', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/storage/blob')>()),
   readAttachment: (key: string) => readAttachment(key),
 }))
 
