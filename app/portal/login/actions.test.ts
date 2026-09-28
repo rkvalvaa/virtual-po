@@ -23,7 +23,7 @@ describe('requestPortalLink', () => {
     expect(mocks.signIn).toHaveBeenCalledWith('resend', expect.objectContaining({ email: 'kari@client.example', redirect: false }))
   })
 
-  it('reports a failed send instead of claiming a link is on its way', async () => {
+  it('does not claim a link is on its way when Auth.js itself fails', async () => {
     mocks.signIn.mockResolvedValue('http://localhost:3000/login?error=Configuration')
     await expect(submit('kari@client.example')).rejects.toThrow('REDIRECT /portal/login?error=unavailable')
   })
