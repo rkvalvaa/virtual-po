@@ -13,7 +13,7 @@ export default async function PortalPage() {
 
   async function handleSignOut() {
     "use server";
-    await signOut({ redirectTo: "/login" });
+    await signOut({ redirectTo: "/portal/login" });
   }
 
   return (

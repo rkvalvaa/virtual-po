@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { manageClients } from '@/app/(dashboard)/settings/client-actions';
-import type { ClientAccount } from '@/lib/db/queries/client-accounts';
+import type { ClientAccount, ClientContact } from '@/lib/db/queries/client-accounts';
 
-export function ClientSettings({ accounts }: { accounts: ClientAccount[] }) {
+export function ClientSettings({ accounts, readiness }: { accounts: ClientAccount[]; readiness: string | null }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState('');
@@ -28,7 +28,8 @@ export function ClientSettings({ accounts }: { accounts: ClientAccount[] }) {
   return <Card>
     <CardHeader><CardTitle>Clients</CardTitle></CardHeader>
     <CardContent className="space-y-4">
-      <p className="text-sm text-muted-foreground">Client contacts are not workspace members and never receive an internal role.</p>
+      <p className="text-sm text-muted-foreground">Client contacts are not workspace members and never receive an internal role. They sign in at /portal/login with a one-time email link.</p>
+      {readiness && <p className="text-sm text-muted-foreground">{readiness}</p>}
       <form className="flex flex-wrap items-end gap-2" onSubmit={event => {
         event.preventDefault(); submit({ kind: 'createAccount', name: field(event, 'name') }, event.currentTarget);
       }}>
@@ -47,9 +48,16 @@ export function ClientSettings({ accounts }: { accounts: ClientAccount[] }) {
           <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => submit({ kind: 'archiveAccount', id: account.id })}>Archive {account.name}</Button>
         </form>
         {!account.contacts.length && <p className="text-sm text-muted-foreground">No contacts.</p>}
-        {account.contacts.map(contact => <div key={contact.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="break-all">{contact.name ? `${contact.name} · ` : ''}{contact.email}{contact.revokedAt ? ' · revoked' : ''}</span>
-          {!contact.revokedAt && <Button variant="outline" size="sm" disabled={pending} onClick={() => submit({ kind: 'revokeContact', id: contact.id })}>Revoke {contact.email}</Button>}
+        {account.contacts.map(contact => <div key={contact.id} className="space-y-1 text-sm">
+          <p className="break-all">{contact.name ? `${contact.name} · ` : ''}{contact.email}{contact.revokedAt ? ' · revoked' : ''}</p>
+          {!contact.revokedAt && <>
+            <p className="text-xs text-muted-foreground">{welcomeStatus(contact)}</p>
+            {contact.inviteDeliveryError && <p className="text-sm text-destructive">{contact.inviteDeliveryError}</p>}
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" disabled={pending || !!readiness} onClick={() => submit({ kind: 'resendWelcome', id: contact.id })}>Resend welcome to {contact.email}</Button>
+              <Button variant="outline" size="sm" disabled={pending} onClick={() => submit({ kind: 'revokeContact', id: contact.id })}>Revoke {contact.email}</Button>
+            </div>
+          </>}
         </div>)}
         <form className="flex flex-wrap items-end gap-2" onSubmit={event => {
           event.preventDefault();
@@ -64,4 +72,10 @@ export function ClientSettings({ accounts }: { accounts: ClientAccount[] }) {
       </div>)}
     </CardContent>
   </Card>;
+}
+
+function welcomeStatus(contact: ClientContact): string {
+  if (contact.inviteDeliveryStatus === 'SENT') return 'Welcome email accepted by email provider; this does not confirm inbox delivery';
+  if (contact.inviteDeliveryStatus === 'FAILED') return 'Welcome email failed';
+  return 'Welcome email not sent';
 }

@@ -1,11 +1,13 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
+import Resend from "next-auth/providers/resend"
+import { PORTAL_LINK_MINUTES, sendPortalSignInLink } from "@/lib/email/portal-sign-in"
 import { PgAdapter } from "@/lib/auth/adapter"
 import pool from "@/lib/db/pool"
 import authConfig from "./auth.config"
 import { resolveSessionIdentity } from "@/lib/auth/org-setup"
 import { findActiveClientContact } from "@/lib/db/queries/client-accounts"
-import { isSignInAllowed } from "@/lib/auth/sign-in-policy"
+import { hasPortalAccess, isSignInAllowed, mayRequestPortalLink } from "@/lib/auth/sign-in-policy"
 import { getUserByEmail } from "@/lib/db/queries/users"
 import { getOrganizationRole } from "@/lib/db/queries/organizations"
 import { rememberWorkspace } from "@/lib/db/queries/workspaces"
@@ -46,17 +48,36 @@ const e2eProviders = e2eEnabled
     ]
   : []
 
+// Client portal sign-in: a one-time email link, for active client contacts only.
+const portalEmail = Resend({
+  apiKey: process.env.RESEND_API_KEY,
+  from: process.env.EMAIL_FROM,
+  maxAge: PORTAL_LINK_MINUTES * 60,
+  sendVerificationRequest: sendPortalSignInLink,
+})
+
+// Where Auth.js redirects after sending a link. Unknown addresses get exactly
+// this redirect too, so the response never reveals who has portal access.
+const PORTAL_LINK_SENT = "/api/auth/verify-request?provider=resend&type=email"
+
 export const { handlers, auth, signIn, signOut, unstable_update: updateSession } = NextAuth({
   adapter: PgAdapter(pool),
   session: { strategy: "jwt" },
   ...authConfig,
-  providers: [...authConfig.providers, ...e2eProviders],
+  providers: [...authConfig.providers, portalEmail, ...e2eProviders],
   callbacks: {
     // Closed registration: OAuth identities must be invited, already members,
     // or on an allowlisted domain. The E2E credentials provider only ever
     // returns users that already exist, so it needs no further gate.
-    async signIn({ user, account }) {
+    async signIn({ user, account, email }) {
       if (account?.provider === "credentials") return true
+      if (account?.provider === portalEmail.id) {
+        if (email?.verificationRequest) {
+          return (await mayRequestPortalLink(user.email ?? "")) || PORTAL_LINK_SENT
+        }
+        // The link was valid; the contact may have been revoked since.
+        return hasPortalAccess(user.email ?? "")
+      }
       return isSignInAllowed(user.email ?? "")
     },
     async jwt({ token, user, trigger, session }) {

@@ -42,7 +42,7 @@ describe('requirePortalContact', () => {
     await expect(requirePortalContact()).rejects.toThrow('REDIRECT /requests')
   })
 
-  it('sends a visitor without a session to login', async () => {
-    await expect(requirePortalContact()).rejects.toThrow('REDIRECT /login')
+  it('sends a visitor without a session to the portal sign-in', async () => {
+    await expect(requirePortalContact()).rejects.toThrow('REDIRECT /portal/login')
   })
 })

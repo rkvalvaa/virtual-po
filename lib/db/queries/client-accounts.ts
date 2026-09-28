@@ -3,7 +3,11 @@ import { query, transaction } from '@/lib/db/pool';
 import { lockOrganizationAdmin } from '@/lib/auth/organization-admin';
 import { logActivity } from './activity-log';
 
-export interface ClientContact { id: string; email: string; name: string | null; revokedAt: string | null }
+export interface ClientContact {
+  id: string; email: string; name: string | null; revokedAt: string | null;
+  lastInvitedAt: string | null; inviteDeliveryStatus: 'PENDING' | 'SENT' | 'FAILED' | null; inviteDeliveryError: string | null;
+}
+export interface ClientWelcome { contactId: string; email: string; clientName: string; organizationName: string }
 export interface ClientAccount { id: string; name: string; contacts: ClientContact[] }
 
 const accountName = z.string().trim().min(1).max(120);
@@ -13,7 +17,8 @@ const contactEmail = z.string().trim().toLowerCase().pipe(z.email());
 export async function listClientAccounts(orgId: string): Promise<ClientAccount[]> {
   const accounts = await query(`SELECT id, name FROM client_accounts
     WHERE organization_id = $1 AND archived_at IS NULL ORDER BY lower(name)`, [orgId]);
-  const contacts = await query(`SELECT c.id, c.client_account_id, c.email, c.name, c.revoked_at FROM client_contacts c
+  const contacts = await query(`SELECT c.id, c.client_account_id, c.email, c.name, c.revoked_at,
+      c.last_invited_at, c.invite_delivery_status, c.invite_delivery_error FROM client_contacts c
     JOIN client_accounts a ON a.id = c.client_account_id
     WHERE a.organization_id = $1 AND a.archived_at IS NULL ORDER BY c.email`, [orgId]);
   return accounts.rows.map(account => ({
@@ -21,6 +26,8 @@ export async function listClientAccounts(orgId: string): Promise<ClientAccount[]
     name: account.name,
     contacts: contacts.rows.filter(c => c.client_account_id === account.id).map(c => ({
       id: c.id, email: c.email, name: c.name, revokedAt: c.revoked_at?.toISOString() ?? null,
+      lastInvitedAt: c.last_invited_at?.toISOString() ?? null,
+      inviteDeliveryStatus: c.invite_delivery_status, inviteDeliveryError: c.invite_delivery_error,
     })),
   }));
 }
@@ -41,6 +48,29 @@ export async function findActiveClientContact(
     ORDER BY c.created_at LIMIT 1`, [userId, contactId ?? null]);
   const row = result.rows[0];
   return row ? { clientContactId: row.id, clientAccountId: row.client_account_id } : null;
+}
+
+/** Record which user a contact signed in as; matched on the verified email. */
+export async function bindClientContacts(userId: string): Promise<void> {
+  await query(`UPDATE client_contacts c SET user_id = u.id, updated_at = NOW() FROM users u
+    WHERE u.id = $1 AND c.email = lower(u.email) AND c.user_id IS NULL AND c.revoked_at IS NULL`, [userId]);
+}
+
+/** What the welcome email needs, for an active contact of an active client in this org. */
+export async function getClientWelcome(orgId: string, contactId: string): Promise<ClientWelcome | null> {
+  const result = await query(`SELECT c.id, c.email, a.name AS client_name, o.name AS organization_name
+    FROM client_contacts c
+    JOIN client_accounts a ON a.id = c.client_account_id AND a.archived_at IS NULL
+    JOIN organizations o ON o.id = a.organization_id
+    WHERE a.organization_id = $1 AND c.id = $2 AND c.revoked_at IS NULL`, [orgId, contactId]);
+  const row = result.rows[0];
+  return row ? { contactId: row.id, email: row.email, clientName: row.client_name, organizationName: row.organization_name } : null;
+}
+
+export async function recordClientWelcome(orgId: string, contactId: string, error?: string): Promise<void> {
+  await query(`UPDATE client_contacts c SET last_invited_at = NOW(), invite_delivery_status = $3, invite_delivery_error = $4, updated_at = NOW()
+    FROM client_accounts a WHERE c.id = $2 AND a.id = c.client_account_id AND a.organization_id = $1`,
+    [orgId, contactId, error ? 'FAILED' : 'SENT', error ?? null]);
 }
 
 export async function createClientAccount(orgId: string, actorId: string, name: string): Promise<{ id: string }> {

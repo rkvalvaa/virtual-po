@@ -6,7 +6,7 @@ import {
   getPreferredWorkspace,
   rememberWorkspace,
 } from "@/lib/db/queries/workspaces"
-import { findActiveClientContact } from "@/lib/db/queries/client-accounts"
+import { bindClientContacts, findActiveClientContact } from "@/lib/db/queries/client-accounts"
 import type { UserRole } from "@/lib/types/database"
 import crypto from "crypto"
 
@@ -32,7 +32,10 @@ export async function resolveSessionIdentity(
   }
 
   const contact = await findActiveClientContact(userId)
-  if (contact) return { kind: "client", ...contact }
+  if (contact) {
+    await bindClientContacts(userId)
+    return { kind: "client", ...contact }
+  }
 
   // Derive org name and slug from email
   const username = email.split("@")[0] ?? "user"

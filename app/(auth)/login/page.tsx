@@ -1,4 +1,5 @@
 import { auth, signIn } from "@/auth";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { loginReturnTo } from '@/lib/auth/return-to';
@@ -34,6 +35,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const returnTo = loginReturnTo(params.returnTo);
   if ((await auth())?.user) redirect(returnTo);
   const accessDenied = params.error === "AccessDenied";
+  const linkExpired = params.error === "Verification";
   return (
     <Card>
       <CardHeader className="text-center">
@@ -47,6 +49,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         {accessDenied && (
           <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
             This account is not invited. Ask a workspace administrator for an invitation, then sign in with the same email address.
+          </p>
+        )}
+        {linkExpired && (
+          <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            That sign-in link has expired or was already used. <Link href="/portal/login" className="underline">Request a new client portal link</Link>.
           </p>
         )}
         <form

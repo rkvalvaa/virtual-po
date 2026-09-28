@@ -12,6 +12,7 @@ export default {
   pages: {
     signIn: "/login",
     error: "/login",
+    verifyRequest: "/portal/check-email",
   },
   // Route authorization belongs to proxy.ts. API handlers with non-session
   // authentication must reach their own credential checks without a login gate.

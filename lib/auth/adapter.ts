@@ -30,7 +30,7 @@ export function PgAdapter(pool: Pool): Adapter {
     async getUserByEmail(email) {
       const sql = `
         SELECT id, name, email, email_verified AS "emailVerified", avatar_url AS image
-        FROM users WHERE email = $1
+        FROM users WHERE lower(email) = lower($1)
       `
       const result = await pool.query(sql, [email])
       return (result.rows[0] as AdapterUser) ?? null
@@ -94,6 +94,26 @@ export function PgAdapter(pool: Pool): Adapter {
         account.token_type ?? null,
       ])
       return account as AdapterAccount
+    },
+
+    // Email-link sign-in (client portal). Auth.js stores a hash of the token
+    // and checks expiry itself after useVerificationToken.
+    async createVerificationToken(token) {
+      await pool.query(`DELETE FROM verification_tokens WHERE expires < NOW()`)
+      await pool.query(
+        `INSERT INTO verification_tokens (identifier, token, expires) VALUES ($1, $2, $3)`,
+        [token.identifier, token.token, token.expires]
+      )
+      return token
+    },
+
+    async useVerificationToken({ identifier, token }) {
+      // One statement, so two clicks on the same link cannot both succeed.
+      const result = await pool.query(
+        `DELETE FROM verification_tokens WHERE identifier = $1 AND token = $2 RETURNING identifier, token, expires`,
+        [identifier, token]
+      )
+      return result.rows[0] ?? null
     },
   }
 }
