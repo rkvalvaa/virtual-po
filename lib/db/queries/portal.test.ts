@@ -141,7 +141,7 @@ describe.skipIf(!hasDb())('portal form submissions', () => {
     expect(await listMyRequests(other)).toEqual([])
 
     const detail = await getMyRequest(who, mine.reference)
-    expect(Object.keys(detail!).sort()).toEqual(['answers', 'history', 'messages', 'reference', 'status', 'submittedAt', 'title'])
+    expect(Object.keys(detail!).sort()).toEqual(['answers', 'files', 'history', 'messages', 'reference', 'status', 'submittedAt', 'title'])
     expect(detail!.status).toBe('Planned')
     expect(detail!.history.map(h => h.label)).toEqual(['Received', 'Under review', 'Planned'])
     expect(JSON.stringify(detail)).not.toMatch(/margin is thin|Cheap win|UNDER_REVIEW|APPROVED/)

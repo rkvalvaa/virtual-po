@@ -3,10 +3,14 @@
 import { useActionState, useState } from 'react';
 import Link from 'next/link';
 import { RequestForm } from './RequestForm';
+import { PortalAttachments } from './PortalAttachments';
 import type { FormDefinition } from '@/lib/forms/definition';
 import type { SubmitState } from '@/app/portal/forms/[id]/actions';
 
-export function PortalFormSubmission({ definition, organizationName, submit }: {
+export function PortalFormSubmission({ formId, uploadBase, definition, organizationName, submit }: {
+  formId: string;
+  /** portal/<client>/<form>/ — files for this visit are staged under it plus the submission key. */
+  uploadBase: string;
   definition: FormDefinition;
   organizationName: string;
   submit: (previous: SubmitState, formData: FormData) => Promise<SubmitState>;
@@ -14,6 +18,7 @@ export function PortalFormSubmission({ definition, organizationName, submit }: {
   const [state, action, pending] = useActionState(submit, null);
   // One key per form visit: resubmitting after a lost response returns the same receipt.
   const [submissionKey] = useState(() => crypto.randomUUID());
+  const [uploading, setUploading] = useState(false);
 
   if (state?.status === 'received') {
     return <div className="space-y-2">
@@ -24,9 +29,11 @@ export function PortalFormSubmission({ definition, organizationName, submit }: {
       <Link href={`/portal/requests/${state.reference}`} className="text-sm underline">Follow this request</Link>
     </div>;
   }
-  return <RequestForm definition={definition} organizationName={organizationName} action={action} pending={pending}
+  return <RequestForm definition={definition} organizationName={organizationName} action={action} pending={pending || uploading}
     errors={state?.status === 'invalid' ? state.errors : undefined}>
     <input type="hidden" name="__submissionKey" value={submissionKey} />
+    {definition.maxAttachments > 0 && <PortalAttachments formId={formId} submissionKey={submissionKey} stagingPrefix={`${uploadBase}${submissionKey}/`}
+      maxFiles={definition.maxAttachments} onBusyChange={setUploading} error={state?.status === 'invalid' ? state.errors.__attachments : undefined} />}
     {state?.status === 'error' && <p role="alert" className="text-sm text-destructive">{state.message}</p>}
   </RequestForm>;
 }

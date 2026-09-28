@@ -13,7 +13,7 @@ describe('PortalFormSubmission', () => {
   it('sends the answers with a stable submission key and shows the receipt', async () => {
     const user = userEvent.setup()
     const submit = vi.fn(async () => ({ status: 'received' as const, reference: 'K7M2Q9XRTA' }))
-    render(<PortalFormSubmission definition={definition} organizationName="Acme" submit={submit} />)
+    render(<PortalFormSubmission formId="f1" uploadBase="portal/c1/f1/" definition={definition} organizationName="Acme" submit={submit} />)
     await user.type(screen.getByLabelText(/Summary/), 'Please fix search')
     await user.click(screen.getByRole('button', { name: 'Submit request' }))
 
@@ -29,7 +29,7 @@ describe('PortalFormSubmission', () => {
   it('shows field errors and a general error next to the form', async () => {
     const user = userEvent.setup()
     const submit = vi.fn(async () => ({ status: 'invalid' as const, errors: { summary: 'Summary is required' } }))
-    render(<PortalFormSubmission definition={definition} organizationName="Acme" submit={submit} />)
+    render(<PortalFormSubmission formId="f1" uploadBase="portal/c1/f1/" definition={definition} organizationName="Acme" submit={submit} />)
     await user.type(screen.getByLabelText(/Summary/), ' ')
     await user.click(screen.getByRole('button', { name: 'Submit request' }))
     expect(await screen.findByText('Summary is required')).toBeInTheDocument()

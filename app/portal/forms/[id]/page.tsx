@@ -21,7 +21,8 @@ export default async function PortalFormPage({ params }: { params: Promise<{ id:
       <Link href="/portal" className="text-sm underline">All forms</Link>
       <Card>
         <CardContent className="pt-6">
-          <PortalFormSubmission definition={form.definition} organizationName={form.organizationName} submit={submitPortalForm.bind(null, form.id)} />
+          <PortalFormSubmission formId={form.id} uploadBase={`portal/${contact.clientAccountId}/${form.id}/`} definition={form.definition}
+            organizationName={form.organizationName} submit={submitPortalForm.bind(null, form.id)} />
         </CardContent>
       </Card>
     </main>

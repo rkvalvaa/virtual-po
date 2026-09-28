@@ -34,6 +34,14 @@ export default async function MyRequestPage({ params }: { params: Promise<{ refe
               </li>)}
             </ol>
           </section>
+          {request.files.length > 0 && <section aria-label="Your files">
+            <h2 className="mb-1 font-medium">Your files</h2>
+            <ul className="space-y-1">
+              {request.files.map(file => <li key={file.id}>
+                <a href={`/portal/requests/${request.reference}/files/${file.id}`} className="break-all underline">{file.filename}</a>
+              </li>)}
+            </ul>
+          </section>}
           <section aria-label="Messages" className="space-y-3">
             <h2 className="font-medium">Messages</h2>
             {!request.messages.length && <p className="text-muted-foreground">No messages yet. The team will write here if they need anything from you.</p>}
