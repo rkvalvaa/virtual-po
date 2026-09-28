@@ -83,7 +83,7 @@ function getActionDescription(activity: ActivityEntry): string {
 
   switch (activity.action) {
     case "STATUS_CHANGED":
-      return `${actor} changed status from ${meta.from ?? "unknown"} to ${meta.to ?? "unknown"}`
+      return `${actor} changed status from ${meta.from ?? "unknown"} to ${meta.to ?? "unknown"}${meta.reason ? `: ${meta.reason}` : ""}`
     case "COMMENT_ADDED":
       return `${actor} added a comment`
     case "DECISION_MADE":

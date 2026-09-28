@@ -26,6 +26,7 @@ import { getApprovalState, canActOnStep } from "@/lib/approvals/engine"
 import type { RequestStatus, UserRole } from "@/lib/types/database"
 import type { ApprovalChainStep } from "@/components/review/ApprovalChain"
 import { RequestDetail } from "./RequestDetail"
+import { ChangeRequestView } from "./ChangeRequestView"
 import { ArchiveControl } from '@/components/requests/ArchiveControl'
 import "@/lib/auth/types"
 
@@ -48,6 +49,9 @@ export default async function RequestDetailPage({
 
   if (!request || request.organizationId !== session.user.orgId) {
     notFound()
+  }
+  if (request.requestType !== 'PRODUCT') {
+    return <ChangeRequestView request={request} userId={session.user.id} role={session.user.role as UserRole} />
   }
 
   // Extract keywords from title for similarity search (words with 3+ chars)
