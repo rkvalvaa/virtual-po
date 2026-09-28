@@ -38,6 +38,19 @@ describe.skipIf(!hasDb())('manageClients', () => {
     expect((await listClientAccounts(org.id)).map((a) => a.name)).not.toContain('Stale admin')
   })
 
+  it('adds a contact and records the welcome email outcome', async () => {
+    delete process.env.RESEND_API_KEY
+    await manageClients({ kind: 'createAccount', name: 'Welcome client' })
+    const account = (await listClientAccounts(org.id)).find((a) => a.name === 'Welcome client')!
+    const result = await manageClients({ kind: 'addContact', accountId: account.id, email: 'welcome@client.example' })
+    expect(result).toMatchObject({ success: false, error: expect.stringMatching(/Contact added.*RESEND_API_KEY/) })
+    const [contact] = (await listClientAccounts(org.id)).find((a) => a.id === account.id)!.contacts
+    expect(contact).toMatchObject({ email: 'welcome@client.example', inviteDeliveryStatus: 'FAILED', inviteDeliveryError: expect.stringContaining('RESEND_API_KEY') })
+    expect(contact.lastInvitedAt).not.toBeNull()
+
+    expect(await manageClients({ kind: 'resendWelcome', id: contact.id })).toMatchObject({ success: false })
+  })
+
   it('rejects malformed input', async () => {
     expect(await manageClients({ kind: 'addContact', accountId: 'not-a-uuid', email: 'nope' })).toMatchObject({ success: false })
   })

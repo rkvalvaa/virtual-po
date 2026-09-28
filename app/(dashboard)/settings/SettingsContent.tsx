@@ -200,7 +200,7 @@ export function SettingsContent({
 
         <SettingsPanel value="clients">
           {userRole === 'ADMIN'
-            ? <ClientSettings accounts={clientAccounts} />
+            ? <ClientSettings accounts={clientAccounts} readiness={invitationReadiness} />
             : <p className="text-sm text-muted-foreground">Only administrators can manage clients.</p>}
         </SettingsPanel>
 

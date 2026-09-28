@@ -3,7 +3,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { query } from '@/lib/db/pool';
 import { createInvitation } from '@/lib/db/queries/invitations';
 import { cleanupTestOrg, createTestOrg, createTestUser, hasDb, type TestOrg, type TestUser } from '@/test/db-helpers';
-import { isSignInAllowed } from './sign-in-policy';
+import { hasPortalAccess, isSignInAllowed, mayRequestPortalLink } from './sign-in-policy';
+import { addClientContact, createClientAccount } from '@/lib/db/queries/client-accounts';
 
 describe.skipIf(!hasDb())('isSignInAllowed', () => {
   let org: TestOrg;
@@ -41,5 +42,47 @@ describe.skipIf(!hasDb())('isSignInAllowed', () => {
     expect(await isSignInAllowed('anyone@example.org')).toBe(true);
     expect(await isSignInAllowed('anyone@partner.example')).toBe(true);
     expect(await isSignInAllowed('anyone@other.example')).toBe(false);
+  });
+});
+
+describe.skipIf(!hasDb())('portal email links', () => {
+  let org: TestOrg;
+  let admin: TestUser;
+  let accountId: string;
+  let contactId: string;
+  const email = `portal-${crypto.randomUUID()}@client.example`;
+  beforeAll(async () => {
+    org = await createTestOrg('portal-policy');
+    admin = await createTestUser(org, 'ADMIN');
+    accountId = (await createClientAccount(org.id, admin.id, 'Policy client')).id;
+    contactId = (await addClientContact(org.id, admin.id, accountId, email)).id;
+  });
+  afterAll(async () => {
+    await query('DELETE FROM verification_tokens WHERE identifier = $1', [email]);
+    await cleanupTestOrg(org, [admin.id]);
+  });
+
+  it('offers a link to an active contact only', async () => {
+    expect(await hasPortalAccess(email)).toBe(true);
+    expect(await mayRequestPortalLink(email)).toBe(true);
+    expect(await mayRequestPortalLink(`nobody-${crypto.randomUUID()}@client.example`)).toBe(false);
+  });
+
+  it('refuses a revoked contact and a contact of an archived client', async () => {
+    await query('UPDATE client_contacts SET revoked_at = NOW() WHERE id = $1', [contactId]);
+    expect(await mayRequestPortalLink(email)).toBe(false);
+    expect(await hasPortalAccess(email)).toBe(false);
+    await query('UPDATE client_contacts SET revoked_at = NULL WHERE id = $1', [contactId]);
+    await query('UPDATE client_accounts SET archived_at = NOW() WHERE id = $1', [accountId]);
+    expect(await hasPortalAccess(email)).toBe(false);
+    await query('UPDATE client_accounts SET archived_at = NULL WHERE id = $1', [accountId]);
+  });
+
+  it('stops issuing links once three are outstanding', async () => {
+    for (let i = 0; i < 3; i++) {
+      await query(`INSERT INTO verification_tokens (identifier, token, expires) VALUES ($1, $2, NOW() + INTERVAL '10 minutes')`, [email, `t-${i}-${crypto.randomUUID()}`]);
+    }
+    expect(await mayRequestPortalLink(email)).toBe(false);
+    expect(await hasPortalAccess(email)).toBe(true);
   });
 });

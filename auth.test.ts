@@ -198,3 +198,52 @@ describe.skipIf(!hasDb())('client contact sessions', () => {
     }
   });
 });
+
+describe.skipIf(!hasDb())('portal email-link sign-in', () => {
+  let org: TestOrg;
+  let admin: TestUser;
+  const email = `link-${crypto.randomUUID()}@client.example`;
+  const signInCallback = () => capture.config!.callbacks!.signIn!;
+  type SignInArgs = Parameters<ReturnType<typeof signInCallback>>[0];
+  const request = (address: string) => signInCallback()({
+    user: { id: crypto.randomUUID(), email: address }, account: { provider: 'resend', type: 'email', providerAccountId: address },
+    email: { verificationRequest: true },
+  } as SignInArgs);
+  const complete = (address: string) => signInCallback()({
+    user: { id: crypto.randomUUID(), email: address }, account: { provider: 'resend', type: 'email', providerAccountId: address },
+  } as SignInArgs);
+
+  beforeAll(async () => {
+    org = await createTestOrg('portal-link');
+    admin = await createTestUser(org, 'ADMIN');
+    const account = await createClientAccount(org.id, admin.id, 'Link client');
+    await addClientContact(org.id, admin.id, account.id, email);
+  });
+  afterAll(async () => {
+    await query('DELETE FROM users WHERE email = $1', [email]);
+    await cleanupTestOrg(org, [admin.id]);
+  });
+
+  it('sends a link to an active contact', async () => {
+    expect(await request(email)).toBe(true);
+  });
+
+  it('answers an unknown address with the same verify-request page and sends nothing', async () => {
+    expect(await request(`nobody-${crypto.randomUUID()}@client.example`)).toBe('/api/auth/verify-request?provider=resend&type=email');
+  });
+
+  it('refuses to complete a link for a contact revoked after it was sent', async () => {
+    await query('UPDATE client_contacts SET revoked_at = NOW() WHERE email = $1', [email]);
+    expect(await complete(email)).toBe(false);
+    await query('UPDATE client_contacts SET revoked_at = NULL WHERE email = $1', [email]);
+    expect(await complete(email)).toBe(true);
+  });
+
+  it('binds the contact to the user on first sign-in', async () => {
+    const user = await query<{ id: string }>('INSERT INTO users (email) VALUES ($1) RETURNING id', [email]);
+    const jwt = capture.config!.callbacks!.jwt!;
+    await jwt({ token: {} as JWT, user: { id: user.rows[0].id, email }, account: null } as Parameters<typeof jwt>[0]);
+    const contact = await query<{ user_id: string }>('SELECT user_id FROM client_contacts WHERE email = $1', [email]);
+    expect(contact.rows[0].user_id).toBe(user.rows[0].id);
+  });
+});

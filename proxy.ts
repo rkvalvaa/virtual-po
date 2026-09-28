@@ -46,7 +46,8 @@ export async function proxy(req: NextRequest) {
   }
 
   // Public routes that don't require authentication
-  if (pathname === "/" || pathname === "/login" || /^\/invite\/[a-f0-9]{64}$/.test(pathname)) {
+  if (pathname === "/" || pathname === "/login" || /^\/invite\/[a-f0-9]{64}$/.test(pathname) ||
+    pathname === "/portal/login" || pathname === "/portal/check-email") {
     // Only the server session can determine whether membership was revoked.
     // A stale JWT must not bounce a revoked user away from the login page.
     return
@@ -55,7 +56,7 @@ export async function proxy(req: NextRequest) {
   // Protected routes
   const token = await readSession(req)
   if (!token) {
-    return Response.redirect(new URL("/login", req.nextUrl.origin))
+    return Response.redirect(new URL(isPortal(pathname) ? "/portal/login" : "/login", req.nextUrl.origin))
   }
 
   // Client contacts live in /portal only. requireAuth() enforces the same

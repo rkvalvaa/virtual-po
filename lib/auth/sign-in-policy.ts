@@ -31,6 +31,30 @@ export async function isSignInAllowed(rawEmail: string): Promise<boolean> {
   return row.member || row.invited || row.bootstrap;
 }
 
+/** Links a client may have outstanding at once; more are silently not sent. */
+const MAX_OUTSTANDING_PORTAL_LINKS = 3;
+
+const ACTIVE_CONTACT = `EXISTS (SELECT 1 FROM client_contacts c
+  JOIN client_accounts a ON a.id = c.client_account_id AND a.archived_at IS NULL
+  WHERE c.email = $1 AND c.revoked_at IS NULL)`;
+
+/** Whether an email-link sign-in may complete: the address is an active client contact. */
+export async function hasPortalAccess(rawEmail: string): Promise<boolean> {
+  const result = await query<{ allowed: boolean }>(`SELECT ${ACTIVE_CONTACT} AS allowed`, [rawEmail.trim().toLowerCase()]);
+  return result.rows[0].allowed;
+}
+
+/** Whether to send a portal sign-in link now: an active contact, under the outstanding-link limit. */
+export async function mayRequestPortalLink(rawEmail: string): Promise<boolean> {
+  const result = await query<{ allowed: boolean; outstanding: number }>(
+    `SELECT ${ACTIVE_CONTACT} AS allowed,
+       (SELECT COUNT(*) FROM verification_tokens WHERE identifier = $1 AND expires > NOW())::int AS outstanding`,
+    [rawEmail.trim().toLowerCase()],
+  );
+  const row = result.rows[0];
+  return row.allowed && row.outstanding < MAX_OUTSTANDING_PORTAL_LINKS;
+}
+
 function allowedDomains(): string[] {
   return (process.env.ALLOWED_EMAIL_DOMAINS ?? '')
     .split(',')

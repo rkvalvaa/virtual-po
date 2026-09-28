@@ -30,7 +30,7 @@ export async function requireAuth(): Promise<MemberSession> {
 export async function requirePortalContact(): Promise<{ userId: string; clientContactId: string; clientAccountId: string }> {
   const session = await auth()
   if (!session?.user) {
-    redirect("/login")
+    redirect("/portal/login")
   }
   const { id, clientContactId, clientAccountId } = session.user
   if (!clientContactId || !clientAccountId) {

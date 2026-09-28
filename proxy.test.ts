@@ -87,9 +87,14 @@ describe('proxy client portal boundary', () => {
     expect(response?.headers.get('location')).toBe('https://example.test/requests')
   })
 
-  it('sends a visitor without a session on the portal to login', async () => {
+  it('sends a visitor without a session on the portal to the portal sign-in', async () => {
     getToken.mockResolvedValue(null)
     const response = await invoke('/portal')
-    expect(response?.headers.get('location')).toBe('https://example.test/login')
+    expect(response?.headers.get('location')).toBe('https://example.test/portal/login')
+  })
+
+  it('serves the portal sign-in page without a session', async () => {
+    getToken.mockResolvedValue(null)
+    expect(await invoke('/portal/login')).toBeUndefined()
   })
 })
