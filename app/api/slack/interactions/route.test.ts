@@ -37,14 +37,6 @@ vi.mock('@/lib/db/queries/organizations', () => ({
   getOrganizationUsers: vi.fn(() => Promise.resolve([])),
 }))
 
-// The route now refuses a direct decision while an approval chain is active.
-let fakeWorkflow: { id: string; name: string; steps: unknown[] } | null = null
-vi.mock('@/lib/db/queries/approval-workflows', () => ({
-  getActiveWorkflow: vi.fn(() => Promise.resolve(fakeWorkflow)),
-  listRequestApprovals: vi.fn(() => Promise.resolve([])),
-  recordStepApproval: vi.fn(),
-}))
-
 vi.mock('@/lib/slack/client', () => ({
   getSlackClientFromIntegration: () => ({
     getUserEmail: () => Promise.resolve(fakeEmail),
@@ -95,16 +87,18 @@ describe('/api/slack/interactions', () => {
     fakeEmail = 'rita@example.com'
     fakeUser = { id: USER_ID, email: 'rita@example.com' }
     fakeRole = 'REVIEWER'
-    fakeWorkflow = null
   })
 
-  it('should refuse a direct decision while an approval chain is active', async () => {
-    fakeWorkflow = { id: 'wf-1', name: 'Standard approval', steps: [{}] }
+  // The approval-chain guard lives in applyDecision (lib/decisions/apply.test.ts);
+  // here we only check the route surfaces its refusal.
+  it('should surface an approval-chain refusal as an ephemeral error', async () => {
+    applyDecisionMock.mockRejectedValueOnce(
+      new Error('The "Standard approval" approval chain governs this request')
+    )
 
-    const res = await POST(makePost(buildBody('approve_request')))
+    const json = await (await POST(makePost(buildBody('approve_request')))).json()
 
-    expect(applyDecisionMock).not.toHaveBeenCalled()
-    const json = await res.json()
+    expect(json.response_type).toBe('ephemeral')
     expect(json.text).toContain('Standard approval')
   })
 

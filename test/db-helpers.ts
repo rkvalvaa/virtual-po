@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import { query } from '@/lib/db/pool'
 import { generateApiKey } from '@/lib/api/auth'
+import { createWorkflow, replaceSteps, updateWorkflow } from '@/lib/db/queries/approval-workflows'
 import type { UserRole, ApiKeyScope } from '@/lib/types/database'
 
 /**
@@ -79,6 +80,15 @@ export async function createTestRequest(
     [org.id, requester.id, title],
   )
   return { id: result.rows[0].id }
+}
+
+/** Give the org an active one-step REVIEWER approval chain with this name. */
+export async function activateApprovalChain(org: TestOrg, name = 'Test chain'): Promise<void> {
+  const workflow = await createWorkflow(org.id, name, null)
+  await replaceSteps(org.id, workflow.id, [
+    { name: 'Reviewer sign-off', approverRole: 'REVIEWER', approverUserId: null },
+  ])
+  await updateWorkflow(org.id, workflow.id, { isActive: true })
 }
 
 export interface TestApiKey {

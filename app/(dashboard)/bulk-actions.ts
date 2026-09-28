@@ -10,6 +10,7 @@ import {
   updateFeatureRequest,
 } from "@/lib/db/queries/feature-requests"
 import { logActivity } from "@/lib/db/queries/activity-log"
+import { applyDecision, decisionForStatus } from "@/lib/decisions/apply"
 import type { RequestStatus, UserRole } from "@/lib/types/database"
 import "@/lib/auth/types"
 
@@ -24,11 +25,27 @@ export async function bulkUpdateStatus(
   }
 
   const results: { id: string; success: boolean; error?: string }[] = []
+  const decision = decisionForStatus(targetStatus)
 
   for (const id of requestIds) {
     const request = await getFeatureRequestById(id)
     if (!request || request.organizationId !== session.user.orgId) {
       results.push({ id, success: false, error: "Not found" })
+      continue
+    }
+    if (decision) {
+      try {
+        await applyDecision({
+          requestId: id,
+          organizationId: request.organizationId,
+          userId: session.user.id,
+          decision,
+          rationale: "Bulk status change from the request list",
+        })
+        results.push({ id, success: true })
+      } catch (error) {
+        results.push({ id, success: false, error: error instanceof Error ? error.message : "Decision failed" })
+      }
       continue
     }
     if (!canTransition(request.status, targetStatus)) {
