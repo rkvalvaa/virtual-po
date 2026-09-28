@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { requirePortalContact } from "@/lib/auth/session";
 import { getMyRequest } from "@/lib/db/queries/portal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PortalReply } from "@/components/portal/PortalReply";
+import { replyToRequest } from "./actions";
 
 export const metadata: Metadata = { title: "Request" };
 
@@ -31,6 +33,15 @@ export default async function MyRequestPage({ params }: { params: Promise<{ refe
                 <span>{entry.label}</span><span className="text-muted-foreground">{new Date(entry.at).toLocaleDateString()}</span>
               </li>)}
             </ol>
+          </section>
+          <section aria-label="Messages" className="space-y-3">
+            <h2 className="font-medium">Messages</h2>
+            {!request.messages.length && <p className="text-muted-foreground">No messages yet. The team will write here if they need anything from you.</p>}
+            {request.messages.map((message, index) => <div key={index} className="space-y-1 border-l-2 pl-3">
+              <p className="text-xs text-muted-foreground">{message.from === "team" ? "The team" : "You"} · {new Date(message.at).toLocaleString()}</p>
+              <p className="whitespace-pre-line break-words">{message.body}</p>
+            </div>)}
+            <PortalReply reply={replyToRequest.bind(null, request.reference)} />
           </section>
           <section aria-label="Your answers">
             <h2 className="mb-1 font-medium">What you sent</h2>

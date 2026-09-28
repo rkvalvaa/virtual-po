@@ -85,9 +85,12 @@ export async function submitPortalRequest(params: {
 }
 
 export interface MyRequestSummary { reference: string; title: string; status: ExternalStatus; submittedAt: string }
+export interface PortalMessage { from: 'team' | 'you'; body: string; at: string }
 export interface MyRequest extends MyRequestSummary {
   answers: { label: string; value: string | number | null }[];
   history: HistoryEntry[];
+  /** Team members stay anonymous to the client ("team"). */
+  messages: PortalMessage[];
 }
 
 /** The contact's own submissions only; colleagues at the same client see nothing here. */
@@ -122,12 +125,46 @@ export async function getMyRequest(contact: PortalContact, reference: string): P
     if (entry.action === 'REQUEST_UPDATED') return meta.archiveAction === 'ARCHIVE' ? { at, archived: true } : { at, status: meta.preservedStatus };
     return { at, status: meta.to ?? meta.toStatus };
   });
+  const thread = await query(`SELECT direction, body, created_at FROM request_external_messages
+    WHERE request_id = $1 AND organization_id = $2 ORDER BY created_at, id`, [row.id, row.organization_id]);
   return {
     reference: row.public_reference, title: row.title, submittedAt: row.created_at.toISOString(),
+    messages: thread.rows.map(m => ({ from: m.direction === 'TO_CLIENT' ? 'team' : 'you', body: m.body, at: m.created_at.toISOString() })),
     status: toExternalStatus(row.status, !!row.archived_at),
     answers: (row.form_answers ?? []).map((a: { label: string; value: string | number | null }) => ({ label: a.label, value: a.value })),
     history: projectHistory(row.created_at.toISOString(), events),
   };
+}
+
+/**
+ * The contact answers on their own request. The team members who have written
+ * on the thread (or subscribed) are notified; if none yet, reviewers are.
+ */
+export async function replyToMyRequest(contact: PortalContact, reference: string, rawBody: string): Promise<void> {
+  const body = rawBody.trim();
+  if (!body || body.length > 5000) throw new Error('Write a message of 1 to 5000 characters.');
+  await transaction(async () => {
+    const found = await query(`SELECT id, organization_id, title FROM feature_requests
+      WHERE public_reference = $1 AND submitter_contact_id = $2 AND client_account_id = $3 FOR SHARE`,
+      [reference, contact.clientContactId, contact.clientAccountId]);
+    const request = found.rows[0];
+    if (!request) throw new Error('Request not found.');
+    await query(`INSERT INTO request_external_messages (request_id, organization_id, direction, author_contact_id, body)
+      VALUES ($1, $2, 'FROM_CLIENT', $3, $4)`, [request.id, request.organization_id, contact.clientContactId, body]);
+    await logActivity({ organizationId: request.organization_id, requestId: request.id, userId: contact.userId, action: 'CLIENT_MESSAGE',
+      entityType: 'REQUEST', entityId: request.id, metadata: { direction: 'FROM_CLIENT' } });
+
+    const involved = await query<{ user_id: string }>(`SELECT DISTINCT ou.user_id FROM organization_users ou
+      WHERE ou.organization_id = $2 AND ou.user_id IN (
+        SELECT author_user_id FROM request_external_messages WHERE request_id = $1 AND direction = 'TO_CLIENT'
+        UNION SELECT user_id FROM request_subscriptions WHERE request_id = $1)`, [request.id, request.organization_id]);
+    const recipients = involved.rows.length ? involved.rows.map(r => r.user_id)
+      : (await getOrganizationUsers(request.organization_id)).filter(m => m.role === 'REVIEWER' || m.role === 'ADMIN').map(m => m.userId);
+    for (const userId of recipients) {
+      await notifyUser({ organizationId: request.organization_id, userId, type: 'COMMENT_ADDED', title: 'Client replied',
+        message: `The client replied on "${request.title}"`, link: `/requests/${request.id}`, requestId: request.id, actorId: contact.userId });
+    }
+  });
 }
 
 async function receiptFor(orgId: string, requesterId: string, key: string): Promise<SubmissionResult | null> {

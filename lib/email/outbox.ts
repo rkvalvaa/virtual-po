@@ -13,7 +13,7 @@ export type EmailDeliveryStatus = 'UNAVAILABLE' | 'QUEUED' | 'PROCESSING' | 'ACC
 
 export interface EmailDeliverySummary {
   id: string
-  kind: 'NOTIFICATION' | 'TEST'
+  kind: 'NOTIFICATION' | 'TEST' | 'CLIENT_MESSAGE'
   recipientEmail: string
   status: EmailDeliveryStatus
   attemptCount: number
@@ -75,6 +75,29 @@ export async function enqueueNotificationEmail(input: EnqueueNotificationInput):
     status === 'UNAVAILABLE' ? readiness.message : null,
   ])
   return summary(result.rows[0])
+}
+
+/** Queue a team message for a client contact. Delivery re-checks their portal access. */
+export async function enqueueClientMessageEmail(input: {
+  organizationId: string
+  externalMessageId: string
+  recipientUserId: string
+  recipientEmail: string
+  recipientName: string | null
+  title: string
+  message: string
+  link: string
+}): Promise<void> {
+  const readiness = emailReadiness()
+  const status = readiness.state === 'CONFIGURED' ? 'QUEUED' : 'UNAVAILABLE'
+  await query(`INSERT INTO email_deliveries(
+      organization_id,external_message_id,recipient_user_id,recipient_email,recipient_name,kind,payload,status,error_code,error_message)
+    VALUES($1,$2,$3,$4,$5,'CLIENT_MESSAGE',$6,$7,$8,$9)`, [
+    input.organizationId, input.externalMessageId, input.recipientUserId, input.recipientEmail, input.recipientName,
+    JSON.stringify({ type: 'COMMENT_ADDED', title: input.title, message: input.message, link: input.link, audience: 'client' }), status,
+    status === 'UNAVAILABLE' ? 'PROVIDER_UNAVAILABLE' : null,
+    status === 'UNAVAILABLE' ? readiness.message : null,
+  ])
 }
 
 export async function enqueueAdminTestEmail(orgId: string, userId: string): Promise<EmailDeliverySummary> {
@@ -157,16 +180,25 @@ async function recipientIsEligible(deliveryId: string, leaseToken: string): Prom
   const result = await query(`SELECT EXISTS(
     SELECT 1 FROM email_deliveries d
     JOIN users u ON u.id=d.recipient_user_id AND lower(u.email)=lower(d.recipient_email)
-    JOIN organization_users ou ON ou.organization_id=d.organization_id AND ou.user_id=u.id
-    WHERE d.id=$1 AND d.lease_token=$2
-      AND ((d.kind='TEST' AND ou.role='ADMIN') OR (d.kind='NOTIFICATION' AND EXISTS(
-        SELECT 1 FROM notifications n
-        LEFT JOIN feature_requests r ON r.id=n.request_id AND r.organization_id=n.organization_id
-        WHERE n.id=d.notification_id AND n.organization_id=d.organization_id AND n.user_id=d.recipient_user_id
-          AND (n.request_id IS NULL OR r.id IS NOT NULL)
-          AND NOT EXISTS (SELECT 1 FROM email_preferences p WHERE p.user_id=d.recipient_user_id
-            AND p.organization_id=d.organization_id AND p.notification_type=n.type AND p.email_enabled=false)
-      )))
+    WHERE d.id=$1 AND d.lease_token=$2 AND (
+      EXISTS (SELECT 1 FROM organization_users ou WHERE ou.organization_id=d.organization_id AND ou.user_id=u.id
+        AND ((d.kind='TEST' AND ou.role='ADMIN') OR (d.kind='NOTIFICATION' AND EXISTS(
+          SELECT 1 FROM notifications n
+          LEFT JOIN feature_requests r ON r.id=n.request_id AND r.organization_id=n.organization_id
+          WHERE n.id=d.notification_id AND n.organization_id=d.organization_id AND n.user_id=d.recipient_user_id
+            AND (n.request_id IS NULL OR r.id IS NOT NULL)
+            AND NOT EXISTS (SELECT 1 FROM email_preferences p WHERE p.user_id=d.recipient_user_id
+              AND p.organization_id=d.organization_id AND p.notification_type=n.type AND p.email_enabled=false)
+        ))))
+      -- A client message goes only to the request's submitter while they still
+      -- have portal access; revocation after queueing stops the send.
+      OR (d.kind='CLIENT_MESSAGE' AND EXISTS(
+        SELECT 1 FROM request_external_messages m
+        JOIN feature_requests r ON r.id=m.request_id AND r.organization_id=d.organization_id
+        JOIN client_contacts c ON c.id=r.submitter_contact_id AND c.revoked_at IS NULL AND c.email=lower(u.email)
+        JOIN client_accounts a ON a.id=c.client_account_id AND a.archived_at IS NULL
+        WHERE m.id=d.external_message_id))
+    )
   ) AS eligible`, [deliveryId, leaseToken])
   return Boolean(result.rows[0]?.eligible)
 }

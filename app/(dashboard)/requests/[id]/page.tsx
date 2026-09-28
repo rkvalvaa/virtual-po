@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import { requireAuth } from "@/lib/auth/session"
 import { getFeatureRequestById, getPortalOrigin } from "@/lib/db/queries/feature-requests"
+import { listClientMessages } from "@/lib/db/queries/client-messages"
 import { getEpicByRequestId, getStoriesByEpicId } from "@/lib/db/queries/epics"
 import { getDecisionsByRequestId } from "@/lib/db/queries/decisions"
 import { getCommentsWithAuthorByRequestId } from "@/lib/db/queries/comments"
@@ -90,6 +91,7 @@ export default async function RequestDetailPage({
     getIntegrationByType(request.organizationId, 'GITHUB_ISSUES'),
     getPortalOrigin(request.id, request.organizationId),
   ])
+  const clientMessages = portalOrigin ? await listClientMessages(request.organizationId, request.id) : []
 
   // An active workflow with no steps is no gate at all — treat it as absent.
   const hasApprovalChain =
@@ -140,6 +142,8 @@ export default async function RequestDetailPage({
       canManage={canAccess(session.user.role as UserRole, 'REVIEWER') || (request.requesterId === session.user.id && request.status === 'DRAFT')} />
     <RequestDetail
       portalOrigin={portalOrigin}
+      clientMessages={clientMessages}
+      canMessageClient={canAccess(session.user.role as UserRole, 'REVIEWER')}
       request={{
         archived: !!request.archivedAt,
         id: request.id,

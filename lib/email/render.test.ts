@@ -30,4 +30,11 @@ describe('notification email rendering', () => {
       link: 'https://evil.example/steal',
     }, 'https://vpo.example.test')).toThrow('application origin')
   })
+
+  it('addresses client contacts about their request, not about internal notification settings', () => {
+    const email = renderNotificationEmail({ recipientName: 'Kari', type: 'COMMENT_ADDED', title: 'New message', message: 'Hi', link: '/portal/requests/K7M2Q9XRTA', audience: 'client' }, 'https://vpo.example.test')
+    expect(email.text).toContain('because you sent a request through the client portal')
+    expect(email.text).not.toContain('Settings > Email')
+    expect(email.html).not.toContain('Manage your preferences')
+  })
 })

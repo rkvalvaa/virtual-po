@@ -2,6 +2,8 @@
 
 import { PortalOriginCard } from "@/components/requests/PortalOriginCard"
 import type { PortalOrigin } from "@/lib/db/queries/feature-requests"
+import { ClientMessagesCard } from "@/components/requests/ClientMessagesCard"
+import type { ClientMessage } from "@/lib/db/queries/client-messages"
 
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -59,6 +61,8 @@ interface RequestDetailProps {
   }
   /** Set when the request came in through a client portal form. */
   portalOrigin?: PortalOrigin | null
+  clientMessages?: ClientMessage[]
+  canMessageClient?: boolean
   customFieldDefinitions: CustomFieldsCardProps["definitions"]
   canEditCustomFields: boolean
   attachments: AttachmentView[]
@@ -172,6 +176,8 @@ function renderIntakeValue(value: unknown): string {
 export function RequestDetail({
   request,
   portalOrigin,
+  clientMessages = [],
+  canMessageClient = false,
   customFieldDefinitions,
   canEditCustomFields,
   attachments,
@@ -314,6 +320,8 @@ export function RequestDetail({
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
           {portalOrigin && <PortalOriginCard origin={portalOrigin} />}
+          {portalOrigin && <ClientMessagesCard requestId={request.id} messages={clientMessages} canSend={canMessageClient}
+            audience={`${portalOrigin.contactName || portalOrigin.contactEmail || "the contact"} at ${portalOrigin.clientName ?? "the client"}`} />}
           {!portalOrigin && request.summary && (
             <Card>
               <CardHeader>
