@@ -55,7 +55,7 @@ export async function listReviewCycles(orgId: string, limit = 10): Promise<Revie
  */
 export async function countRequestsUnderReview(requestIds: string[]): Promise<number> {
   const result = await query(
-    `SELECT COUNT(*)::int AS count FROM feature_requests
+    `SELECT COUNT(*)::int AS count FROM product_requests
      WHERE id = ANY($1::uuid[]) AND status = 'UNDER_REVIEW' AND archived_at IS NULL`,
     [requestIds]
   );

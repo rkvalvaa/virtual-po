@@ -30,6 +30,7 @@ async function requireCurrentRole(
   }
 }
 
+// The table, not product_requests: GROUP BY fr.id needs its primary key.
 export async function getPlanningBoard(organizationId: string): Promise<PlanningRequest[]> {
   const result = await query(
     `SELECT fr.id,fr.title,fr.status,fr.assignee_id,u.name AS assignee_name,
@@ -43,7 +44,7 @@ export async function getPlanningBoard(organizationId: string): Promise<Planning
      LEFT JOIN objectives o ON o.id=fr.planning_objective_id
      LEFT JOIN epics e ON e.request_id=fr.id
      LEFT JOIN user_stories us ON us.epic_id=e.id
-     WHERE fr.organization_id=$1 AND fr.archived_at IS NULL
+     WHERE fr.organization_id=$1 AND fr.archived_at IS NULL AND fr.request_type='PRODUCT'
      GROUP BY fr.id,u.name,o.title
      ORDER BY CASE fr.planning_commitment WHEN 'NOW' THEN 0 WHEN 'NEXT' THEN 1 WHEN 'LATER' THEN 2 ELSE 3 END,
               fr.target_period ASC NULLS LAST,fr.manual_rank ASC NULLS LAST,
@@ -90,7 +91,7 @@ export async function updateRequestPlanning(input: RequestPlanningUpdate): Promi
     const currentResult = await query(
       `SELECT assignee_id,planning_commitment,target_period,manual_rank,
               planning_objective_id,planned_effort_days,planning_version,updated_at,archived_at
-       FROM feature_requests
+       FROM product_requests
        WHERE id=$1 AND organization_id=$2
        FOR UPDATE`,
       [input.requestId, input.organizationId],
@@ -148,7 +149,7 @@ export async function updateRequestPlanning(input: RequestPlanningUpdate): Promi
     if (!assignments.length) return
     values.push(input.requestId, input.organizationId)
     await query(
-      `UPDATE feature_requests SET ${assignments.join(',')},planning_version=planning_version+1,updated_at=clock_timestamp()
+      `UPDATE product_requests SET ${assignments.join(',')},planning_version=planning_version+1,updated_at=clock_timestamp()
        WHERE id=$${values.length - 1} AND organization_id=$${values.length}`,
       values,
     )
@@ -169,7 +170,7 @@ export async function getPlanningCapacity(
     `WITH planned AS (
        SELECT COALESCE(SUM(planned_effort_days),0) AS request_days,
               COUNT(*) FILTER (WHERE planned_effort_days IS NULL)::int AS unknown_count
-       FROM feature_requests
+       FROM product_requests
        WHERE organization_id=$1 AND target_period=$2 AND archived_at IS NULL
      )
      SELECT tc.id,tc.total_capacity_days,tc.allocated_days,tc.allocation_reconciliation,

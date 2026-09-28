@@ -77,7 +77,7 @@ export async function listFeatureRequests(
   const whereClause = conditions.join(' AND ');
 
   const countResult = await query(
-    `SELECT COUNT(*) AS total FROM feature_requests WHERE ${whereClause}`,
+    `SELECT COUNT(*) AS total FROM product_requests WHERE ${whereClause}`,
     values
   );
   const total = parseInt(countResult.rows[0].total, 10);
@@ -86,7 +86,7 @@ export async function listFeatureRequests(
   const offset = filters?.offset ?? 0;
 
   const dataResult = await query(
-    `SELECT * FROM feature_requests
+    `SELECT * FROM product_requests
      WHERE ${whereClause}
      ORDER BY created_at DESC
      LIMIT $${paramIndex++} OFFSET $${paramIndex}`,
@@ -129,7 +129,7 @@ export async function findSimilarRequests(
 
   const result = await query(
     `SELECT id, title, status, created_at, similarity(title, $2) AS sim
-     FROM feature_requests
+     FROM product_requests
      WHERE organization_id = $1
        AND archived_at IS NULL
        AND ($4::uuid IS NULL OR id <> $4)
@@ -324,7 +324,7 @@ export async function searchFeatureRequests(
   const whereClause = conditions.join(' AND ');
 
   const countResult = await query(
-    `SELECT COUNT(*) AS total FROM feature_requests WHERE ${whereClause}`,
+    `SELECT COUNT(*) AS total FROM product_requests WHERE ${whereClause}`,
     values
   );
   const total = parseInt(countResult.rows[0].total, 10);
@@ -344,7 +344,7 @@ export async function searchFeatureRequests(
   }
 
   const dataResult = await query(
-    `SELECT * FROM feature_requests
+    `SELECT * FROM product_requests
      WHERE ${whereClause}
      ORDER BY ${orderByClause}
      LIMIT $${paramIndex++} OFFSET $${paramIndex}`,

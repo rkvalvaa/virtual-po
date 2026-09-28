@@ -57,7 +57,11 @@ export interface OrganizationUser {
   createdAt: Date;
 }
 
+/** PRODUCT requests go through intake, assessment and review; CHANGE requests are internal service requests (CCT-2079). */
+export type RequestType = 'PRODUCT' | 'CHANGE';
+
 export interface FeatureRequest {
+  requestType: RequestType;
   archivedAt: Date | null;
   archivedBy: string | null;
   humanRefined: boolean;

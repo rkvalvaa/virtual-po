@@ -10,12 +10,13 @@ export async function upsertVote(
 ): Promise<StakeholderVote> {
   const result = await query(
     `INSERT INTO stakeholder_votes (request_id, user_id, vote_value, rationale)
-     VALUES ($1, $2, $3, $4)
+     SELECT $1, $2, $3, $4 WHERE EXISTS (SELECT 1 FROM product_requests WHERE id = $1)
      ON CONFLICT (request_id, user_id)
      DO UPDATE SET vote_value = $3, rationale = $4, updated_at = NOW()
      RETURNING *`,
     [requestId, userId, voteValue, rationale]
   );
+  if (!result.rows[0]) throw new Error('Votes are only for product requests.');
   return mapRow<StakeholderVote>(result.rows[0]);
 }
 
