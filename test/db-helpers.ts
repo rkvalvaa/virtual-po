@@ -82,6 +82,21 @@ export async function createTestRequest(
   return { id: result.rows[0].id }
 }
 
+/** A change request at the start of workflow v1 (nothing in the app creates one yet). */
+export async function createTestChangeRequest(
+  org: TestOrg,
+  requester: TestUser,
+  title = 'Test change request',
+): Promise<TestRequest> {
+  const result = await query<{ id: string }>(
+    `INSERT INTO feature_requests (organization_id, requester_id, title, request_type, workflow_version, workflow_state)
+     VALUES ($1, $2, $3, 'CHANGE', 1, 'SUBMITTED')
+     RETURNING id`,
+    [org.id, requester.id, title],
+  )
+  return { id: result.rows[0].id }
+}
+
 /** Give the org an active one-step REVIEWER approval chain with this name. */
 export async function activateApprovalChain(org: TestOrg, name = 'Test chain'): Promise<void> {
   const workflow = await createWorkflow(org.id, name, null)

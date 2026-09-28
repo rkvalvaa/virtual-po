@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { cleanupTestOrg, createTestOrg, createTestRequest, createTestUser, hasDb, type TestOrg, type TestUser } from '@/test/db-helpers'
+import { cleanupTestOrg, createTestChangeRequest, createTestOrg, createTestRequest, createTestUser, hasDb, type TestOrg, type TestUser } from '@/test/db-helpers'
 import { query } from '@/lib/db/pool'
 import { findSimilarRequests, getFeatureRequestById, listFeatureRequests, searchFeatureRequests } from './feature-requests'
 import { listRequestQueue } from './request-queue'
@@ -24,8 +24,7 @@ describe.skipIf(!hasDb())('request types keep change requests off product surfac
     org = await createTestOrg('request-type')
     admin = await createTestUser(org, 'ADMIN')
     product = (await createTestRequest(org, admin, title)).id
-    change = (await createTestRequest(org, admin, title)).id
-    await query(`UPDATE feature_requests SET request_type = 'CHANGE' WHERE id = $1`, [change])
+    change = (await createTestChangeRequest(org, admin, title)).id
   })
   afterAll(async () => { await cleanupTestOrg(org, [admin.id]) })
 
@@ -33,6 +32,8 @@ describe.skipIf(!hasDb())('request types keep change requests off product surfac
     expect((await getFeatureRequestById(product))?.requestType).toBe('PRODUCT')
     expect((await getFeatureRequestById(change))?.requestType).toBe('CHANGE')
     await expect(query(`UPDATE feature_requests SET request_type = 'OTHER' WHERE id = $1`, [product])).rejects.toThrow()
+    await expect(query(`UPDATE feature_requests SET request_type = 'CHANGE' WHERE id = $1`, [product])).rejects.toThrow(/feature_requests_workflow/)
+    await expect(query(`UPDATE feature_requests SET workflow_state = NULL WHERE id = $1`, [change])).rejects.toThrow(/feature_requests_workflow/)
   })
 
   it('keeps product_requests in step with every feature_requests column', async () => {

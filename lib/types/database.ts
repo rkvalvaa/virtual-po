@@ -62,6 +62,10 @@ export type RequestType = 'PRODUCT' | 'CHANGE';
 
 export interface FeatureRequest {
   requestType: RequestType;
+  /** Set only on non-PRODUCT requests (lib/workflows); product requests use `status`. */
+  workflowVersion: number | null;
+  workflowState: string | null;
+  workflowData: Partial<Record<string, string>>;
   archivedAt: Date | null;
   archivedBy: string | null;
   humanRefined: boolean;

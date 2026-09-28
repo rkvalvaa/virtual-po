@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import {
   activateApprovalChain,
   cleanupTestOrg,
+  createTestChangeRequest,
   createTestOrg,
   createTestRequest,
   createTestUser,
@@ -56,8 +57,8 @@ describe.skipIf(!hasDb())('bulkUpdateStatus decisions', () => {
   })
 
   it('should leave change requests untouched by bulk actions', async () => {
-    const id = await requestUnderReview(org, reviewer)
-    await query(`UPDATE feature_requests SET request_type = 'CHANGE' WHERE id = $1`, [id])
+    const { id } = await createTestChangeRequest(org, reviewer)
+    await query(`UPDATE feature_requests SET status = 'UNDER_REVIEW' WHERE id = $1`, [id])
 
     expect(await bulkUpdateStatus([id], 'APPROVED')).toEqual([{ id, success: false, error: 'Not found' }])
     await bulkAddTags([id], ['bulk-tag'])
