@@ -8,6 +8,17 @@ import { expect, type Page } from "@playwright/test"
  * so the session cookie set by the callback is the one the page then uses.
  */
 export async function loginAs(page: Page, email: string): Promise<void> {
+  await signInAs(page, email)
+
+  // Confirm the session cookie actually took: /requests is behind the proxy.
+  await page.goto("/requests")
+  await expect(
+    page.getByRole("heading", { name: "Feature Requests" }),
+  ).toBeVisible()
+}
+
+/** Set a session cookie for `email` without asserting where it may go. */
+export async function signInAs(page: Page, email: string): Promise<void> {
   const request = page.context().request
 
   const csrfResponse = await request.get("/api/auth/csrf")
@@ -21,10 +32,4 @@ export async function loginAs(page: Page, email: string): Promise<void> {
       callbackUrl: "/requests",
     },
   })
-
-  // Confirm the session cookie actually took: /requests is behind the proxy.
-  await page.goto("/requests")
-  await expect(
-    page.getByRole("heading", { name: "Feature Requests" }),
-  ).toBeVisible()
 }

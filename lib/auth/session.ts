@@ -1,47 +1,40 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
-import { NextResponse } from "next/server"
 import type { UserRole } from "@/lib/types/database"
 import type { Session } from "next-auth"
-import { canAccess } from "@/lib/auth/rbac"
 import "@/lib/auth/types"
 
+/** A session that belongs to a workspace member, never a client contact. */
+export type MemberSession = Session & {
+  user: Session["user"] & { orgId: string; role: UserRole }
+}
+
 /**
- * Get the current session or redirect to login.
- * Use in Server Components and Server Actions.
+ * Get the current workspace member's session or redirect.
+ * Use in Server Components and Server Actions. This is the boundary that keeps
+ * client contacts out of the workspace: a Server Action can be POSTed to any
+ * page path, including /portal, so the proxy alone is not enough.
  */
-export async function requireAuth(): Promise<Session> {
+export async function requireAuth(): Promise<MemberSession> {
   const session = await auth()
   if (!session?.user) {
     redirect("/login")
   }
-  return session
+  if (!session.user.orgId || !session.user.role) {
+    redirect(session.user.clientContactId ? "/portal" : "/login")
+  }
+  return session as MemberSession
 }
 
-/**
- * Require a minimum role level, redirect if insufficient.
- * Role hierarchy: ADMIN > REVIEWER > STAKEHOLDER
- */
-export async function requireRole(requiredRole: UserRole): Promise<Session> {
-  const session = await requireAuth()
-  if (!canAccess(session.user.role as UserRole, requiredRole)) {
-    redirect("/unauthorized")
+/** Get the current client contact or redirect. Use in portal code only. */
+export async function requirePortalContact(): Promise<{ userId: string; clientContactId: string; clientAccountId: string }> {
+  const session = await auth()
+  if (!session?.user) {
+    redirect("/login")
   }
-  return session
-}
-
-/**
- * Wrapper for API route handlers that injects session.
- * Returns 401 if not authenticated.
- */
-export function withAuth(
-  handler: (req: Request, session: Session) => Promise<Response>
-) {
-  return async (req: Request) => {
-    const session = await auth()
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-    return handler(req, session)
+  const { id, clientContactId, clientAccountId } = session.user
+  if (!clientContactId || !clientAccountId) {
+    redirect("/requests")
   }
+  return { userId: id, clientContactId, clientAccountId }
 }

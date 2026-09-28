@@ -6,23 +6,33 @@ import {
   getPreferredWorkspace,
   rememberWorkspace,
 } from "@/lib/db/queries/workspaces"
+import { findActiveClientContact } from "@/lib/db/queries/client-accounts"
 import type { UserRole } from "@/lib/types/database"
 import crypto from "crypto"
 
+export type SessionIdentity =
+  | { kind: "member"; orgId: string; role: UserRole }
+  | { kind: "client"; clientContactId: string; clientAccountId: string }
+
 /**
- * Ensure a user has at least one organization.
- * If they don't, create a personal workspace and add them as ADMIN.
- * Returns the orgId and role for JWT token storage.
+ * Decide what a signing-in user becomes, for JWT token storage.
+ *
+ * A membership wins. Otherwise an active client contact gets a portal-only
+ * identity and never a workspace. Anyone else gets a personal workspace with
+ * the ADMIN role (see CCT-2449 for whether that should stay).
  */
-export async function ensureUserOrganization(
+export async function resolveSessionIdentity(
   userId: string,
   email: string
-): Promise<{ orgId: string; role: UserRole }> {
+): Promise<SessionIdentity> {
   const existing = await getPreferredWorkspace(userId)
   if (existing) {
     await rememberWorkspace(userId, existing.orgId)
-    return existing
+    return { kind: "member", ...existing }
   }
+
+  const contact = await findActiveClientContact(userId)
+  if (contact) return { kind: "client", ...contact }
 
   // Derive org name and slug from email
   const username = email.split("@")[0] ?? "user"
@@ -35,5 +45,5 @@ export async function ensureUserOrganization(
   await addUserToOrganization(org.id, userId, "ADMIN")
   await rememberWorkspace(userId, org.id)
 
-  return { orgId: org.id, role: "ADMIN" }
+  return { kind: "member", orgId: org.id, role: "ADMIN" }
 }

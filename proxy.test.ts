@@ -49,3 +49,47 @@ describe('proxy session check', () => {
     expect(getToken).toHaveBeenLastCalledWith(expect.objectContaining({ secureCookie: false }))
   })
 })
+
+describe('proxy client portal boundary', () => {
+  const clientToken = { id: 'u2', orgId: null, clientContactId: 'contact-1', clientAccountId: 'acct-1' }
+  const memberToken = { id: 'u1', orgId: 'org-1', role: 'REVIEWER' }
+  beforeEach(() => { vi.clearAllMocks(); process.env.AUTH_SECRET = 'test-secret' })
+
+  it.each(['/portal', '/portal/requests'])('admits a client session to %s', async (path) => {
+    getToken.mockResolvedValue(clientToken)
+    expect(await invoke(path)).toBeUndefined()
+  })
+
+  it.each(['/requests', '/settings', '/portalish'])('redirects a client session away from %s to the portal', async (path) => {
+    getToken.mockResolvedValue(clientToken)
+    const response = await invoke(path)
+    expect(response?.status).toBe(302)
+    expect(response?.headers.get('location')).toBe('https://example.test/portal')
+  })
+
+  it('refuses session-authenticated APIs to a client session', async () => {
+    getToken.mockResolvedValue(clientToken)
+    expect((await invoke('/api/export/requests'))?.status).toBe(403)
+    expect((await invoke('/api/attachments/abc'))?.status).toBe(403)
+  })
+
+  it('leaves auth routes, public pages and machine APIs to their own checks', async () => {
+    getToken.mockResolvedValue(clientToken)
+    expect(await invoke('/api/auth/session')).toBeUndefined()
+    expect(await invoke('/')).toBeUndefined()
+    expect(await invoke('/api/v1/requests')).toBeUndefined()
+  })
+
+  it('sends a workspace member on the portal back to the workspace', async () => {
+    getToken.mockResolvedValue(memberToken)
+    const response = await invoke('/portal')
+    expect(response?.status).toBe(302)
+    expect(response?.headers.get('location')).toBe('https://example.test/requests')
+  })
+
+  it('sends a visitor without a session on the portal to login', async () => {
+    getToken.mockResolvedValue(null)
+    const response = await invoke('/portal')
+    expect(response?.headers.get('location')).toBe('https://example.test/login')
+  })
+})
