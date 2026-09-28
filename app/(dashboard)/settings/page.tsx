@@ -23,6 +23,7 @@ import "@/lib/auth/types"
 import { SettingsContent } from "./SettingsContent"
 import { listPendingInvitations } from '@/lib/db/queries/invitations'
 import { listClientAccounts } from '@/lib/db/queries/client-accounts'
+import { listForms } from '@/lib/db/queries/intake-forms'
 import { invitationEmailReadiness } from '@/lib/email/invitation'
 import { getActivityByOrganization } from '@/lib/db/queries/activity-log'
 import { getScoringPolicy } from '@/lib/db/queries/scoring-policy'
@@ -122,9 +123,9 @@ export default async function SettingsPage() {
     joinedAt: ou.createdAt.toISOString(),
   }))
 
-  const [invitations, administrationHistory, emailDeliveries, teamsTenantId, teamsDeliveries, clientAccounts] = session.user.role === 'ADMIN'
-    ? await Promise.all([listPendingInvitations(orgId), getActivityByOrganization(orgId, 100), listEmailDeliveries(orgId), getTeamsTenant(orgId), listTeamsDeliveries(orgId), listClientAccounts(orgId)])
-    : [[], [], [], null, [], []]
+  const [invitations, administrationHistory, emailDeliveries, teamsTenantId, teamsDeliveries, clientAccounts, intakeForms] = session.user.role === 'ADMIN'
+    ? await Promise.all([listPendingInvitations(orgId), getActivityByOrganization(orgId, 100), listEmailDeliveries(orgId), getTeamsTenant(orgId), listTeamsDeliveries(orgId), listClientAccounts(orgId), listForms(orgId)])
+    : [[], [], [], null, [], [], []]
 
   const objectives = objectivesWithKr.map((obj) => ({
     id: obj.id,
@@ -156,8 +157,9 @@ export default async function SettingsPage() {
       scoringPolicy={await getScoringPolicy(orgId)}
       invitations={invitations}
       clientAccounts={clientAccounts}
+      intakeForms={intakeForms}
       invitationReadiness={invitationEmailReadiness()}
-      administrationHistory={administrationHistory.filter(event => ['ORGANIZATION_UPDATED', 'MEMBER_UPDATED', 'INVITATION_UPDATED', 'CLIENT_UPDATED'].includes(event.action)).map(event => ({
+      administrationHistory={administrationHistory.filter(event => ['ORGANIZATION_UPDATED', 'MEMBER_UPDATED', 'INVITATION_UPDATED', 'CLIENT_UPDATED', 'FORM_UPDATED'].includes(event.action)).map(event => ({
         id: event.id, action: event.action, metadata: event.metadata, userName: event.userName, createdAt: event.createdAt.toISOString(),
       }))}
       userRole={session.user.role}

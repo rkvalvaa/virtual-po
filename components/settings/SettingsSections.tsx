@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { Button } from "@/components/ui/button"
 
 const groups = [
-  { title: "Workspace", sections: [["organization", "Organization"], ["members", "Members"], ["clients", "Clients"], ["repositories", "Repositories"], ["ai-budget", "AI Budget"]] },
+  { title: "Workspace", sections: [["organization", "Organization"], ["members", "Members"], ["clients", "Clients"], ["forms", "Forms"], ["repositories", "Repositories"], ["ai-budget", "AI Budget"]] },
   { title: "Planning and review", sections: [["scoring", "Scoring"], ["okrs", "OKRs"], ["capacity", "Capacity"], ["templates", "Templates"], ["custom-fields", "Custom Fields"], ["approvals", "Approvals"], ["review-cycles", "Review Cycles"]] },
   { title: "Integrations", sections: [["jira", "Jira"], ["linear", "Linear"], ["github-issues", "GitHub Issues"], ["slack", "Slack"], ["teams", "Teams"], ["api-keys", "API Keys"], ["webhooks", "Webhooks"]] },
   { title: "Personal", sections: [["email", "Email"]] },

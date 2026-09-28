@@ -43,6 +43,8 @@ import { InvitationSettings } from '@/components/settings/InvitationSettings'
 import type { PendingInvitation } from '@/lib/db/queries/invitations'
 import { ClientSettings } from '@/components/settings/ClientSettings'
 import type { ClientAccount } from '@/lib/db/queries/client-accounts'
+import { FormSettings } from '@/components/settings/FormSettings'
+import type { IntakeForm } from '@/lib/db/queries/intake-forms'
 import type { EmailReadiness } from '@/lib/email/config'
 import type { EmailDeliverySummary } from '@/lib/email/outbox'
 import type { PlanningCapacity } from '@/lib/planning/types'
@@ -55,6 +57,7 @@ interface SettingsContentProps {
   scoringPolicy?: ScoringPolicy
   invitations?: PendingInvitation[]
   clientAccounts?: ClientAccount[]
+  intakeForms?: IntakeForm[]
   invitationReadiness?: string | null
   administrationHistory?: { id: string; action: string; metadata: Record<string, unknown>; userName: string | null; createdAt: string }[]
   organization: {
@@ -160,6 +163,7 @@ export function SettingsContent({
   aiBudgetDeploymentConfiguration,
   invitations = [],
   clientAccounts = [],
+  intakeForms = [],
   invitationReadiness = null,
   administrationHistory = [],
   scoringPolicy = { version: 0, config: defaultScoringConfig },
@@ -202,6 +206,12 @@ export function SettingsContent({
           {userRole === 'ADMIN'
             ? <ClientSettings accounts={clientAccounts} readiness={invitationReadiness} />
             : <p className="text-sm text-muted-foreground">Only administrators can manage clients.</p>}
+        </SettingsPanel>
+
+        <SettingsPanel value="forms">
+          {userRole === 'ADMIN'
+            ? <FormSettings forms={intakeForms} clients={clientAccounts.map(({ id, name }) => ({ id, name }))} organizationName={organization.name} />
+            : <p className="text-sm text-muted-foreground">Only administrators can manage request forms.</p>}
         </SettingsPanel>
 
         <SettingsPanel value="repositories">

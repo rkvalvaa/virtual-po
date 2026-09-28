@@ -6,7 +6,7 @@ import { connectRepository } from '@/lib/db/queries/repositories';
 import { upsertIntegration } from '@/lib/db/queries/jira-sync';
 import { upsertTeamsNotification } from '@/lib/db/queries/teams';
 
-const sections = ['Organization', 'Members', 'Clients', 'Repositories', 'AI Budget', 'Scoring', 'OKRs', 'Capacity', 'Templates', 'Custom Fields', 'Approvals', 'Review Cycles', 'Jira', 'Linear', 'GitHub Issues', 'Slack', 'Teams', 'API Keys', 'Webhooks', 'Email'];
+const sections = ['Organization', 'Members', 'Clients', 'Forms', 'Repositories', 'AI Budget', 'Scoring', 'OKRs', 'Capacity', 'Templates', 'Custom Fields', 'Approvals', 'Review Cycles', 'Jira', 'Linear', 'GitHub Issues', 'Slack', 'Teams', 'API Keys', 'Webhooks', 'Email'];
 async function noOverflow(page: Page) {
   // Retry the actual layout assertion, as with other browser UI checks.
   await expect(async () => {
@@ -33,6 +33,11 @@ for (const width of [390, 768, 1366]) test(`settings sections and intake remain 
       VALUES($1,'A client account with a long name for overflow verification') RETURNING id`, [org.id]);
     await query(`INSERT INTO client_contacts(client_account_id,email,name)
       VALUES($1,'a-very-long-contact-address-for-overflow-verification@client-example.test','Contact Person')`, [client.rows[0].id]);
+    await query(`INSERT INTO intake_forms(organization_id,client_account_id,draft) VALUES($1,$2,$3)`, [org.id, client.rows[0].id, {
+      title: 'A request form with a long title for overflow verification', instructions: 'Describe the change in detail.',
+      titleFieldKey: 'summary', maxAttachments: 3,
+      fields: [{ key: 'summary', label: 'A long summary label for overflow verification', type: 'TEXT', required: true, options: [], showIf: null }],
+    }]);
     await connectRepository(org.id, 42, 'a-long-organization-name', 'a-long-repository-name', 'a-long-organization-name/a-long-repository-name', 'main', admin.id);
     await page.setViewportSize({ width, height: 900 });
     await loginAs(page, admin.email);
@@ -43,6 +48,11 @@ for (const width of [390, 768, 1366]) test(`settings sections and intake remain 
       await expect(page.getByRole('region', { name: `${label} settings`, exact: true })).toBeVisible();
       await noOverflow(page);
     }
+    if (width < 1024) await page.getByLabel('Settings section', { exact: true }).selectOption({ label: 'Forms' });
+    else await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Forms', exact: true }).click();
+    await page.getByRole('button', { name: /^Edit A request form/ }).click();
+    await expect(page.getByRole('region', { name: 'Preview' })).toBeVisible();
+    await noOverflow(page);
     await page.goto(`/requests/${request.id}/workflow`);
     const input = page.getByRole('textbox', { name: 'Message to agent' });
     await input.fill('A feature request with readable text');

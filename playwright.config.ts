@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "@playwright/test"
 
-const baseURL = "http://localhost:3000"
+// E2E_PORT avoids clashing with another local app on 3000; set AUTH_URL to match.
+const port = process.env.E2E_PORT ?? "3000"
+const baseURL = `http://localhost:${port}`
 const mockAnthropicPort = process.env.MOCK_ANTHROPIC_PORT ?? "4010"
 
 export default defineConfig({
@@ -35,6 +37,7 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 300_000,
       env: {
+        PORT: port,
         // The provider appends `/messages`, so the version segment belongs here.
         ANTHROPIC_BASE_URL: `http://localhost:${mockAnthropicPort}/v1`,
         ANTHROPIC_API_KEY: "sk-ant-e2e",

@@ -46,7 +46,7 @@ function isEmpty(value: string | number | null | undefined): boolean {
  * not break in-flight edits.
  */
 export function validateCustomFieldValues(
-  definitions: CustomFieldDefinition[],
+  definitions: Pick<CustomFieldDefinition, 'key' | 'name' | 'type' | 'options' | 'required'>[],
   values: RawCustomFieldValues
 ): CustomFieldValidation {
   const errors: Record<string, string> = {};
