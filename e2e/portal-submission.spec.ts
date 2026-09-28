@@ -72,8 +72,29 @@ test('a client contact submits a published form and a reviewer sees where it cam
       await internal.goto(`/requests/${row.rows[0].id}`);
       const origin = internal.getByRole('main');
       await expect(origin.getByText('Submitted through the client portal')).toBeVisible();
-      await expect(origin.getByText('E2E submitting client')).toBeVisible();
+      await expect(origin.getByText('E2E submitting client', { exact: true })).toBeVisible();
       await expect(origin.getByText('https://portal.example/listing/42')).toBeVisible();
+
+      await internal.getByLabel('Message to the client').fill('Which listing page is it?');
+      await internal.getByRole('button', { name: 'Send to client' }).click();
+      await expect(internal.getByLabel('Message to the client')).toHaveValue('');
+      const sentRows = await query('SELECT direction, body FROM request_external_messages WHERE request_id = $1', [row.rows[0].id]);
+      expect(sentRows.rows).toEqual([{ direction: 'TO_CLIENT', body: 'Which listing page is it?' }]);
+      await expect(origin.getByText('Which listing page is it?', { exact: true })).toBeVisible();
+
+      await page.reload();
+      const thread = page.getByRole('region', { name: 'Messages' });
+      await expect(thread).toContainText('The team');
+      await expect(thread).toContainText('Which listing page is it?');
+      await expect(thread).not.toContainText(reviewer.email);
+      await page.getByLabel('Your reply').fill('The Oslo listing');
+      await page.getByRole('button', { name: 'Send reply' }).click();
+      await expect(thread).toContainText('The Oslo listing');
+
+      await internal.reload();
+      await expect(internal.getByRole('main').getByText('The Oslo listing')).toBeVisible();
+      const queued = await query(`SELECT status FROM email_deliveries WHERE kind = 'CLIENT_MESSAGE' AND recipient_email = $1`, [email]);
+      expect(queued.rows.map(r => r.status)).toEqual(['UNAVAILABLE']);
     } finally { await internal.close(); }
   } finally {
     await cleanupTestOrg(org, [admin.id, reviewer.id]);

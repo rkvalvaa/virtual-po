@@ -177,7 +177,7 @@ export function EmailPreferencesSettings({
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={delivery.status === 'FAILED' ? 'destructive' : 'outline'}>{statusLabel(delivery.status)}</Badge>
-              <span className="text-xs text-muted-foreground">{delivery.kind === 'TEST' ? 'Test' : 'Notification'} · {new Date(delivery.createdAt).toLocaleString()}</span>
+              <span className="text-xs text-muted-foreground">{delivery.kind === 'TEST' ? 'Test' : delivery.kind === 'CLIENT_MESSAGE' ? 'Client message' : 'Notification'} · {new Date(delivery.createdAt).toLocaleString()}</span>
             </div>
             <p className="break-all text-sm">{delivery.recipientEmail}</p>
             <p className="text-xs text-muted-foreground">Attempts: {delivery.attemptCount}</p>

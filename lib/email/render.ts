@@ -6,6 +6,8 @@ export interface NotificationEmailContent {
   title: string
   message: string
   link?: string | null
+  /** Client portal contacts have no notification settings; their footer says why they got the email. */
+  audience?: 'member' | 'client'
 }
 
 const TYPE_LABELS: Record<NotificationType, string> = {
@@ -35,6 +37,14 @@ function absoluteApplicationLink(link: string | null | undefined, applicationUrl
 
 export function renderNotificationEmail(content: NotificationEmailContent, applicationUrl: string) {
   const greeting = content.recipientName ? `Hi ${content.recipientName},` : 'Hi,'
+  const client = content.audience === 'client'
+  const footerText = client
+    ? 'You received this because you sent a request through the client portal.'
+    : `You received this because you enabled email notifications for "${TYPE_LABELS[content.type]}" events.\nManage your preferences in Settings > Email.`
+  const footerHtml = client
+    ? '<p>You received this because you sent a request through the client portal.</p>'
+    : `<p>You received this because you enabled email notifications for &quot;${escapeHtml(TYPE_LABELS[content.type])}&quot; events.</p>
+    <p>Manage your preferences in Settings &gt; Email.</p>`
   const link = absoluteApplicationLink(content.link, applicationUrl)
   const linkHtml = link
     ? `<p style="margin-top:16px"><a href="${escapeHtml(link)}" style="display:inline-block;padding:10px 20px;background-color:#171717;color:#fff;text-decoration:none;border-radius:6px;font-size:14px">View details</a></p>`
@@ -51,10 +61,9 @@ export function renderNotificationEmail(content: NotificationEmailContent, appli
   <p style="margin:0 0 16px;white-space:pre-wrap">${escapeHtml(content.message)}</p>
   ${linkHtml}
   <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e5e5;font-size:12px;color:#888">
-    <p>You received this because you enabled email notifications for &quot;${escapeHtml(TYPE_LABELS[content.type])}&quot; events.</p>
-    <p>Manage your preferences in Settings &gt; Email.</p>
+    ${footerHtml}
   </div>
 </body></html>`,
-    text: `${greeting}\n\n${content.title}\n\n${content.message}${link ? `\n\nView details: ${link}` : ''}\n\n---\nYou received this because you enabled email notifications for "${TYPE_LABELS[content.type]}" events.\nManage your preferences in Settings > Email.`,
+    text: `${greeting}\n\n${content.title}\n\n${content.message}${link ? `\n\nView details: ${link}` : ''}\n\n---\n${footerText}`,
   }
 }
