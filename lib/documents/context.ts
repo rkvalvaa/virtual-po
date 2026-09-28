@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { query, transaction } from '@/lib/db/pool';
 import { lockAuthorizedRequest } from '@/lib/agents/runs';
 import { readAttachment } from '@/lib/storage/blob';
+import { portalStagingPrefix } from '@/lib/storage/portal-upload-authorization';
 import { DOCUMENT_LIMITS, supportsDocumentContext } from './limits';
 import { extractDocumentText } from './text';
 
@@ -25,7 +26,8 @@ export async function listDocumentContext(requestId: string, orgId: string, user
 export async function selectDocumentContext(attachmentId: string, orgId: string, userId: string, selected: boolean): Promise<void> {
   const token = randomUUID();
   const attachment = await transaction(async () => {
-    const found = await query(`SELECT a.* FROM attachments a JOIN feature_requests r ON r.id=a.request_id
+    const found = await query(`SELECT a.*, r.client_account_id, r.source_form_id, r.creation_key
+      FROM attachments a JOIN feature_requests r ON r.id=a.request_id
       JOIN organization_users m ON m.organization_id=r.organization_id AND m.user_id=$3
       WHERE a.id=$1 AND r.organization_id=$2`, [attachmentId, orgId, userId]);
     const row = found.rows[0];
@@ -37,7 +39,12 @@ export async function selectDocumentContext(attachmentId: string, orgId: string,
     if (!selected) { await query('DELETE FROM attachment_context WHERE attachment_id=$1', [attachmentId]); return null; }
     if (!supportsDocumentContext(row.mime_type)) throw new Error('Plain text and Markdown are the supported AI document formats.');
     if (row.size > DOCUMENT_LIMITS.fileBytes) throw new Error('AI document context supports files up to 256 KiB.');
-    if (!row.storage_key?.startsWith(`orgs/${orgId}/requests/${row.request_id}/`)) throw new Error('Attachment storage location is invalid.');
+    // In-app uploads live under the request; portal uploads under the submission's staging folder.
+    const folders = [`orgs/${orgId}/requests/${row.request_id}/`];
+    if (row.client_account_id && row.source_form_id && row.creation_key) {
+      folders.push(portalStagingPrefix(row.client_account_id, row.source_form_id, row.creation_key));
+    }
+    if (!folders.some(folder => row.storage_key?.startsWith(folder))) throw new Error('Attachment storage location is invalid.');
     const count = await query(`SELECT COUNT(*)::int AS count FROM attachment_context c JOIN attachments a ON a.id=c.attachment_id
       WHERE a.request_id=$1 AND a.id<>$2`, [row.request_id, attachmentId]);
     if (count.rows[0].count >= DOCUMENT_LIMITS.files) throw new Error('Select at most five supporting documents.');

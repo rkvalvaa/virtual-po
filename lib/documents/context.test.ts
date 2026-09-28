@@ -6,6 +6,8 @@ import { createAttachment, deleteAttachment } from '@/lib/db/queries/attachments
 import { listDocumentContext, selectDocumentContext, supportingDocuments } from './context';
 import { beginAgentRun, finishAgentRun } from '@/lib/agents/runs';
 import { DOCUMENT_LIMITS } from './limits';
+import { createClientAccount } from '@/lib/db/queries/client-accounts';
+import { createForm } from '@/lib/db/queries/intake-forms';
 const blob = vi.hoisted(() => ({ reads: 0 }));
 vi.mock('@/lib/storage/blob', () => ({ readAttachment: async () => {
   blob.reads++;
@@ -39,6 +41,23 @@ describe.skipIf(!hasDb())('authorized document context', () => {
       await expect(selectDocumentContext(attachment.id, foreign.id, user.id, true)).rejects.toThrow(/not found|membership/);
       expect(blob.reads).toBe(0);
     } finally { await cleanupTestOrg(foreign); await cleanupTestOrg(org, [user.id]); }
+  });
+  it('accepts a portal file only from the staging folder of the submission that created the request', async () => {
+    const org = await createTestOrg('document-portal'), user = await createTestUser(org, 'ADMIN'), request = await createTestRequest(org, user);
+    const client = await createClientAccount(org.id, user.id, 'Portal docs client');
+    const { id: formId } = await createForm(org.id, user.id, client.id, 'Docs form');
+    const visit = crypto.randomUUID();
+    await query('UPDATE feature_requests SET client_account_id=$2, source_form_id=$3, creation_key=$4 WHERE id=$1', [request.id, client.id, formId, visit]);
+    const attach = (storageKey: string) => createAttachment({ requestId: request.id, filename: 'brief.md', mimeType: 'text/markdown', size: 24,
+      url: 'https://unused.test/blob', storageKey, uploadedBy: user.id });
+    const own = await attach(`portal/${client.id}/${formId}/${visit}/brief.md`);
+    const otherVisit = await attach(`portal/${client.id}/${formId}/${crypto.randomUUID()}/brief.md`);
+    try {
+      await selectDocumentContext(own.id, org.id, user.id, true);
+      expect(await listDocumentContext(request.id, org.id, user.id)).toMatchObject([{ attachmentId: own.id, status: 'PROCESSED' }]);
+      await expect(selectDocumentContext(otherVisit.id, org.id, user.id, true)).rejects.toThrow(/storage location/);
+      expect(blob.reads).toBe(1);
+    } finally { await cleanupTestOrg(org, [user.id]); }
   });
   it('rejects unsupported formats without reading them', async () => {
     const org = await createTestOrg('document-format'), user = await createTestUser(org, 'ADMIN'), request = await createTestRequest(org, user);
