@@ -6,7 +6,7 @@ import { connectRepository } from '@/lib/db/queries/repositories';
 import { upsertIntegration } from '@/lib/db/queries/jira-sync';
 import { upsertTeamsNotification } from '@/lib/db/queries/teams';
 
-const sections = ['Organization', 'Members', 'Clients', 'Forms', 'Repositories', 'AI Budget', 'Scoring', 'OKRs', 'Capacity', 'Templates', 'Custom Fields', 'Approvals', 'Review Cycles', 'Jira', 'Linear', 'GitHub Issues', 'Slack', 'Teams', 'API Keys', 'Webhooks', 'Email'];
+const sections = ['Organization', 'Members', 'Clients', 'Service Groups', 'Forms', 'Repositories', 'AI Budget', 'Scoring', 'OKRs', 'Capacity', 'Templates', 'Custom Fields', 'Approvals', 'Review Cycles', 'Jira', 'Linear', 'GitHub Issues', 'Slack', 'Teams', 'API Keys', 'Webhooks', 'Email'];
 async function noOverflow(page: Page) {
   // Retry the actual layout assertion, as with other browser UI checks.
   await expect(async () => {
@@ -38,6 +38,9 @@ for (const width of [390, 768, 1366]) test(`settings sections and intake remain 
       titleFieldKey: 'summary', maxAttachments: 3,
       fields: [{ key: 'summary', label: 'A long summary label for overflow verification', type: 'TEXT', required: true, options: [], showIf: null }],
     }]);
+    const group = await query<{ id: string }>(`INSERT INTO service_groups(organization_id,name,fallback_owner_id)
+      VALUES($1,'A service group with a long name for overflow verification',$2) RETURNING id`, [org.id, admin.id]);
+    await query(`INSERT INTO service_group_members(group_id,organization_id,user_id,role) VALUES($1,$2,$3,'LEAD')`, [group.rows[0].id, org.id, admin.id]);
     await connectRepository(org.id, 42, 'a-long-organization-name', 'a-long-repository-name', 'a-long-organization-name/a-long-repository-name', 'main', admin.id);
     await page.setViewportSize({ width, height: 900 });
     await loginAs(page, admin.email);

@@ -2,6 +2,7 @@ import { query, transaction } from '@/lib/db/pool';
 import { lockOrganizationAdmin } from '@/lib/auth/organization-admin';
 import { logActivity } from './activity-log';
 import type { UserRole } from '@/lib/types/database';
+import { releaseGroupDuties } from './service-groups';
 
 export type MemberChange = { kind: 'role'; role: UserRole } | { kind: 'remove' } | { kind: 'handover' };
 
@@ -26,6 +27,7 @@ export async function changeOrganizationMember(orgId: string, actorId: string, t
         if (admins.rows.length <= 1) throw new Error('The last administrator cannot be removed or demoted. Hand over administration first.');
       }
       if (change.kind === 'remove') {
+        await releaseGroupDuties(orgId, targetId);
         await query('UPDATE feature_requests SET assignee_id = NULL, updated_at = NOW() WHERE organization_id = $1 AND assignee_id = $2', [orgId, targetId]);
         await query('DELETE FROM organization_users WHERE organization_id = $1 AND user_id = $2', [orgId, targetId]);
       } else {

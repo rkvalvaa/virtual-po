@@ -42,6 +42,8 @@ import { MemberSettings } from "@/components/settings/MemberSettings"
 import { InvitationSettings } from '@/components/settings/InvitationSettings'
 import type { PendingInvitation } from '@/lib/db/queries/invitations'
 import { ClientSettings } from '@/components/settings/ClientSettings'
+import { ServiceGroupSettings } from '@/components/settings/ServiceGroupSettings'
+import type { ServiceGroup } from '@/lib/db/queries/service-groups'
 import type { ClientAccount } from '@/lib/db/queries/client-accounts'
 import { FormSettings } from '@/components/settings/FormSettings'
 import type { IntakeForm } from '@/lib/db/queries/intake-forms'
@@ -57,6 +59,7 @@ interface SettingsContentProps {
   scoringPolicy?: ScoringPolicy
   invitations?: PendingInvitation[]
   clientAccounts?: ClientAccount[]
+  serviceGroups?: ServiceGroup[]
   intakeForms?: IntakeForm[]
   invitationReadiness?: string | null
   administrationHistory?: { id: string; action: string; metadata: Record<string, unknown>; userName: string | null; createdAt: string }[]
@@ -163,6 +166,7 @@ export function SettingsContent({
   aiBudgetDeploymentConfiguration,
   invitations = [],
   clientAccounts = [],
+  serviceGroups = [],
   intakeForms = [],
   invitationReadiness = null,
   administrationHistory = [],
@@ -206,6 +210,12 @@ export function SettingsContent({
           {userRole === 'ADMIN'
             ? <ClientSettings accounts={clientAccounts} readiness={invitationReadiness} />
             : <p className="text-sm text-muted-foreground">Only administrators can manage clients.</p>}
+        </SettingsPanel>
+
+        <SettingsPanel value="service-groups">
+          {userRole === 'ADMIN'
+            ? <ServiceGroupSettings groups={serviceGroups} members={members.map(m => ({ userId: m.userId, label: m.userName ?? m.userEmail }))} />
+            : <p className="text-sm text-muted-foreground">Only administrators can manage service groups.</p>}
         </SettingsPanel>
 
         <SettingsPanel value="forms">
