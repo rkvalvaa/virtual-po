@@ -12,6 +12,7 @@ import {
   updateWorkflow,
 } from './approval-workflows'
 import { query } from '@/lib/db/pool'
+import { changeOrganizationMember } from './organization-members'
 import {
   hasDb,
   createTestOrg,
@@ -231,6 +232,75 @@ describe.skipIf(!hasDb())('approval workflow queries', () => {
           rationale: null,
         })
       ).rejects.toThrow()
+    })
+  })
+
+  describe('editing a chain keeps recorded approvals', () => {
+    async function chainWithApproval() {
+      const request = await createTestRequest(org, admin, 'Mid-chain request')
+      const workflow = await createWorkflow(org.id, 'Chain', null)
+      const [first, second] = await replaceSteps(org.id, workflow.id, [
+        { name: 'Product', approverRole: 'REVIEWER', approverUserId: null },
+        { name: 'Exec', approverRole: null, approverUserId: admin.id },
+      ])
+      await recordStepApproval({ requestId: request.id, stepId: first.id, approverId: reviewer.id, decision: 'APPROVED', rationale: 'Fine' })
+      return { request, workflow, first, second }
+    }
+    const approvalsFor = async (requestId: string) => (await listRequestApprovals(requestId)).map((a) => a.stepId)
+
+    it('keeps steps and approvals when the chain is saved unchanged or only renamed', async () => {
+      const { request, workflow, first, second } = await chainWithApproval()
+      const saved = await replaceSteps(org.id, workflow.id, [
+        { name: 'Product sign-off', approverRole: 'REVIEWER', approverUserId: null },
+        { name: 'Exec', approverRole: null, approverUserId: admin.id },
+      ])
+      expect(saved.map((s) => s.id)).toEqual([first.id, second.id])
+      expect(saved[0].name).toBe('Product sign-off')
+      expect(await approvalsFor(request.id)).toEqual([first.id])
+    })
+
+    it('keeps earlier approvals when a step is added', async () => {
+      const { request, workflow, first } = await chainWithApproval()
+      const saved = await replaceSteps(org.id, workflow.id, [
+        { name: 'Product', approverRole: 'REVIEWER', approverUserId: null },
+        { name: 'Exec', approverRole: null, approverUserId: admin.id },
+        { name: 'Finance', approverRole: 'ADMIN', approverUserId: null },
+      ])
+      expect(saved[0].id).toBe(first.id)
+      expect(saved.map((s) => s.stepOrder)).toEqual([1, 2, 3])
+      expect(await approvalsFor(request.id)).toEqual([first.id])
+    })
+
+    it('retires a changed or removed step, keeping its approval as history', async () => {
+      const { request, workflow, first } = await chainWithApproval()
+      const saved = await replaceSteps(org.id, workflow.id, [
+        { name: 'Exec', approverRole: null, approverUserId: admin.id },
+      ])
+      expect(saved).toHaveLength(1)
+      expect(saved[0].id).not.toBe(first.id)
+      expect((await getWorkflowById(org.id, workflow.id))?.steps.map((s) => s.name)).toEqual(['Exec'])
+      expect(await approvalsFor(request.id)).toEqual([first.id])
+      const retired = await query('SELECT retired_at FROM approval_steps WHERE id = $1', [first.id])
+      expect(retired.rows[0].retired_at).not.toBeNull()
+    })
+
+    it('refuses to delete a chain that has recorded approvals', async () => {
+      const { request, workflow } = await chainWithApproval()
+      await expect(deleteWorkflow(org.id, workflow.id)).rejects.toThrow(/deactivate/i)
+      expect(await listRequestApprovals(request.id)).toHaveLength(1)
+    })
+
+    it('lets a member named only on a retired step lose review access', async () => {
+      const request = await createTestRequest(org, admin, 'Named approver request')
+      const workflow = await createWorkflow(org.id, 'Chain', null)
+      const [named] = await replaceSteps(org.id, workflow.id, [{ name: 'Rita', approverRole: null, approverUserId: reviewer.id }])
+      await recordStepApproval({ requestId: request.id, stepId: named.id, approverId: reviewer.id, decision: 'APPROVED', rationale: null })
+      await replaceSteps(org.id, workflow.id, [{ name: 'Any reviewer', approverRole: 'REVIEWER', approverUserId: null }])
+
+      await changeOrganizationMember(org.id, admin.id, reviewer.id, { kind: 'role', role: 'STAKEHOLDER' })
+      const role = await query('SELECT role FROM organization_users WHERE organization_id = $1 AND user_id = $2', [org.id, reviewer.id])
+      expect(role.rows[0].role).toBe('STAKEHOLDER')
+      await query("UPDATE organization_users SET role = 'REVIEWER' WHERE organization_id = $1 AND user_id = $2", [org.id, reviewer.id])
     })
   })
 })

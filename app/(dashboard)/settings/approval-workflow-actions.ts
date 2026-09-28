@@ -109,7 +109,8 @@ export async function deleteApprovalWorkflow(
     await deleteWorkflow(orgId, parsed.data)
     revalidatePath("/settings")
     return { success: true }
-  } catch {
-    return { success: false, error: "Failed to delete approval workflow." }
+  } catch (error) {
+    // The chain-with-approvals refusal tells the admin what to do instead.
+    return { success: false, error: error instanceof Error ? error.message : "Failed to delete approval workflow." }
   }
 }

@@ -13,7 +13,7 @@ export async function changeOrganizationMember(orgId: string, actorId: string, t
     const previousRole = target.rows[0].role;
     if (change.kind === 'remove' || (change.kind === 'role' && change.role === 'STAKEHOLDER')) {
       const assigned = await query(`SELECT s.id FROM approval_steps s JOIN approval_workflows w ON w.id = s.workflow_id
-        WHERE w.organization_id = $1 AND s.approver_user_id = $2 LIMIT 1`, [orgId, targetId]);
+        WHERE w.organization_id = $1 AND s.approver_user_id = $2 AND s.retired_at IS NULL LIMIT 1`, [orgId, targetId]);
       if (assigned.rowCount) throw new Error('Reassign this member’s named approval steps in Settings before removing their review access.');
     }
     if (change.kind === 'handover') {
