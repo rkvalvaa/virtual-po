@@ -22,6 +22,8 @@ export async function lockAuthorizedRequest(scope: AgentScope): Promise<FeatureR
     [scope.requestId, scope.orgId, scope.userId]);
   if (!result.rows[0]) throw new AgentAccessError('Request not found or membership revoked', 403);
   const request = mapRow<FeatureRequest>(result.rows[0]);
+  // Every AI path (runs, tools, refinement, supporting documents) locks through here.
+  if (request.requestType !== 'PRODUCT') throw new AgentAccessError('AI agents only work on product requests', 409);
   const role = result.rows[0].actor_role as UserRole;
   if (request.requesterId !== scope.userId && role !== 'REVIEWER' && role !== 'ADMIN') {
     throw new AgentAccessError('Only the requester or a reviewer can run this agent', 403);

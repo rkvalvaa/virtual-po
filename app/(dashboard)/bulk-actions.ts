@@ -14,6 +14,12 @@ import { applyDecision, decisionForStatus } from "@/lib/decisions/apply"
 import type { RequestStatus, UserRole } from "@/lib/types/database"
 import "@/lib/auth/types"
 
+/** Bulk actions come from product lists; change requests are out of reach, like another org's. */
+async function bulkTarget(id: string, orgId: string) {
+  const request = await getFeatureRequestById(id)
+  return request?.organizationId === orgId && request.requestType === 'PRODUCT' ? request : null
+}
+
 export async function bulkUpdateStatus(
   requestIds: string[],
   targetStatus: RequestStatus
@@ -28,8 +34,8 @@ export async function bulkUpdateStatus(
   const decision = decisionForStatus(targetStatus)
 
   for (const id of requestIds) {
-    const request = await getFeatureRequestById(id)
-    if (!request || request.organizationId !== session.user.orgId) {
+    const request = await bulkTarget(id, session.user.orgId)
+    if (!request) {
       results.push({ id, success: false, error: "Not found" })
       continue
     }
@@ -86,8 +92,8 @@ export async function bulkAddTags(requestIds: string[], tags: string[]) {
   }
 
   for (const id of requestIds) {
-    const request = await getFeatureRequestById(id)
-    if (!request || request.organizationId !== session.user.orgId) continue
+    const request = await bulkTarget(id, session.user.orgId)
+    if (!request) continue
     const existingTags = request.tags ?? []
     const merged = [...new Set([...existingTags, ...tags])]
     await updateFeatureRequest(id, { tags: merged })
@@ -119,8 +125,8 @@ export async function bulkRemoveTags(requestIds: string[], tags: string[]) {
   const tagSet = new Set(tags)
 
   for (const id of requestIds) {
-    const request = await getFeatureRequestById(id)
-    if (!request || request.organizationId !== session.user.orgId) continue
+    const request = await bulkTarget(id, session.user.orgId)
+    if (!request) continue
     const filtered = (request.tags ?? []).filter((t) => !tagSet.has(t))
     await updateFeatureRequest(id, { tags: filtered })
     try {

@@ -58,7 +58,7 @@ export async function getDashboardSummary(
        COUNT(*) FILTER (WHERE status IN ('APPROVED', 'IN_BACKLOG', 'IN_PROGRESS')) AS in_backlog,
        COUNT(*) FILTER (WHERE status = 'COMPLETED') AS completed,
        ROUND(AVG(quality_score) FILTER (WHERE quality_score IS NOT NULL)) AS avg_quality_score
-     FROM feature_requests
+     FROM product_requests
      WHERE archived_at IS NULL AND organization_id = $1${dateFilter}`,
     params
   );
@@ -86,7 +86,7 @@ export async function getStatusDistribution(
 
   const result = await query(
     `SELECT status, COUNT(*) AS count
-     FROM feature_requests
+     FROM product_requests
      WHERE archived_at IS NULL AND organization_id = $1${dateFilter}
      GROUP BY status
      ORDER BY count DESC`,
@@ -113,7 +113,7 @@ export async function getRequestVolumeByMonth(
   const result = await query(
     `SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month,
             COUNT(*) AS count
-     FROM feature_requests
+     FROM product_requests
      WHERE archived_at IS NULL AND organization_id = $1${dateFilter}
      GROUP BY DATE_TRUNC('month', created_at)
      ORDER BY month ASC`,
@@ -139,7 +139,7 @@ export async function getPriorityDistribution(
 
   // Group by score and policy, then use the same validated historical fallback as badges.
   const result = await query(`SELECT priority_score, assessment_data->'scoringPolicy' AS policy, COUNT(*) AS count
-    FROM feature_requests WHERE archived_at IS NULL AND organization_id = $1${dateFilter} GROUP BY 1, 2`, params);
+    FROM product_requests WHERE archived_at IS NULL AND organization_id = $1${dateFilter} GROUP BY 1, 2`, params);
   const counts = new Map<string, number>();
   for (const row of result.rows) {
     const band = row.priority_score === null ? 'Unscored' : getPriorityLabel(Number(row.priority_score), assessmentScoringPolicy({ scoringPolicy: row.policy }).config);
@@ -161,7 +161,7 @@ export async function getAverageTimeToDecision(
   const result = await query(
     `SELECT ROUND(AVG(EXTRACT(EPOCH FROM (d.created_at - fr.created_at)) / 86400)::numeric, 1) AS avg_days
      FROM decisions d
-     JOIN feature_requests fr ON d.request_id = fr.id
+     JOIN product_requests fr ON d.request_id = fr.id
      WHERE fr.archived_at IS NULL AND fr.organization_id = $1${dateFilter}`,
     params
   );
@@ -186,7 +186,7 @@ export async function getTopRequesters(
 
   const result = await query(
     `SELECT u.id AS user_id, u.name, COUNT(*) AS count
-     FROM feature_requests fr
+     FROM product_requests fr
      JOIN users u ON fr.requester_id = u.id
      WHERE fr.archived_at IS NULL AND fr.organization_id = $1${dateFilter}
      GROUP BY u.id, u.name
@@ -235,7 +235,7 @@ export async function getEstimateAccuracySummary(
        COUNT(*) FILTER (WHERE complexity = actual_complexity) AS matched,
        complexity,
        COUNT(*) FILTER (WHERE complexity = actual_complexity) AS complexity_matched
-     FROM feature_requests
+     FROM product_requests
      WHERE archived_at IS NULL AND complexity IS NOT NULL
        AND actual_complexity IS NOT NULL
        AND organization_id = $1${dateFilter}
@@ -298,9 +298,9 @@ export async function getStakeholderEngagement(
        ROUND(AVG(fr.quality_score)::numeric, 1) AS avg_quality_score,
        GREATEST(MAX(fr.created_at), MAX(c.created_at), MAX(sv.created_at)) AS last_activity_at
      FROM users u
-     JOIN feature_requests fr ON fr.requester_id = u.id AND fr.organization_id = $1 AND fr.archived_at IS NULL
-     LEFT JOIN comments c ON c.author_id = u.id AND EXISTS (SELECT 1 FROM feature_requests cr WHERE cr.id=c.request_id AND cr.organization_id=$1 AND cr.archived_at IS NULL)
-     LEFT JOIN stakeholder_votes sv ON sv.user_id = u.id AND EXISTS (SELECT 1 FROM feature_requests vr WHERE vr.id=sv.request_id AND vr.organization_id=$1 AND vr.archived_at IS NULL)
+     JOIN product_requests fr ON fr.requester_id = u.id AND fr.organization_id = $1 AND fr.archived_at IS NULL
+     LEFT JOIN comments c ON c.author_id = u.id AND EXISTS (SELECT 1 FROM product_requests cr WHERE cr.id=c.request_id AND cr.organization_id=$1 AND cr.archived_at IS NULL)
+     LEFT JOIN stakeholder_votes sv ON sv.user_id = u.id AND EXISTS (SELECT 1 FROM product_requests vr WHERE vr.id=sv.request_id AND vr.organization_id=$1 AND vr.archived_at IS NULL)
      WHERE 1=1${dateFilter}
      GROUP BY u.id, u.name
      ORDER BY (COUNT(DISTINCT fr.id) + COUNT(DISTINCT c.id) + COUNT(DISTINCT sv.id)) DESC
@@ -342,7 +342,7 @@ export async function getTimeToDecisionTrend(
        ROUND(AVG(EXTRACT(EPOCH FROM (d.created_at - fr.created_at)) / 86400)::numeric, 1) AS avg_days,
        COUNT(*) AS decision_count
      FROM decisions d
-     JOIN feature_requests fr ON d.request_id = fr.id
+     JOIN product_requests fr ON d.request_id = fr.id
      WHERE fr.archived_at IS NULL AND fr.organization_id = $1${dateFilter}
      GROUP BY DATE_TRUNC('month', d.created_at)
      ORDER BY month ASC`,
@@ -382,7 +382,7 @@ export async function getConfidenceTrend(
        ROUND(AVG(technical_score)::numeric, 1) AS avg_technical_score,
        ROUND(AVG(risk_score)::numeric, 1) AS avg_risk_score,
        COUNT(*) AS assessment_count
-     FROM feature_requests
+     FROM product_requests
      WHERE archived_at IS NULL AND assessment_data IS NOT NULL
        AND organization_id = $1${dateFilter}
      GROUP BY DATE_TRUNC('month', updated_at)
@@ -428,7 +428,7 @@ export async function getTopVotedRequests(
        COUNT(sv.id)::int AS vote_count,
        ROUND(AVG(sv.vote_value)::numeric, 1)::float AS average_score,
        fr.status
-     FROM feature_requests fr
+     FROM product_requests fr
      JOIN stakeholder_votes sv ON sv.request_id = fr.id
      WHERE fr.archived_at IS NULL AND fr.organization_id = $1${dateFilter}
      GROUP BY fr.id, fr.title, fr.status
@@ -471,7 +471,7 @@ export async function getVoteTrend(
        ROUND(AVG(sv.vote_value)::numeric, 1)::float AS avg_score,
        COUNT(DISTINCT sv.user_id)::int AS unique_voters
      FROM stakeholder_votes sv
-     JOIN feature_requests fr ON sv.request_id = fr.id
+     JOIN product_requests fr ON sv.request_id = fr.id
      WHERE fr.archived_at IS NULL AND fr.organization_id = $1${dateFilter}
      GROUP BY DATE_TRUNC('month', sv.created_at)
      ORDER BY month ASC`,
@@ -509,11 +509,11 @@ export async function getVoteSummaryStats(
 
   const result = await query(
     `SELECT
-       (SELECT COUNT(*)::int FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.archived_at IS NULL AND fr.organization_id = $1${svDateFilter}) AS total_votes,
-       (SELECT COUNT(DISTINCT sv.user_id)::int FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.archived_at IS NULL AND fr.organization_id = $1${svDateFilter}) AS unique_voters,
-       (SELECT COALESCE(ROUND(AVG(sv.vote_value)::numeric, 1), 0)::float FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.archived_at IS NULL AND fr.organization_id = $1${svDateFilter}) AS avg_score,
-       (SELECT COUNT(DISTINCT sv.request_id)::int FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.archived_at IS NULL AND fr.organization_id = $1${svDateFilter}) AS voted_requests_count,
-       (SELECT COUNT(*)::int FROM feature_requests WHERE archived_at IS NULL AND organization_id = $1${plainDateFilter}) AS total_requests_count`,
+       (SELECT COUNT(*)::int FROM stakeholder_votes sv JOIN product_requests fr ON sv.request_id = fr.id WHERE fr.archived_at IS NULL AND fr.organization_id = $1${svDateFilter}) AS total_votes,
+       (SELECT COUNT(DISTINCT sv.user_id)::int FROM stakeholder_votes sv JOIN product_requests fr ON sv.request_id = fr.id WHERE fr.archived_at IS NULL AND fr.organization_id = $1${svDateFilter}) AS unique_voters,
+       (SELECT COALESCE(ROUND(AVG(sv.vote_value)::numeric, 1), 0)::float FROM stakeholder_votes sv JOIN product_requests fr ON sv.request_id = fr.id WHERE fr.archived_at IS NULL AND fr.organization_id = $1${svDateFilter}) AS avg_score,
+       (SELECT COUNT(DISTINCT sv.request_id)::int FROM stakeholder_votes sv JOIN product_requests fr ON sv.request_id = fr.id WHERE fr.archived_at IS NULL AND fr.organization_id = $1${svDateFilter}) AS voted_requests_count,
+       (SELECT COUNT(*)::int FROM product_requests WHERE archived_at IS NULL AND organization_id = $1${plainDateFilter}) AS total_requests_count`,
     params
   );
 
@@ -546,7 +546,7 @@ export async function getDecisionBreakdown(
   const result = await query(
     `SELECT d.decision, COUNT(*)::int AS count
      FROM decisions d
-     JOIN feature_requests fr ON d.request_id = fr.id
+     JOIN product_requests fr ON d.request_id = fr.id
      WHERE fr.archived_at IS NULL AND fr.organization_id = $1${dateFilter}
      GROUP BY d.decision
      ORDER BY count DESC`,
@@ -578,7 +578,7 @@ export async function getDecisionOutcomeDistribution(
   const result = await query(
     `SELECT d.outcome, COUNT(*) AS count
      FROM decisions d
-     JOIN feature_requests fr ON d.request_id = fr.id
+     JOIN product_requests fr ON d.request_id = fr.id
      WHERE fr.archived_at IS NULL AND fr.organization_id = $1
        AND d.outcome IS NOT NULL${dateFilter}
      GROUP BY d.outcome
@@ -628,7 +628,7 @@ export async function getBacklogBurndown(
   //    transitioned to COMPLETED before the range start.
   const startResult = await query(
     `SELECT COUNT(*)::int AS count
-     FROM feature_requests fr
+     FROM product_requests fr
      WHERE fr.archived_at IS NULL AND fr.organization_id = $1
        AND fr.created_at < $2::date
        AND NOT EXISTS (
@@ -649,14 +649,14 @@ export async function getBacklogBurndown(
     `SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day, SUM(delta)::int AS delta
      FROM (
        SELECT DATE(created_at) AS day, 1 AS delta
-       FROM feature_requests
+       FROM product_requests
        WHERE archived_at IS NULL AND organization_id = $1
          AND created_at >= $2::date
          AND created_at < ($3::date + INTERVAL '1 day')
        UNION ALL
        SELECT DATE(created_at) AS day, -1 AS delta
        FROM activity_log
-       WHERE organization_id = $1 AND EXISTS (SELECT 1 FROM feature_requests ar WHERE ar.id=activity_log.entity_id AND ar.organization_id=$1 AND ar.archived_at IS NULL)
+       WHERE organization_id = $1 AND EXISTS (SELECT 1 FROM product_requests ar WHERE ar.id=activity_log.entity_id AND ar.organization_id=$1 AND ar.archived_at IS NULL)
          AND action = 'STATUS_CHANGED'
          AND metadata->>'to' = 'COMPLETED'
          AND created_at >= $2::date
@@ -713,11 +713,11 @@ export async function getUserDashboardStats(
 ): Promise<UserDashboardStats> {
   const result = await query(
     `SELECT
-       (SELECT COUNT(*)::int FROM feature_requests WHERE archived_at IS NULL AND organization_id = $1 AND requester_id = $2) AS my_requests_count,
-       (SELECT COUNT(*)::int FROM feature_requests WHERE archived_at IS NULL AND organization_id = $1 AND requester_id = $2 AND status IN ('DRAFT', 'INTAKE_IN_PROGRESS', 'PENDING_ASSESSMENT', 'UNDER_REVIEW', 'NEEDS_INFO')) AS my_pending_count,
-       (SELECT COUNT(*)::int FROM feature_requests WHERE archived_at IS NULL AND organization_id = $1 AND requester_id = $2 AND status = 'COMPLETED') AS my_completed_count,
-       (SELECT ROUND(AVG(quality_score)::numeric, 1) FROM feature_requests WHERE archived_at IS NULL AND organization_id = $1 AND requester_id = $2 AND quality_score IS NOT NULL) AS my_avg_quality_score,
-       (SELECT COUNT(*)::int FROM stakeholder_votes sv JOIN feature_requests fr ON sv.request_id = fr.id WHERE fr.archived_at IS NULL AND fr.organization_id = $1 AND sv.user_id = $2) AS my_votes_count`,
+       (SELECT COUNT(*)::int FROM product_requests WHERE archived_at IS NULL AND organization_id = $1 AND requester_id = $2) AS my_requests_count,
+       (SELECT COUNT(*)::int FROM product_requests WHERE archived_at IS NULL AND organization_id = $1 AND requester_id = $2 AND status IN ('DRAFT', 'INTAKE_IN_PROGRESS', 'PENDING_ASSESSMENT', 'UNDER_REVIEW', 'NEEDS_INFO')) AS my_pending_count,
+       (SELECT COUNT(*)::int FROM product_requests WHERE archived_at IS NULL AND organization_id = $1 AND requester_id = $2 AND status = 'COMPLETED') AS my_completed_count,
+       (SELECT ROUND(AVG(quality_score)::numeric, 1) FROM product_requests WHERE archived_at IS NULL AND organization_id = $1 AND requester_id = $2 AND quality_score IS NOT NULL) AS my_avg_quality_score,
+       (SELECT COUNT(*)::int FROM stakeholder_votes sv JOIN product_requests fr ON sv.request_id = fr.id WHERE fr.archived_at IS NULL AND fr.organization_id = $1 AND sv.user_id = $2) AS my_votes_count`,
     [orgId, userId]
   );
 

@@ -18,7 +18,7 @@ const actor = vi.hoisted(() => ({ id: '', orgId: '', role: 'REVIEWER' }))
 vi.mock('@/lib/auth/session', () => ({ requireAuth: vi.fn(async () => ({ user: actor })) }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { bulkUpdateStatus } from './bulk-actions'
+import { bulkAddTags, bulkUpdateStatus } from './bulk-actions'
 
 async function requestUnderReview(org: TestOrg, user: TestUser): Promise<string> {
   const request = await createTestRequest(org, user, 'Bulk decision')
@@ -53,6 +53,19 @@ describe.skipIf(!hasDb())('bulkUpdateStatus decisions', () => {
     expect((await getFeatureRequestById(id))?.status).toBe('APPROVED')
     const decisions = await getDecisionsByRequestId(id)
     expect(decisions.map((d) => d.decision)).toEqual(['APPROVE'])
+  })
+
+  it('should leave change requests untouched by bulk actions', async () => {
+    const id = await requestUnderReview(org, reviewer)
+    await query(`UPDATE feature_requests SET request_type = 'CHANGE' WHERE id = $1`, [id])
+
+    expect(await bulkUpdateStatus([id], 'APPROVED')).toEqual([{ id, success: false, error: 'Not found' }])
+    await bulkAddTags([id], ['bulk-tag'])
+
+    const after = await getFeatureRequestById(id)
+    expect(after?.status).toBe('UNDER_REVIEW')
+    expect(after?.tags ?? []).not.toContain('bulk-tag')
+    expect(await getDecisionsByRequestId(id)).toEqual([])
   })
 
   it('should refuse a bulk approval while an approval chain is active', async () => {

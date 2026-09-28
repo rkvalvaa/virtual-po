@@ -4,6 +4,7 @@ import type { CustomFieldDefinition, CustomFieldType, FeatureRequest } from '@/l
 
 function makeRequest(overrides: Partial<FeatureRequest> = {}): FeatureRequest {
   return {
+    requestType: 'PRODUCT',
     archivedAt: null,
     archivedBy: null,
     humanRefined: false,
