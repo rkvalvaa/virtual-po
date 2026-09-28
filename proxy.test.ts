@@ -20,6 +20,11 @@ describe('proxy machine authentication boundary', () => {
     expect(getToken).not.toHaveBeenCalled()
   })
 
+  it('passes the blob cleanup cron through to its CRON_SECRET authentication', async () => {
+    expect(await invoke('/api/cron/blob-cleanup')).toBeUndefined()
+    expect(getToken).not.toHaveBeenCalled()
+  })
+
   it('does not exempt adjacent tracker paths from browser-session authentication', async () => {
     const response = await invoke('/api/cron/tracker-status-sync/extra')
     expect(response?.status).toBe(302)
