@@ -23,6 +23,7 @@ describe('PortalFormSubmission', () => {
     expect(await screen.findByText('K7M2Q9XRTA')).toBeInTheDocument()
     expect(screen.getByText(/Received/)).toBeInTheDocument()
     expect(screen.queryByText(/delivered/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Follow this request' })).toHaveAttribute('href', '/portal/requests/K7M2Q9XRTA')
   })
 
   it('shows field errors and a general error next to the form', async () => {
