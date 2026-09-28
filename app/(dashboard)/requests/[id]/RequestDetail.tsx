@@ -1,5 +1,8 @@
 "use client"
 
+import { PortalOriginCard } from "@/components/requests/PortalOriginCard"
+import type { PortalOrigin } from "@/lib/db/queries/feature-requests"
+
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -54,6 +57,8 @@ interface RequestDetailProps {
     createdAt: string
     updatedAt: string
   }
+  /** Set when the request came in through a client portal form. */
+  portalOrigin?: PortalOrigin | null
   customFieldDefinitions: CustomFieldsCardProps["definitions"]
   canEditCustomFields: boolean
   attachments: AttachmentView[]
@@ -166,6 +171,7 @@ function renderIntakeValue(value: unknown): string {
 
 export function RequestDetail({
   request,
+  portalOrigin,
   customFieldDefinitions,
   canEditCustomFields,
   attachments,
@@ -307,7 +313,8 @@ export function RequestDetail({
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
-          {request.summary && (
+          {portalOrigin && <PortalOriginCard origin={portalOrigin} />}
+          {!portalOrigin && request.summary && (
             <Card>
               <CardHeader>
                 <CardTitle>Summary</CardTitle>

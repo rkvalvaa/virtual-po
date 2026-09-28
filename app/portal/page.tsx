@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { signOut } from "@/auth";
 import { requirePortalContact } from "@/lib/auth/session";
+import { listPortalForms } from "@/lib/db/queries/portal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const metadata: Metadata = { title: "Client portal" };
 
-// ponytail: placeholder landing for client contacts; forms (P5) and request
-// tracking (P6) replace this content.
 export default async function PortalPage() {
-  await requirePortalContact();
+  const contact = await requirePortalContact();
+  const forms = await listPortalForms(contact.clientAccountId);
 
   async function handleSignOut() {
     "use server";
@@ -17,13 +18,18 @@ export default async function PortalPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    <main className="mx-auto w-full max-w-2xl p-4">
+      <Card>
         <CardHeader>
           <CardTitle><h1>Client portal</h1></CardTitle>
-          <CardDescription>You are signed in. Request forms and updates on your submissions will appear here.</CardDescription>
+          <CardDescription>Choose a form to send a request to the team.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {forms.length ? (
+            <ul className="space-y-2">
+              {forms.map(form => <li key={form.id}><Link href={`/portal/forms/${form.id}`} className="underline">{form.title}</Link></li>)}
+            </ul>
+          ) : <p className="text-sm text-muted-foreground">No request forms are available to you yet.</p>}
           <form action={handleSignOut}>
             <Button type="submit" variant="outline">Sign out</Button>
           </form>

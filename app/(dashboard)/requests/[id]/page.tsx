@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import { requireAuth } from "@/lib/auth/session"
-import { getFeatureRequestById } from "@/lib/db/queries/feature-requests"
+import { getFeatureRequestById, getPortalOrigin } from "@/lib/db/queries/feature-requests"
 import { getEpicByRequestId, getStoriesByEpicId } from "@/lib/db/queries/epics"
 import { getDecisionsByRequestId } from "@/lib/db/queries/decisions"
 import { getCommentsWithAuthorByRequestId } from "@/lib/db/queries/comments"
@@ -85,9 +85,10 @@ export default async function RequestDetailPage({
   ])
   const stories = epic ? await getStoriesByEpicId(epic.id) : []
   const documentSelections = await listDocumentContext(request.id, request.organizationId, session.user.id)
-  const [exports, githubIntegration] = await Promise.all([
+  const [exports, githubIntegration, portalOrigin] = await Promise.all([
     getExportStatus(request.id, request.organizationId),
     getIntegrationByType(request.organizationId, 'GITHUB_ISSUES'),
+    getPortalOrigin(request.id, request.organizationId),
   ])
 
   // An active workflow with no steps is no gate at all — treat it as absent.
@@ -138,6 +139,7 @@ export default async function RequestDetailPage({
     <ArchiveControl requestId={request.id} archived={!!request.archivedAt}
       canManage={canAccess(session.user.role as UserRole, 'REVIEWER') || (request.requesterId === session.user.id && request.status === 'DRAFT')} />
     <RequestDetail
+      portalOrigin={portalOrigin}
       request={{
         archived: !!request.archivedAt,
         id: request.id,
