@@ -356,3 +356,33 @@ export async function searchFeatureRequests(
     total,
   };
 }
+
+export interface PortalOrigin {
+  reference: string;
+  clientName: string | null;
+  contactEmail: string | null;
+  contactName: string | null;
+  formTitle: string | null;
+  formVersion: number | null;
+  answers: { key: string; label: string; value: string | number | null }[];
+}
+
+/** Where a portal-submitted request came from, for the internal request page. Null for other requests. */
+export async function getPortalOrigin(requestId: string, orgId: string): Promise<PortalOrigin | null> {
+  const result = await query(
+    `SELECT r.public_reference, r.source_form_version, r.form_answers, a.name AS client_name,
+       c.email AS contact_email, c.name AS contact_name, f.published->>'title' AS form_title
+     FROM feature_requests r
+     LEFT JOIN client_accounts a ON a.id = r.client_account_id
+     LEFT JOIN client_contacts c ON c.id = r.submitter_contact_id
+     LEFT JOIN intake_forms f ON f.id = r.source_form_id
+     WHERE r.id = $1 AND r.organization_id = $2 AND r.public_reference IS NOT NULL`,
+    [requestId, orgId]
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    reference: row.public_reference, clientName: row.client_name, contactEmail: row.contact_email, contactName: row.contact_name,
+    formTitle: row.form_title, formVersion: row.source_form_version, answers: row.form_answers ?? [],
+  };
+}

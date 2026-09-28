@@ -4,10 +4,14 @@ import { z } from "zod"
 import { redirect } from "next/navigation"
 import { AuthError } from "next-auth"
 import { signIn } from "@/auth"
+import { emailReadiness } from "@/lib/email/config"
 
 export async function requestPortalLink(formData: FormData): Promise<void> {
   const email = z.email().safeParse(String(formData.get("email") ?? "").trim().toLowerCase())
   if (!email.success) redirect("/portal/login?error=email")
+  // Without email nobody can get a link; say so to every address alike, and
+  // never start a send that Auth.js would let reject unhandled.
+  if (emailReadiness().state !== "CONFIGURED") redirect("/portal/login?error=unavailable")
   let next: string
   try {
     // Auth.js answers with its verify-request URL both after sending a link

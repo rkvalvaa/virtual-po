@@ -91,7 +91,7 @@ function FormEditor({ form, organizationName, pending, run }: { form: IntakeForm
       <Input id={`title-${form.id}`} value={meta.title} maxLength={120} onChange={e => setMeta({ ...meta, title: e.target.value })} /></div>
     <div><label htmlFor={`instructions-${form.id}`} className="text-sm">Instructions</label>
       <Textarea id={`instructions-${form.id}`} value={meta.instructions} maxLength={2000} onChange={e => setMeta({ ...meta, instructions: e.target.value })} /></div>
-    <div><label htmlFor={`attachments-${form.id}`} className="text-sm">Attachments allowed (0–10)</label>
+    <div><label htmlFor={`attachments-${form.id}`} className="text-sm">Attachments allowed (0–10; the portal does not collect files yet)</label>
       <Input id={`attachments-${form.id}`} type="number" min={0} max={10} value={meta.maxAttachments} onChange={e => setMeta({ ...meta, maxAttachments: Number(e.target.value) })} /></div>
 
     {rows.map((row, index) => {
