@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { cleanupTestOrg, createTestOrg, createTestUser, hasDb, type TestOrg, type TestUser } from '@/test/db-helpers'
 import { query } from '@/lib/db/pool'
 import { definitionProblems } from '@/lib/forms/definition'
-import { createForm, createInternalForm, listForms, publishForm, setFormPaused } from './intake-forms'
+import { createForm, createInternalForm, listForms, publishForm, setFormDestination, setFormPaused } from './intake-forms'
 import { createClientAccount } from './client-accounts'
 import { archiveServiceGroup, createServiceGroup } from './service-groups'
 import { listFeatureRequests } from './feature-requests'
@@ -104,5 +104,31 @@ describe.skipIf(!hasDb())('internal change-request forms', () => {
       await expect(submitInternalRequest({ orgId: org.id, userId: stakeholder.id, formId: id, submissionKey: crypto.randomUUID(), answers })).rejects.toThrow(/Form not found/)
     }
     expect(await getInternalForm(org.id, formId)).toMatchObject({ id: formId, groupName: 'IT Operations' })
+  })
+
+  it('queues delivery to the form destination with the change request, and only for internal forms', async () => {
+    const destination = { integration: 'LINEAR' as const, teamId: 'team-1', projectId: null }
+    const delivered = (await createInternalForm(org.id, admin.id, groupId, 'Delivered change')).id
+    await setFormDestination(org.id, admin.id, delivered, destination)
+    await publishForm(org.id, admin.id, delivered)
+    expect((await listForms(org.id)).find(f => f.id === delivered)?.destination).toEqual(destination)
+
+    const result = await submitInternalRequest({ orgId: org.id, userId: stakeholder.id, formId: delivered, submissionKey: crypto.randomUUID(), answers })
+    const requestId = result.status === 'received' ? result.requestId : ''
+    const queued = await query(`SELECT provider, destination, delivery_status, items FROM tracker_exports WHERE request_id = $1`, [requestId])
+    expect(queued.rows).toHaveLength(1)
+    expect(queued.rows[0]).toMatchObject({ provider: 'LINEAR', destination: JSON.stringify(['team-1', null]), delivery_status: 'QUEUED' })
+    expect(queued.rows[0].items[0]).toMatchObject({ kind: 'SERVICE_TICKET', title: 'Rotate the VPN certificates', state: 'ready' })
+    expect(queued.rows[0].items[0].body).toContain('Reason for the change: They expire in March')
+
+    const plain = await submitInternalRequest({ orgId: org.id, userId: stakeholder.id, formId, submissionKey: crypto.randomUUID(), answers })
+    expect((await query('SELECT 1 FROM tracker_exports WHERE request_id = $1', [plain.status === 'received' ? plain.requestId : ''])).rowCount).toBe(0)
+
+    const client = await createClientAccount(org.id, admin.id, 'Acme again')
+    const clientForm = (await createForm(org.id, admin.id, client.id, 'Client form 2')).id
+    await expect(setFormDestination(org.id, admin.id, clientForm, destination)).rejects.toThrow(/internal forms/)
+    await expect(setFormDestination(org.id, stakeholder.id, delivered, null)).rejects.toThrow(/administrator/)
+    await setFormDestination(org.id, admin.id, delivered, null)
+    expect((await listForms(org.id)).find(f => f.id === delivered)?.destination).toBeNull()
   })
 })

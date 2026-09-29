@@ -23,6 +23,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/tracker-delivery",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/blob-cleanup",
       "schedule": "30 3 * * *"
     }

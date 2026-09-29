@@ -60,6 +60,7 @@ interface SettingsContentProps {
   invitations?: PendingInvitation[]
   clientAccounts?: ClientAccount[]
   serviceGroups?: ServiceGroup[]
+  linearTeams?: { id: string; name: string; projects: { id: string; name: string }[] }[] | null
   intakeForms?: IntakeForm[]
   invitationReadiness?: string | null
   administrationHistory?: { id: string; action: string; metadata: Record<string, unknown>; userName: string | null; createdAt: string }[]
@@ -167,6 +168,7 @@ export function SettingsContent({
   invitations = [],
   clientAccounts = [],
   serviceGroups = [],
+  linearTeams = null,
   intakeForms = [],
   invitationReadiness = null,
   administrationHistory = [],
@@ -220,7 +222,7 @@ export function SettingsContent({
 
         <SettingsPanel value="forms">
           {userRole === 'ADMIN'
-            ? <FormSettings forms={intakeForms} clients={clientAccounts.map(({ id, name }) => ({ id, name }))} groups={serviceGroups.map(({ id, name }) => ({ id, name }))} organizationName={organization.name} />
+            ? <FormSettings forms={intakeForms} clients={clientAccounts.map(({ id, name }) => ({ id, name }))} groups={serviceGroups.map(({ id, name }) => ({ id, name }))} linearTeams={linearTeams} organizationName={organization.name} />
             : <p className="text-sm text-muted-foreground">Only administrators can manage request forms.</p>}
         </SettingsPanel>
 

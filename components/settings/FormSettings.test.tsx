@@ -14,7 +14,7 @@ const draft = {
 }
 const form: IntakeForm = {
   id: 'f1', audience: 'CLIENT', requestType: 'PRODUCT', clientAccountId: 'c1', clientName: 'Nordic Homes',
-  serviceGroupId: null, serviceGroupName: null, status: 'DRAFT', version: 0, publishedAt: null, draft, published: null,
+  serviceGroupId: null, serviceGroupName: null, destination: null, status: 'DRAFT', version: 0, publishedAt: null, draft, published: null,
 }
 const groups = [{ id: 'g1', name: 'IT Operations' }]
 const internalForm: IntakeForm = {
@@ -79,5 +79,24 @@ describe('FormSettings', () => {
     expect(screen.queryByLabelText(/Attachments allowed/)).not.toBeInTheDocument()
     expect(screen.getByText(/attach files on the request page/i)).toBeInTheDocument()
     expect(screen.getByText('Preview: what members see')).toBeInTheDocument()
+  })
+
+  it('picks a Linear team and project for an internal form, or explains Linear is needed', async () => {
+    const user = userEvent.setup()
+    vi.mocked(manageForms).mockResolvedValue({ success: true })
+    const teams = [{ id: 't1', name: 'Ops', projects: [{ id: 'p1', name: 'Infra' }] }, { id: 't2', name: 'Web', projects: [] }]
+    const { unmount } = render(<FormSettings forms={[internalForm]} clients={clients} groups={groups} linearTeams={teams} organizationName="Acme" />)
+    await user.click(screen.getByRole('button', { name: 'Edit Change request' }))
+    expect(screen.getByText(/Not delivered to a tracker/)).toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText('Linear team for Change request'), 't1')
+    await user.selectOptions(screen.getByLabelText('Linear project for Change request (optional)'), 'p1')
+    await user.click(screen.getByRole('button', { name: 'Save destination' }))
+    expect(manageForms).toHaveBeenLastCalledWith({ kind: 'setDestination', id: 'f2', teamId: 't1', projectId: 'p1' })
+    unmount()
+
+    render(<FormSettings forms={[{ ...internalForm, destination: { integration: 'LINEAR', teamId: 't1', projectId: null } }]} clients={clients} groups={groups} linearTeams={null} organizationName="Acme" />)
+    await user.click(screen.getByRole('button', { name: 'Edit Change request' }))
+    expect(screen.getByText(/Connect Linear/)).toBeInTheDocument()
+    expect(screen.getByText(/Delivered to Linear team t1/)).toBeInTheDocument()
   })
 })

@@ -1,4 +1,4 @@
-import { ExportRejected } from '@/lib/export/errors';
+import { ExportRateLimited, ExportRejected } from '@/lib/export/errors';
 
 export interface LinearClientConfig {
   apiKey: string;
@@ -52,7 +52,7 @@ export function createLinearClient(config: LinearClientConfig) {
 
     if (!response.ok) {
       const body = await response.text();
-      const ErrorType = [400, 401, 403, 422, 429].includes(response.status) ? ExportRejected : Error;
+      const ErrorType = response.status === 429 ? ExportRateLimited : [400, 401, 403, 422].includes(response.status) ? ExportRejected : Error;
       throw new ErrorType(`Linear API error ${response.status}: ${body}`);
     }
 
@@ -60,7 +60,8 @@ export function createLinearClient(config: LinearClientConfig) {
     if (json.errors?.length) {
       const rejected = !json.data && json.errors.every(error =>
         ['GRAPHQL_PARSE_FAILED', 'GRAPHQL_VALIDATION_FAILED', 'RATELIMITED'].includes(error.extensions?.code ?? '') || error.extensions?.type === 'invalid input');
-      const ErrorType = rejected ? ExportRejected : Error;
+      const limited = rejected && json.errors.every(error => error.extensions?.code === 'RATELIMITED');
+      const ErrorType = limited ? ExportRateLimited : rejected ? ExportRejected : Error;
       throw new ErrorType(`Linear GraphQL errors: ${json.errors.map(e => e.message).join(', ')}`);
     }
     if (!json.data) {
@@ -100,7 +101,8 @@ export function createLinearClient(config: LinearClientConfig) {
       title: string,
       description?: string,
       priority?: number,
-      id?: string
+      id?: string,
+      projectId?: string
     ): Promise<LinearIssue> {
       const data = await graphql<{ issueCreate: { issue: LinearIssue } }>(`
         mutation($input: IssueCreateInput!) {
@@ -119,6 +121,7 @@ export function createLinearClient(config: LinearClientConfig) {
           title,
           description: description ?? undefined,
           priority: priority ?? 3,
+          projectId: projectId ?? undefined,
         },
       });
       return data.issueCreate.issue;

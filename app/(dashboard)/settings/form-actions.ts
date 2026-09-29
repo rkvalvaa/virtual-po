@@ -4,13 +4,15 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/auth/session';
 import { formDefinitionSchema } from '@/lib/forms/definition';
-import { createForm, createInternalForm, publishForm, saveFormDraft, setFormPaused } from '@/lib/db/queries/intake-forms';
+import { createForm, createInternalForm, publishForm, saveFormDraft, setFormDestination, setFormPaused } from '@/lib/db/queries/intake-forms';
+import { verifyLinearDestination } from '@/lib/export/delivery';
 
 const inputSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('create'), clientAccountId: z.uuid(), title: z.string().trim().min(1).max(120) }),
   z.object({ kind: z.literal('createInternal'), serviceGroupId: z.uuid(), title: z.string().trim().min(1).max(120) }),
   z.object({ kind: z.literal('saveDraft'), id: z.uuid(), definition: formDefinitionSchema }),
   z.object({ kind: z.literal('publish'), id: z.uuid() }),
+  z.object({ kind: z.literal('setDestination'), id: z.uuid(), teamId: z.string().min(1).max(100).nullable(), projectId: z.string().min(1).max(100).nullable() }),
   z.object({ kind: z.literal('pause'), id: z.uuid() }),
   z.object({ kind: z.literal('resume'), id: z.uuid() }),
 ]);
@@ -29,6 +31,12 @@ export async function manageForms(input: unknown): Promise<{ success: boolean; e
       case 'createInternal': await createInternalForm(orgId, actorId, action.serviceGroupId, action.title); break;
       case 'saveDraft': await saveFormDraft(orgId, actorId, action.id, action.definition); break;
       case 'publish': await publishForm(orgId, actorId, action.id); break;
+      case 'setDestination': {
+        const destination = action.teamId ? { integration: 'LINEAR' as const, teamId: action.teamId, projectId: action.projectId } : null;
+        if (destination) await verifyLinearDestination(orgId, destination);
+        await setFormDestination(orgId, actorId, action.id, destination);
+        break;
+      }
       case 'pause': await setFormPaused(orgId, actorId, action.id, true); break;
       case 'resume': await setFormPaused(orgId, actorId, action.id, false); break;
     }

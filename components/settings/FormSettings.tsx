@@ -15,8 +15,12 @@ import { slugifyFieldKey } from '@/lib/utils/custom-fields';
 const selectClass = 'w-full max-w-full rounded-md border bg-background p-2 text-sm';
 const TYPE_LABELS: Record<FormField['type'], string> = { TEXT: 'Short text', LONG_TEXT: 'Long text', NUMBER: 'Number', SELECT: 'Choice', DATE: 'Date' };
 
-export function FormSettings({ forms, clients, groups = [], organizationName }: {
-  forms: IntakeForm[]; clients: { id: string; name: string }[]; groups?: { id: string; name: string }[]; organizationName: string
+type LinearTeamChoice = { id: string; name: string; projects: { id: string; name: string }[] };
+
+export function FormSettings({ forms, clients, groups = [], linearTeams = null, organizationName }: {
+  forms: IntakeForm[]; clients: { id: string; name: string }[]; groups?: { id: string; name: string }[];
+  /** Teams and projects of the connected Linear account; null when Linear is not connected or could not be reached. */
+  linearTeams?: LinearTeamChoice[] | null; organizationName: string
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -74,7 +78,7 @@ export function FormSettings({ forms, clients, groups = [], organizationName }: 
           <p className="text-sm"><span className="font-medium">{form.draft.title}</span> · {form.audience === 'INTERNAL' ? `Internal · ${form.serviceGroupName} · change requests` : form.clientName} · {statusLabel(form)}</p>
           <Button variant="outline" size="sm" onClick={() => setEditing(editing === form.id ? null : form.id)}>{editing === form.id ? `Close ${form.draft.title}` : `Edit ${form.draft.title}`}</Button>
         </div>
-        {editing === form.id && <FormEditor form={form} organizationName={organizationName} pending={pending} run={run} />}
+        {editing === form.id && <FormEditor form={form} organizationName={organizationName} pending={pending} run={run} linearTeams={linearTeams} />}
       </div>)}
     </CardContent>
   </Card>;
@@ -87,7 +91,9 @@ function statusLabel(form: IntakeForm): string {
 
 interface Row { field: FormField; isNew: boolean; optionsText: string }
 
-function FormEditor({ form, organizationName, pending, run }: { form: IntakeForm; organizationName: string; pending: boolean; run: (...inputs: unknown[]) => void }) {
+function FormEditor({ form, organizationName, pending, run, linearTeams }: {
+  form: IntakeForm; organizationName: string; pending: boolean; run: (...inputs: unknown[]) => void; linearTeams: LinearTeamChoice[] | null
+}) {
   const [meta, setMeta] = useState({ title: form.draft.title, instructions: form.draft.instructions, titleFieldKey: form.draft.titleFieldKey, maxAttachments: form.draft.maxAttachments });
   const [rows, setRows] = useState<Row[]>(form.draft.fields.map(field => ({ field, isNew: false, optionsText: field.options.join(', ') })));
   const internal = form.audience === 'INTERNAL';
@@ -143,6 +149,8 @@ function FormEditor({ form, organizationName, pending, run }: { form: IntakeForm
     })}
     <Button type="button" variant="outline" size="sm" onClick={() => setRows(current => [...current, { field: { key: '', label: '', type: 'TEXT', required: false, options: [], showIf: null }, isNew: true, optionsText: '' }])}>Add field</Button>
 
+    {internal && <DestinationPicker form={form} teams={linearTeams} pending={pending} run={run} />}
+
     <div className="min-w-0 max-w-full"><label htmlFor={`title-field-${form.id}`} className="block text-sm">Request title comes from</label>
       <select id={`title-field-${form.id}`} className={selectClass} value={meta.titleFieldKey ?? ''} onChange={e => setMeta({ ...meta, titleFieldKey: e.target.value || null })}>
         <option value="">Choose a required short text field</option>
@@ -161,6 +169,34 @@ function FormEditor({ form, organizationName, pending, run }: { form: IntakeForm
       <RequestForm definition={definition} organizationName={organizationName} preview />
     </section>
   </div>;
+}
+
+/** Where this internal form's change requests go. Saving checks the choice against the connected Linear account. */
+function DestinationPicker({ form, teams, pending, run }: { form: IntakeForm; teams: LinearTeamChoice[] | null; pending: boolean; run: (...inputs: unknown[]) => void }) {
+  const [teamId, setTeamId] = useState(form.destination?.teamId ?? '');
+  const [projectId, setProjectId] = useState(form.destination?.projectId ?? '');
+  const current = form.destination && teams?.find(t => t.id === form.destination!.teamId);
+  const currentProject = form.destination?.projectId && current?.projects.find(p => p.id === form.destination!.projectId);
+  return <fieldset className="min-w-0 space-y-2 rounded-md border p-2">
+    <legend className="px-1 text-xs text-muted-foreground">Delivery</legend>
+    <p className="text-sm">{form.destination
+      ? `Delivered to Linear team ${current?.name ?? form.destination.teamId}${form.destination.projectId ? `, project ${currentProject ? currentProject.name : form.destination.projectId}` : ''}.`
+      : 'Not delivered to a tracker.'}</p>
+    {!teams ? <p className="text-sm text-muted-foreground">Connect Linear under Integrations to deliver change requests from this form.</p> : <div className="flex flex-wrap items-end gap-2">
+      <div className="min-w-0 max-w-full"><label htmlFor={`team-${form.id}`} className="block text-sm">Linear team for {form.draft.title}</label>
+        <select id={`team-${form.id}`} className={selectClass} value={teamId} onChange={e => { setTeamId(e.target.value); setProjectId(''); }}>
+          <option value="">Don&apos;t deliver</option>
+          {teams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}
+        </select></div>
+      {teamId && <div className="min-w-0 max-w-full"><label htmlFor={`project-${form.id}`} className="block text-sm">Linear project for {form.draft.title} (optional)</label>
+        <select id={`project-${form.id}`} className={selectClass} value={projectId} onChange={e => setProjectId(e.target.value)}>
+          <option value="">No project</option>
+          {teams.find(t => t.id === teamId)?.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
+        </select></div>}
+      <Button type="button" variant="outline" size="sm" disabled={pending}
+        onClick={() => run({ kind: 'setDestination', id: form.id, teamId: teamId || null, projectId: teamId && projectId ? projectId : null })}>Save destination</Button>
+    </div>}
+  </fieldset>;
 }
 
 function splitOptions(text: string): string[] {

@@ -4,6 +4,7 @@ import { CURRENT_CHANGE_WORKFLOW_VERSION, changeWorkflow } from '@/lib/workflows
 import type { RawCustomFieldValues } from '@/lib/utils/custom-fields';
 import { logActivity } from './activity-log';
 import { notifyUser } from './notifications';
+import { enqueueServiceTicket, type LinearDestination } from '@/lib/export/delivery';
 
 /**
  * Internal forms, filed by workspace members. What a submission creates (its
@@ -40,7 +41,7 @@ export async function submitInternalRequest(params: {
 }): Promise<InternalSubmission> {
   const { orgId, userId, formId, submissionKey } = params;
   return transaction(async () => {
-    const form = await query(`SELECT f.version, f.published, f.service_group_id, g.fallback_owner_id FROM intake_forms f
+    const form = await query(`SELECT f.version, f.published, f.service_group_id, f.destination, g.fallback_owner_id FROM intake_forms f
       JOIN service_groups g ON g.id = f.service_group_id
       JOIN organization_users m ON m.organization_id = f.organization_id AND m.user_id = $3
       WHERE f.id = $1 AND f.organization_id = $2 AND ${PUBLISHED_INTERNAL} FOR SHARE OF f, g`, [formId, orgId, userId]);
@@ -67,6 +68,8 @@ export async function submitInternalRequest(params: {
     const requestId = inserted.rows[0].id;
     await logActivity({ organizationId: orgId, requestId, userId, action: 'REQUEST_CREATED', entityType: 'REQUEST', entityId: requestId,
       metadata: { source: 'internal-form', formId, formVersion: version, serviceGroupId: groupId, workflowVersion: workflow.version } });
+    const destination = form.rows[0].destination as LinearDestination | null;
+    if (destination) await enqueueServiceTicket({ requestId, orgId, destination, title, summary });
     await notifyGroup(orgId, groupId, form.rows[0].fallback_owner_id, requestId, title, userId);
     return { status: 'received', requestId };
   });

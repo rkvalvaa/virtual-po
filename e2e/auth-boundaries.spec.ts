@@ -36,6 +36,11 @@ test('machine endpoints authenticate without browser cookies through the real pr
   });
   expect(blobCleanup.status()).toBe(403);
   expect((await request.get('/api/cron/blob-cleanup', { maxRedirects: 0 })).status()).toBe(401);
+  const delivery = await request.get('/api/cron/tracker-delivery', {
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET ?? 'e2e-cron-secret'}` }, maxRedirects: 0,
+  });
+  expect(delivery.status()).toBe(200);
+  expect((await request.get('/api/cron/tracker-delivery', { maxRedirects: 0 })).status()).toBe(401);
 
   const body = JSON.stringify({ type: 'event_callback', event: { type: 'app_mention' } });
   const timestamp = String(Math.floor(Date.now() / 1000));
