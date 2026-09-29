@@ -1,10 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { query, transaction } from '@/lib/db/pool';
-import { ExportRejected } from './errors';
+import { ExportOutcomeUnknown, ExportRateLimited, ExportRejected } from './errors';
 
 export interface ExternalItem { id: string; url: string; nodeId?: string }
-export interface ExportInputItem { entityId: string; kind: 'EPIC' | 'STORY'; title: string; body: string; existing?: ExternalItem }
-export interface ExportItem extends ExportInputItem { id: string; state: 'ready' | 'unknown' | 'created' | 'complete'; external?: ExternalItem; error?: string }
+export interface ExportInputItem { entityId: string; kind: 'EPIC' | 'STORY' | 'SERVICE_TICKET'; title: string; body: string; existing?: ExternalItem }
+export interface ExportItem extends ExportInputItem {
+  id: string; state: 'ready' | 'unknown' | 'created' | 'complete'; external?: ExternalItem; error?: string;
+  /** Set with error: whether trying the same step again later can succeed without a person. */
+  retryable?: boolean;
+}
 export interface ExportAdapter {
   create(item: ExportItem, parent?: ExternalItem): Promise<ExternalItem>;
   recover(item: ExportItem): Promise<ExternalItem | null>;
@@ -49,11 +53,21 @@ export async function runExport(input: ExportInput, adapter: ExportAdapter): Pro
     if (!claimed.rowCount) throw new Error('An export is already in progress. Refresh shortly to see its progress.');
     return claimed.rows[0];
   });
-  const items = manifest.items;
+  return advanceExport(manifest.id, token, manifest.items, adapter, { orgId: input.orgId, userId: input.userId });
+}
+
+/**
+ * Work through a claimed manifest's items under its lease. With an actor, every
+ * save re-checks that they still review in the organization; the delivery cron
+ * has no actor and relies on the lease alone.
+ */
+export async function advanceExport(manifestId: string, token: string, items: ExportItem[], adapter: ExportAdapter,
+  actor?: { orgId: string; userId: string }): Promise<ExportResult> {
   async function persist() {
     const result = await query(`UPDATE tracker_exports SET items = $3, updated_at = clock_timestamp(), lease_until = clock_timestamp() + interval '2 minutes'
       WHERE id = $1 AND lease_token = $2 AND lease_until > clock_timestamp()
-      AND EXISTS (SELECT 1 FROM organization_users WHERE organization_id = $4 AND user_id = $5 AND role IN ('ADMIN', 'REVIEWER'))`, [manifest.id, token, JSON.stringify(items), input.orgId, input.userId]);
+      AND ($4::uuid IS NULL OR EXISTS (SELECT 1 FROM organization_users WHERE organization_id = $4 AND user_id = $5 AND role IN ('ADMIN', 'REVIEWER')))`,
+      [manifestId, token, JSON.stringify(items), actor?.orgId ?? null, actor?.userId ?? null]);
     if (!result.rowCount) throw new Error('Export lease expired. Retry to reconcile saved progress.');
   }
   try {
@@ -65,7 +79,7 @@ export async function runExport(input: ExportInput, adapter: ExportAdapter): Pro
       try {
         if (item.state === 'unknown') {
           const recovered = await adapter.recover(item);
-          if (!recovered) throw new Error('Creation outcome is unknown. Retry reconciliation after checking the tracker; a new item will not be created automatically.');
+          if (!recovered) throw new ExportOutcomeUnknown('Creation outcome is unknown. Retry reconciliation after checking the tracker; a new item will not be created automatically.');
           item.external = recovered;
           item.state = 'created';
           await persist();
@@ -81,11 +95,16 @@ export async function runExport(input: ExportInput, adapter: ExportAdapter): Pro
         await adapter.finish(item, parent);
         item.state = 'complete';
         delete item.error;
-      } catch (error) { item.error = error instanceof Error ? error.message : 'Export failed. Retry to resume.'; }
+        delete item.retryable;
+      } catch (error) {
+        item.error = error instanceof Error ? error.message : 'Export failed. Retry to resume.';
+        // Rate limits and ambiguous network failures clear up by themselves; rejections and lost outcomes need a person.
+        item.retryable = error instanceof ExportRateLimited || !(error instanceof ExportRejected || error instanceof ExportOutcomeUnknown);
+      }
       await persist();
     }
     return summarizeExport(items);
   } finally {
-    await query('UPDATE tracker_exports SET lease_token = NULL, lease_until = NULL WHERE id = $1 AND lease_token = $2', [manifest.id, token]);
+    await query('UPDATE tracker_exports SET lease_token = NULL, lease_until = NULL WHERE id = $1 AND lease_token = $2', [manifestId, token]);
   }
 }

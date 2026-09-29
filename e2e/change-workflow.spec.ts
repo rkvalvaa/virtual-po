@@ -32,3 +32,25 @@ test('a change request shows its workflow instead of the product lifecycle and m
     await cleanupTestOrg(org, [admin.id]);
   }
 });
+
+test('a reviewer sees a stuck Linear delivery and replays it', async ({ page }) => {
+  const org = await createTestOrg('e2e-change-delivery');
+  const reviewer = await createTestUser(org, 'REVIEWER');
+  const { id } = await createTestChangeRequest(org, reviewer, 'Renew the TLS certificates');
+  await query(`INSERT INTO tracker_exports (request_id, organization_id, provider, destination, items, delivery_status, attempts, last_error)
+    VALUES ($1, $2, 'LINEAR', '["team-1",null]', $3, 'NEEDS_ATTENTION', 1, 'Linear API error 403: forbidden')`,
+    [id, org.id, JSON.stringify([{ id: crypto.randomUUID(), entityId: id, kind: 'SERVICE_TICKET', state: 'ready', title: 'Renew the TLS certificates', body: '' }])]);
+  try {
+    await loginAs(page, reviewer.email);
+    await page.goto(`/requests/${id}`);
+    const main = page.getByRole('main');
+    await expect(main.getByText('Needs attention', { exact: true })).toBeVisible();
+    await expect(main.getByText('Linear API error 403: forbidden')).toBeVisible();
+    await main.getByRole('button', { name: 'Replay delivery' }).click();
+    await expect(main.getByText('Queued for Linear', { exact: true })).toBeVisible();
+    expect((await query('SELECT delivery_status, attempts FROM tracker_exports WHERE request_id = $1', [id])).rows[0])
+      .toEqual({ delivery_status: 'QUEUED', attempts: 0 });
+  } finally {
+    await cleanupTestOrg(org, [reviewer.id]);
+  }
+});

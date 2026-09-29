@@ -3,6 +3,7 @@ import { lockOrganizationAdmin } from '@/lib/auth/organization-admin';
 import { definitionProblems, formDefinitionSchema, type FormDefinition } from '@/lib/forms/definition';
 import { defaultChangeRequestForm } from '@/lib/forms/change-request-form';
 import type { RequestType } from '@/lib/types/database';
+import { linearDestinationSchema, type LinearDestination } from '@/lib/export/delivery';
 import { logActivity } from './activity-log';
 
 export type IntakeFormStatus = 'DRAFT' | 'PUBLISHED' | 'PAUSED';
@@ -15,6 +16,8 @@ export interface IntakeForm {
   clientName: string | null;
   serviceGroupId: string | null;
   serviceGroupName: string | null;
+  /** Where change requests from an internal form are delivered, if anywhere. */
+  destination: LinearDestination | null;
   status: IntakeFormStatus;
   version: number;
   publishedAt: string | null;
@@ -24,13 +27,13 @@ export interface IntakeForm {
 
 export async function listForms(orgId: string): Promise<IntakeForm[]> {
   const result = await query(`SELECT f.id, f.audience, f.request_type, f.client_account_id, a.name AS client_name,
-      f.service_group_id, g.name AS group_name, f.status, f.version, f.published_at, f.draft, f.published
+      f.service_group_id, g.name AS group_name, f.destination, f.status, f.version, f.published_at, f.draft, f.published
     FROM intake_forms f LEFT JOIN client_accounts a ON a.id = f.client_account_id
     LEFT JOIN service_groups g ON g.id = f.service_group_id
     WHERE f.organization_id = $1 ORDER BY f.created_at`, [orgId]);
   return result.rows.map(row => ({
     id: row.id, audience: row.audience, requestType: row.request_type, clientAccountId: row.client_account_id, clientName: row.client_name,
-    serviceGroupId: row.service_group_id, serviceGroupName: row.group_name, status: row.status,
+    serviceGroupId: row.service_group_id, serviceGroupName: row.group_name, destination: row.destination, status: row.status,
     version: row.version, publishedAt: row.published_at?.toISOString() ?? null, draft: row.draft, published: row.published,
   }));
 }
@@ -63,6 +66,23 @@ export async function createInternalForm(orgId: string, actorId: string, service
     const id = result.rows[0].id;
     await formAudit(orgId, actorId, id, 'created', draft.title);
     return { id };
+  });
+}
+
+/**
+ * Set or clear where an internal form's change requests are delivered. Callers
+ * verify the destination against the connected tracker first
+ * (verifyLinearDestination); this only stores it. Takes effect for new requests.
+ */
+export async function setFormDestination(orgId: string, actorId: string, id: string, destination: LinearDestination | null): Promise<void> {
+  const value = destination ? linearDestinationSchema.parse(destination) : null;
+  await transaction(async () => {
+    await lockOrganizationAdmin(orgId, actorId);
+    const form = await query(`SELECT audience, draft->>'title' AS title FROM intake_forms WHERE organization_id = $1 AND id = $2 FOR UPDATE`, [orgId, id]);
+    if (!form.rowCount) throw new Error('Form not found.');
+    if (form.rows[0].audience !== 'INTERNAL') throw new Error('Only internal forms deliver to a tracker.');
+    await query('UPDATE intake_forms SET destination = $3, updated_at = NOW() WHERE organization_id = $1 AND id = $2', [orgId, id, value]);
+    await formAudit(orgId, actorId, id, value ? 'destination-set' : 'destination-cleared', form.rows[0].title);
   });
 }
 

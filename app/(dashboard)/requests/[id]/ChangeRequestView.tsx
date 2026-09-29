@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button"
 import { AttachmentsCard } from "@/components/requests/AttachmentsCard"
 import { ActivityTimeline } from "@/components/requests/ActivityTimeline"
 import { ChangeWorkflowPanel } from "@/components/requests/ChangeWorkflowPanel"
+import { DeliveryPanel } from "@/components/requests/DeliveryPanel"
+import { getDelivery } from "@/lib/export/delivery"
 import { CommentThread } from "@/components/review/CommentThread"
 import { getCommentsWithAuthorByRequestId } from "@/lib/db/queries/comments"
 import { getActivityByRequest } from "@/lib/db/queries/activity-log"
@@ -17,12 +19,13 @@ import type { FeatureRequest, UserRole } from "@/lib/types/database"
 
 /** A change request: its workflow instead of the product lifecycle, plus shared files, discussion and activity. */
 export async function ChangeRequestView({ request, userId, role }: { request: FeatureRequest; userId: string; role: UserRole }) {
-  const [comments, attachments, activities, members, following] = await Promise.all([
+  const [comments, attachments, activities, members, following, delivery] = await Promise.all([
     getCommentsWithAuthorByRequestId(request.id),
     listAttachmentsByRequest(request.id),
     getActivityByRequest(request.id),
     listMentionableMembers(request.id, request.organizationId, userId),
     getRequestSubscription(request.id, request.organizationId, userId),
+    getDelivery(request.id, request.organizationId),
   ])
   const workflow = changeWorkflow(request.workflowVersion!)
   const state = request.workflowState!
@@ -43,6 +46,7 @@ export async function ChangeRequestView({ request, userId, role }: { request: Fe
     <ChangeWorkflowPanel requestId={request.id} state={state} stateLabel={workflow.states[state as keyof typeof workflow.states] ?? state}
       version={workflow.version} actions={actions}
       details={(Object.keys(CHANGE_FIELDS) as ChangeField[]).filter(f => recorded[f]).map(f => ({ label: CHANGE_FIELDS[f], value: recorded[f]! }))} />
+    {delivery && <DeliveryPanel requestId={request.id} delivery={delivery} canReplay={canAccess(role, "REVIEWER")} />}
     <AttachmentsCard requestId={request.id} uploadPrefix={attachmentPrefix(request.organizationId, request.id)} storageConfigured={isBlobConfigured()}
       attachments={attachments.map(a => ({
         id: a.id, filename: a.filename, mimeType: a.mimeType, size: a.size, uploaderName: a.uploaderName,

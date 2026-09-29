@@ -25,6 +25,7 @@ import { listPendingInvitations } from '@/lib/db/queries/invitations'
 import { listClientAccounts } from '@/lib/db/queries/client-accounts'
 import { listServiceGroups } from '@/lib/db/queries/service-groups'
 import { listForms } from '@/lib/db/queries/intake-forms'
+import { listLinearDestinations } from '@/lib/export/delivery'
 import { invitationEmailReadiness } from '@/lib/email/invitation'
 import { getActivityByOrganization } from '@/lib/db/queries/activity-log'
 import { getScoringPolicy } from '@/lib/db/queries/scoring-policy'
@@ -128,6 +129,10 @@ export default async function SettingsPage() {
     ? await Promise.all([listPendingInvitations(orgId), getActivityByOrganization(orgId, 100), listEmailDeliveries(orgId), getTeamsTenant(orgId), listTeamsDeliveries(orgId), listClientAccounts(orgId), listForms(orgId), listServiceGroups(orgId)])
     : [[], [], [], null, [], [], [], []]
 
+  // Only an admin editing internal forms needs Linear's teams; skip the network call otherwise.
+  const linearTeams = session.user.role === 'ADMIN' && linearIntegration && intakeForms.some(form => form.audience === 'INTERNAL')
+    ? await listLinearDestinations(linearIntegration) : null
+
   const objectives = objectivesWithKr.map((obj) => ({
     id: obj.id,
     title: obj.title,
@@ -160,6 +165,7 @@ export default async function SettingsPage() {
       clientAccounts={clientAccounts}
       intakeForms={intakeForms}
       serviceGroups={serviceGroups}
+      linearTeams={linearTeams}
       invitationReadiness={invitationEmailReadiness()}
       administrationHistory={administrationHistory.filter(event => ['ORGANIZATION_UPDATED', 'MEMBER_UPDATED', 'INVITATION_UPDATED', 'CLIENT_UPDATED', 'FORM_UPDATED', 'SERVICE_GROUP_UPDATED'].includes(event.action)).map(event => ({
         id: event.id, action: event.action, metadata: event.metadata, userName: event.userName, createdAt: event.createdAt.toISOString(),
