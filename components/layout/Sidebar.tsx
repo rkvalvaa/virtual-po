@@ -9,20 +9,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
 import { ThemeToggle } from "@/components/layout/ThemeToggle"
 import { WorkspaceSelector, type WorkspaceOption } from './WorkspaceSelector'
-import {
-  FileText,
-  ClipboardCheck,
-  Layers,
-  CalendarRange,
-  BarChart3,
-  Settings,
-  Menu,
-  LogOut,
-} from "lucide-react"
+import { FileText, ClipboardCheck, Layers, CalendarRange, BarChart3, Settings, Menu, LogOut, Inbox } from "lucide-react"
 
 const navLinks = [
   { href: "/requests", label: "Requests", icon: FileText },
   { href: "/review", label: "Review", icon: ClipboardCheck },
+  { href: "/queue", label: "Queues", icon: Inbox },
   { href: "/backlog", label: "Backlog", icon: Layers },
   { href: "/planning", label: "Planning", icon: CalendarRange },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },

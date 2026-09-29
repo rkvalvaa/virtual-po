@@ -30,7 +30,7 @@ test('a member files a change request from an internal form and lands on its wor
 
     await expect(page).toHaveURL(/\/requests\/[0-9a-f-]{36}$/);
     await expect(main.getByRole('heading', { name: 'Replace the badge readers' })).toBeVisible();
-    await expect(main.getByText('Change request', { exact: true })).toBeVisible();
+    await expect(main.getByText('Change request · IT Operations · Unassigned', { exact: true })).toBeVisible();
     await expect(main.getByText('Submitted', { exact: true })).toBeVisible();
 
     const row = (await query(`SELECT request_type, service_group_id, requester_id FROM feature_requests

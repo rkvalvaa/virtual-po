@@ -3,7 +3,7 @@ import { formDefinitionSchema, summarizeAnswers, validateAnswers, type FormDefin
 import { CURRENT_CHANGE_WORKFLOW_VERSION, changeWorkflow } from '@/lib/workflows/change-request';
 import type { RawCustomFieldValues } from '@/lib/utils/custom-fields';
 import { logActivity } from './activity-log';
-import { notifyUser } from './notifications';
+import { notifyGroup } from './service-groups';
 import { enqueueServiceTicket, type LinearDestination } from '@/lib/export/delivery';
 
 /**
@@ -41,7 +41,7 @@ export async function submitInternalRequest(params: {
 }): Promise<InternalSubmission> {
   const { orgId, userId, formId, submissionKey } = params;
   return transaction(async () => {
-    const form = await query(`SELECT f.version, f.published, f.service_group_id, f.destination, g.fallback_owner_id FROM intake_forms f
+    const form = await query(`SELECT f.version, f.published, f.service_group_id, f.destination FROM intake_forms f
       JOIN service_groups g ON g.id = f.service_group_id
       JOIN organization_users m ON m.organization_id = f.organization_id AND m.user_id = $3
       WHERE f.id = $1 AND f.organization_id = $2 AND ${PUBLISHED_INTERNAL} FOR SHARE OF f, g`, [formId, orgId, userId]);
@@ -70,7 +70,7 @@ export async function submitInternalRequest(params: {
       metadata: { source: 'internal-form', formId, formVersion: version, serviceGroupId: groupId, workflowVersion: workflow.version } });
     const destination = form.rows[0].destination as LinearDestination | null;
     if (destination) await enqueueServiceTicket({ requestId, orgId, destination, title, summary });
-    await notifyGroup(orgId, groupId, form.rows[0].fallback_owner_id, requestId, title, userId);
+    await notifyGroup(orgId, groupId, { id: requestId, title }, 'was submitted to your service group.', userId);
     return { status: 'received', requestId };
   });
 }
@@ -79,14 +79,4 @@ async function requestFor(orgId: string, requesterId: string, key: string): Prom
   const found = await query(`SELECT id FROM feature_requests
     WHERE organization_id = $1 AND requester_id = $2 AND creation_key = $3`, [orgId, requesterId, key]);
   return found.rowCount ? { status: 'received', requestId: found.rows[0].id } : null;
-}
-
-/** The group's leads and its fallback owner hear about a new change request. */
-async function notifyGroup(orgId: string, groupId: string, fallbackOwnerId: string, requestId: string, title: string, actorId: string) {
-  const leads = await query<{ user_id: string }>(`SELECT user_id FROM service_group_members WHERE group_id = $1 AND role = 'LEAD'`, [groupId]);
-  const recipients = new Set([fallbackOwnerId, ...leads.rows.map(r => r.user_id)]);
-  for (const userId of recipients) {
-    await notifyUser({ organizationId: orgId, userId, type: 'REVIEW_NEEDED', title: 'New change request',
-      message: `"${title}" was submitted to your service group.`, link: `/requests/${requestId}`, requestId, actorId });
-  }
 }
