@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { query, transaction } from '@/lib/db/pool';
-import { formDefinitionSchema, validateAnswers, type FormDefinition } from '@/lib/forms/definition';
+import { formDefinitionSchema, summarizeAnswers, validateAnswers, type FormDefinition } from '@/lib/forms/definition';
 import type { RawCustomFieldValues } from '@/lib/utils/custom-fields';
 import { getOrganizationUsers } from './organizations';
 import { notifyUser } from './notifications';
@@ -71,11 +71,7 @@ export async function submitPortalRequest(params: {
       portalStagingPrefix(contact.clientAccountId, formId, submissionKey));
     if ('error' in files) return { status: 'invalid', errors: { __attachments: files.error } };
 
-    const snapshot = definition.fields.filter(f => f.key in validation.values)
-      .map(f => ({ key: f.key, label: f.label, value: validation.values[f.key] }));
-    const title = String(validation.values[definition.titleFieldKey!]);
-    const summary = snapshot.filter(a => a.key !== definition.titleFieldKey && a.value !== null)
-      .map(a => `${a.label}: ${a.value}`).join('\n');
+    const { title, summary, snapshot } = summarizeAnswers(definition, validation.values);
     const inserted = await query(`INSERT INTO feature_requests (organization_id, requester_id, title, summary, status, intake_complete,
         creation_key, source_form_id, source_form_version, client_account_id, submitter_contact_id, form_answers, public_reference)
       VALUES ($1, $2, $3, $4, 'UNDER_REVIEW', true, $5, $6, $7, $8, $9, $10, $11)

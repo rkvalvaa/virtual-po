@@ -81,3 +81,13 @@ export function validateAnswers(definition: FormDefinition, raw: RawCustomFieldV
   }
   return { ok: Object.keys(errors).length === 0, errors, values };
 }
+
+export interface AnswerSummary { title: string; summary: string; snapshot: { key: string; label: string; value: CustomFieldValues[string] }[] }
+
+/** Title, readable summary and label snapshot for a request filed from validated answers. */
+export function summarizeAnswers(definition: FormDefinition, values: CustomFieldValues): AnswerSummary {
+  const snapshot = definition.fields.filter(f => f.key in values).map(f => ({ key: f.key, label: f.label, value: values[f.key] }));
+  const title = String(values[definition.titleFieldKey!]);
+  const summary = snapshot.filter(a => a.key !== definition.titleFieldKey && a.value !== null).map(a => `${a.label}: ${a.value}`).join('\n');
+  return { title, summary, snapshot };
+}

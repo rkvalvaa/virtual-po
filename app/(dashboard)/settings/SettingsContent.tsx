@@ -220,7 +220,7 @@ export function SettingsContent({
 
         <SettingsPanel value="forms">
           {userRole === 'ADMIN'
-            ? <FormSettings forms={intakeForms} clients={clientAccounts.map(({ id, name }) => ({ id, name }))} organizationName={organization.name} />
+            ? <FormSettings forms={intakeForms} clients={clientAccounts.map(({ id, name }) => ({ id, name }))} groups={serviceGroups.map(({ id, name }) => ({ id, name }))} organizationName={organization.name} />
             : <p className="text-sm text-muted-foreground">Only administrators can manage request forms.</p>}
         </SettingsPanel>
 
