@@ -11,7 +11,7 @@ test('a change request shows its workflow instead of the product lifecycle and m
     await loginAs(page, admin.email);
     await page.goto(`/requests/${id}`);
     const main = page.getByRole('main');
-    await expect(main.getByText('Change request', { exact: true })).toBeVisible();
+    await expect(main.getByText('Change request · Unassigned', { exact: true })).toBeVisible();
     await expect(main.getByText('Submitted', { exact: true })).toBeVisible();
     await expect(main.getByRole('tab', { name: 'Assessment' })).toHaveCount(0);
     await expect(main.getByRole('button', { name: 'Submit Vote' })).toHaveCount(0);

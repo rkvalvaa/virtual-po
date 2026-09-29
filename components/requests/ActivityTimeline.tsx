@@ -63,6 +63,7 @@ const ACTION_CONFIG: Record<ActivityAction, { icon: typeof ArrowRightLeft; label
   CLIENT_UPDATED: { icon: Pencil, label: "Client updated", color: "text-blue-500" },
   FORM_UPDATED: { icon: Pencil, label: "Form updated", color: "text-blue-500" },
   SERVICE_GROUP_UPDATED: { icon: Pencil, label: "Service group updated", color: "text-blue-500" },
+  ASSIGNMENT_CHANGED: { icon: ArrowRightLeft, label: "Assignment changed", color: "text-blue-500" },
   CLIENT_MESSAGE: { icon: MessageSquare, label: "Client message", color: "text-green-500" },
   STATUS_CHANGED: { icon: ArrowRightLeft, label: "Status changed", color: "text-blue-500" },
   COMMENT_ADDED: { icon: MessageSquare, label: "Comment added", color: "text-green-500" },
@@ -105,6 +106,10 @@ function getActionDescription(activity: ActivityEntry): string {
       return `${actor} created this request`
     case "REQUEST_UPDATED":
       return `${actor} updated the request`
+    case "ASSIGNMENT_CHANGED":
+      if (meta.operation === "claim") return `${actor} claimed the request`
+      if (meta.operation === "move") return `${actor} moved the request to ${meta.toGroupName ?? "another group"}: ${meta.reason ?? ""}`
+      return `${actor} reassigned the request to ${meta.toName ?? "another member"}: ${meta.reason ?? ""}`
     default:
       return `${actor} performed an action`
   }

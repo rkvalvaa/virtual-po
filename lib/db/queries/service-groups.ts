@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { query, transaction } from '@/lib/db/pool';
 import { lockOrganizationAdmin } from '@/lib/auth/organization-admin';
 import { logActivity } from './activity-log';
+import { notifyUser } from './notifications';
 
 export type GroupRole = 'MEMBER' | 'LEAD';
 export interface ServiceGroupMember { userId: string; name: string | null; email: string; role: GroupRole }
@@ -92,6 +93,16 @@ export async function releaseGroupDuties(orgId: string, userId: string): Promise
   await query(`UPDATE feature_requests r SET assignee_id = g.fallback_owner_id, updated_at = NOW()
     FROM service_groups g WHERE g.id = r.service_group_id AND g.fallback_owner_id IS NOT NULL
       AND r.organization_id = $1 AND r.assignee_id = $2`, [orgId, userId]);
+}
+
+/** A group's leads and its fallback owner hear about a request that arrives in the group. */
+export async function notifyGroup(orgId: string, groupId: string, request: { id: string; title: string }, message: string, actorId: string): Promise<void> {
+  const people = await query<{ user_id: string }>(`SELECT fallback_owner_id AS user_id FROM service_groups WHERE id = $1 AND fallback_owner_id IS NOT NULL
+    UNION SELECT user_id FROM service_group_members WHERE group_id = $1 AND role = 'LEAD'`, [groupId]);
+  for (const { user_id: userId } of people.rows) {
+    await notifyUser({ organizationId: orgId, userId, type: 'REVIEW_NEEDED', title: 'New change request in your group',
+      message: `"${request.title}" ${message}`, link: `/requests/${request.id}`, requestId: request.id, actorId });
+  }
 }
 
 function administer<T>(orgId: string, actorId: string, work: () => Promise<T>): Promise<T> {

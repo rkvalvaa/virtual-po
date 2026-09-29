@@ -6,6 +6,7 @@ import { ActivityTimeline } from "@/components/requests/ActivityTimeline"
 import { ChangeWorkflowPanel } from "@/components/requests/ChangeWorkflowPanel"
 import { DeliveryPanel } from "@/components/requests/DeliveryPanel"
 import { getDelivery } from "@/lib/export/delivery"
+import { query } from "@/lib/db/pool"
 import { CommentThread } from "@/components/review/CommentThread"
 import { getCommentsWithAuthorByRequestId } from "@/lib/db/queries/comments"
 import { getActivityByRequest } from "@/lib/db/queries/activity-log"
@@ -27,6 +28,8 @@ export async function ChangeRequestView({ request, userId, role }: { request: Fe
     getRequestSubscription(request.id, request.organizationId, userId),
     getDelivery(request.id, request.organizationId),
   ])
+  const owner = (await query<{ group_name: string | null; assignee_name: string | null }>(`SELECT g.name AS group_name, COALESCE(u.name, u.email) AS assignee_name
+    FROM feature_requests r LEFT JOIN service_groups g ON g.id = r.service_group_id LEFT JOIN users u ON u.id = r.assignee_id WHERE r.id = $1`, [request.id])).rows[0]
   const workflow = changeWorkflow(request.workflowVersion!)
   const state = request.workflowState!
   const recorded = request.workflowData ?? {}
@@ -39,7 +42,7 @@ export async function ChangeRequestView({ request, userId, role }: { request: Fe
       <Link href="/requests"><ArrowLeft className="mr-1 h-4 w-4" />Back</Link>
     </Button>
     <div className="space-y-1">
-      <p className="text-sm text-muted-foreground">Change request</p>
+      <p className="text-sm text-muted-foreground">Change request{owner?.group_name ? ` · ${owner.group_name}` : ""} · {owner?.assignee_name ? `Assigned to ${owner.assignee_name}` : "Unassigned"}</p>
       <h1 className="break-words text-2xl font-semibold">{request.title}</h1>
       {request.summary && <p className="whitespace-pre-wrap break-words text-muted-foreground">{request.summary}</p>}
     </div>
