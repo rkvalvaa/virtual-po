@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { getAvailableActions, formatStatus } from "@/lib/utils/workflow"
-import { submitDecision } from "@/app/(dashboard)/requests/[id]/actions"
+import { submitDecision, transitionStatus } from "@/app/(dashboard)/requests/[id]/actions"
 import type { RequestStatus, UserRole, DecisionType } from "@/lib/types/database"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -66,6 +66,7 @@ export function DecisionPanel({
   const [activeAction, setActiveAction] = useState<string | null>(null)
   const [rationale, setRationale] = useState("")
   const [isPending, setIsPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const allActions = readOnly ? [] : getAvailableActions(
     currentStatus as RequestStatus,
@@ -86,21 +87,29 @@ export function DecisionPanel({
     (a) => !STATUS_TO_DECISION[a.targetStatus]
   )
 
-  async function handleSubmit() {
+  async function runAction(send: () => Promise<unknown>) {
+    setIsPending(true)
+    setError(null)
+    try {
+      await send()
+      setActiveAction(null)
+      setRationale("")
+    } catch {
+      // ponytail: production redacts server action messages, so show one generic line.
+      setError("Couldn't update the request. It may have changed; the page now shows its current state.")
+    } finally {
+      setIsPending(false)
+      router.refresh()
+    }
+  }
+
+  function handleSubmit() {
     if (!activeAction || !rationale.trim() || isPending) return
 
     const decisionType = STATUS_TO_DECISION[activeAction]
     if (!decisionType) return
 
-    setIsPending(true)
-    try {
-      await submitDecision(requestId, decisionType, rationale.trim())
-      setActiveAction(null)
-      setRationale("")
-      router.refresh()
-    } finally {
-      setIsPending(false)
-    }
+    return runAction(() => submitDecision(requestId, decisionType, rationale.trim()))
   }
 
   const hasActions = actions.length > 0
@@ -146,16 +155,19 @@ export function DecisionPanel({
                     key={action.targetStatus}
                     variant={action.variant}
                     size="sm"
-                    onClick={() => {
-                      setActiveAction(action.targetStatus)
-                      setRationale("")
-                    }}
+                    onClick={() => runAction(() => transitionStatus(requestId, action.targetStatus))}
                     disabled={isPending}
                   >
                     {action.label}
                   </Button>
                 ))}
               </div>
+            )}
+
+            {error && (
+              <p role="alert" className="text-destructive text-sm">
+                {error}
+              </p>
             )}
 
             {activeAction && STATUS_TO_DECISION[activeAction] && (
