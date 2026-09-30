@@ -6,7 +6,7 @@ import { query } from '@/lib/db/pool';
  * Sign-in is closed by default. An email is admitted when it:
  *  - already belongs to a user who is a member of at least one organization,
  *  - has a pending (unexpired, unrevoked, unaccepted) invitation,
- *  - is on a domain listed in ALLOWED_EMAIL_DOMAINS, or
+ *  - is on a domain ALLOWED_EMAIL_DOMAINS maps to an existing workspace, or
  *  - is the very first user of an empty deployment (bootstrap).
  *
  * Everyone else gets Auth.js's AccessDenied and no user row is created.
@@ -15,20 +15,18 @@ export async function isSignInAllowed(rawEmail: string): Promise<boolean> {
   const email = rawEmail.trim().toLowerCase();
   if (!email) return false;
 
-  const domain = email.split('@')[1] ?? '';
-  if (allowedDomains().includes(domain)) return true;
-
-  const result = await query<{ member: boolean; invited: boolean; bootstrap: boolean }>(
+  const result = await query<{ member: boolean; invited: boolean; allowlisted: boolean; bootstrap: boolean }>(
     `SELECT
        EXISTS (SELECT 1 FROM users u JOIN organization_users ou ON ou.user_id = u.id
                WHERE LOWER(u.email) = $1) AS member,
        EXISTS (SELECT 1 FROM organization_invitations
                WHERE email = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > NOW()) AS invited,
+       EXISTS (SELECT 1 FROM organizations WHERE slug = $2) AS allowlisted,
        NOT EXISTS (SELECT 1 FROM users) AS bootstrap`,
-    [email],
+    [email, allowlistedWorkspaceSlug(email)],
   );
   const row = result.rows[0];
-  return row.member || row.invited || row.bootstrap;
+  return row.member || row.invited || row.allowlisted || row.bootstrap;
 }
 
 /** Links a client may have outstanding at once; more are silently not sent. */
@@ -55,9 +53,17 @@ export async function mayRequestPortalLink(rawEmail: string): Promise<boolean> {
   return row.allowed && row.outstanding < MAX_OUTSTANDING_PORTAL_LINKS;
 }
 
-function allowedDomains(): string[] {
-  return (process.env.ALLOWED_EMAIL_DOMAINS ?? '')
-    .split(',')
-    .map(d => d.trim().toLowerCase())
-    .filter(Boolean);
+/**
+ * The workspace slug an email's domain joins, from ALLOWED_EMAIL_DOMAINS
+ * entries of the form `domain=workspace-slug`. Entries without a slug admit
+ * nobody, so an allowlist can never hand out a fresh ADMIN workspace.
+ */
+export function allowlistedWorkspaceSlug(rawEmail: string): string | null {
+  const domain = rawEmail.trim().toLowerCase().split('@')[1];
+  if (!domain) return null;
+  for (const entry of (process.env.ALLOWED_EMAIL_DOMAINS ?? '').split(',')) {
+    const [entryDomain, slug] = entry.split('=').map(part => part.trim());
+    if (slug && entryDomain.toLowerCase() === domain) return slug;
+  }
+  return null;
 }

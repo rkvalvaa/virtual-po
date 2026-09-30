@@ -1,7 +1,9 @@
 import {
   createOrganization,
   addUserToOrganization,
+  getOrganizationBySlug,
 } from "@/lib/db/queries/organizations"
+import { allowlistedWorkspaceSlug } from "@/lib/auth/sign-in-policy"
 import {
   getPreferredWorkspace,
   rememberWorkspace,
@@ -18,8 +20,9 @@ export type SessionIdentity =
  * Decide what a signing-in user becomes, for JWT token storage.
  *
  * A membership wins. Otherwise an active client contact gets a portal-only
- * identity and never a workspace. Anyone else gets a personal workspace with
- * the ADMIN role (see CCT-2449 for whether that should stay).
+ * identity and never a workspace, and an allowlisted domain joins its mapped
+ * workspace as STAKEHOLDER. Anyone else (the bootstrap user, or an invitee
+ * before accepting) gets a personal workspace with the ADMIN role.
  */
 export async function resolveSessionIdentity(
   userId: string,
@@ -35,6 +38,14 @@ export async function resolveSessionIdentity(
   if (contact) {
     await bindClientContacts(userId)
     return { kind: "client", ...contact }
+  }
+
+  const allowlistSlug = allowlistedWorkspaceSlug(email)
+  const allowlisted = allowlistSlug ? await getOrganizationBySlug(allowlistSlug) : null
+  if (allowlisted) {
+    await addUserToOrganization(allowlisted.id, userId, "STAKEHOLDER")
+    await rememberWorkspace(userId, allowlisted.id)
+    return { kind: "member", orgId: allowlisted.id, role: "STAKEHOLDER" }
   }
 
   // Derive org name and slug from email

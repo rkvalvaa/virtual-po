@@ -37,10 +37,11 @@ describe.skipIf(!hasDb())('isSignInAllowed', () => {
     expect(await isSignInAllowed(email)).toBe(false);
   });
 
-  it('admits any address on an allowlisted domain', async () => {
-    process.env.ALLOWED_EMAIL_DOMAINS = 'Example.org, partner.example';
+  it('admits an allowlisted domain only when it maps to an existing workspace', async () => {
+    process.env.ALLOWED_EMAIL_DOMAINS = `Example.org=${org.slug}, partner.example=no-such-workspace, bare.example`;
     expect(await isSignInAllowed('anyone@example.org')).toBe(true);
-    expect(await isSignInAllowed('anyone@partner.example')).toBe(true);
+    expect(await isSignInAllowed('anyone@partner.example')).toBe(false);
+    expect(await isSignInAllowed('anyone@bare.example')).toBe(false);
     expect(await isSignInAllowed('anyone@other.example')).toBe(false);
   });
 });
