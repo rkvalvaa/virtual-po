@@ -37,4 +37,36 @@ describe.skipIf(!hasDb())('transitionStatus', () => {
 
     expect((await getFeatureRequestById(request.id))?.status).toBe('UNDER_REVIEW')
   })
+
+  it('should move an approved request to the backlog', async () => {
+    const request = await createTestRequest(org, reviewer, 'Ready for backlog')
+    await query(`UPDATE feature_requests SET status = 'APPROVED' WHERE id = $1`, [request.id])
+
+    await transitionStatus(request.id, 'IN_BACKLOG')
+
+    expect((await getFeatureRequestById(request.id))?.status).toBe('IN_BACKLOG')
+  })
+
+  it('should refuse to move an archived request', async () => {
+    const request = await createTestRequest(org, reviewer, 'Archived work')
+    await query(`UPDATE feature_requests SET status = 'IN_BACKLOG', archived_at = now() WHERE id = $1`, [request.id])
+
+    await expect(transitionStatus(request.id, 'IN_PROGRESS')).rejects.toThrow('archived')
+
+    expect((await getFeatureRequestById(request.id))?.status).toBe('IN_BACKLOG')
+  })
+
+  it('should use the current membership role, not the one in the session', async () => {
+    const request = await createTestRequest(org, reviewer, 'Demoted reviewer')
+    await query(`UPDATE feature_requests SET status = 'IN_BACKLOG' WHERE id = $1`, [request.id])
+    await query(`UPDATE organization_users SET role = 'STAKEHOLDER' WHERE organization_id = $1 AND user_id = $2`, [org.id, reviewer.id])
+
+    try {
+      await expect(transitionStatus(request.id, 'IN_PROGRESS')).rejects.toThrow('Cannot transition')
+    } finally {
+      await query(`UPDATE organization_users SET role = 'REVIEWER' WHERE organization_id = $1 AND user_id = $2`, [org.id, reviewer.id])
+    }
+
+    expect((await getFeatureRequestById(request.id))?.status).toBe('IN_BACKLOG')
+  })
 })
