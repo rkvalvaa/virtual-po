@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { DecisionType, RequestStatus, UserRole } from "@/lib/types/database";
 import { requireAuth } from "@/lib/auth/session";
 import { canAccess } from "@/lib/auth/rbac";
-import { getAvailableActions } from "@/lib/utils/workflow";
+import { canRoleTransition } from "@/lib/utils/workflow";
 import {
   getFeatureRequestById,
   updateFeatureRequestStatus,
@@ -134,15 +134,7 @@ export async function transitionStatus(
     throw new Error("Feature request not found");
   }
 
-  const availableActions = getAvailableActions(
-    request.status,
-    session.user.role as UserRole
-  );
-  const isAllowed = availableActions.some(
-    (action) => action.targetStatus === targetStatus
-  );
-
-  if (!isAllowed) {
+  if (!canRoleTransition(request.status, targetStatus, session.user.role as UserRole)) {
     throw new Error(
       `Cannot transition from ${request.status} to ${targetStatus} with role ${session.user.role}`
     );

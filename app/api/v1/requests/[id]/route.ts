@@ -6,7 +6,7 @@ import { getEpicByRequestId, getStoriesByEpicId } from '@/lib/db/queries/epics';
 import { getOrganizationRole } from '@/lib/db/queries/organizations';
 import { applyDecision, decisionForStatus } from '@/lib/decisions/apply';
 import { canAccess } from '@/lib/auth/rbac';
-import { canTransition } from '@/lib/utils/workflow';
+import { canRoleTransition, canTransition } from '@/lib/utils/workflow';
 import { REQUEST_STATUSES } from '@/lib/types/database';
 import type { RequestStatus } from '@/lib/types/database';
 
@@ -137,11 +137,15 @@ export async function PATCH(
   // Status last, after every field has validated, so a refused body changes nothing.
   const status = body.status as RequestStatus | undefined;
   if (status && status !== existing.status) {
+    // A key acts as its creator: status changes follow the creator's current role, as in the app.
+    const actorId = auth.createdBy;
+    const role = actorId ? await getOrganizationRole(auth.orgId, actorId) : null;
+    if (!actorId || !role) {
+      return errorResponse('Status changes need an API key created by a current member', 'FORBIDDEN', 403, rlHeaders);
+    }
     const decision = decisionForStatus(status);
     if (decision) {
-      const actorId = auth.createdBy;
-      const role = actorId ? await getOrganizationRole(auth.orgId, actorId) : null;
-      if (!actorId || !role || !canAccess(role, 'REVIEWER')) {
+      if (!canAccess(role, 'REVIEWER')) {
         return errorResponse('Decisions need an API key created by a current REVIEWER or ADMIN', 'FORBIDDEN', 403, rlHeaders);
       }
       try {
@@ -158,6 +162,8 @@ export async function PATCH(
       }
     } else if (!canTransition(existing.status, status)) {
       return errorResponse(`Cannot transition from ${existing.status} to ${status}`, 'INVALID_TRANSITION', 409, rlHeaders);
+    } else if (!canRoleTransition(existing.status, status, role)) {
+      return errorResponse(`Role ${role} cannot move a request from ${existing.status} to ${status}`, 'FORBIDDEN', 403, rlHeaders);
     } else {
       updateData.status = status;
     }

@@ -34,6 +34,8 @@ describe.skipIf(!hasDb())('PATCH /api/v1/requests/[id] status changes', () => {
   let stakeholderKey: string
   let orphanedKey: string
   let chainKey: string
+  let formerReviewer: TestUser
+  let formerReviewerKey: string
 
   async function requestIn(target: TestOrg, owner: TestUser, status: string): Promise<string> {
     const request = await createTestRequest(target, owner, 'API status change')
@@ -52,10 +54,12 @@ describe.skipIf(!hasDb())('PATCH /api/v1/requests/[id] status changes', () => {
     stakeholderKey = (await createTestApiKey(org, ['write'], stakeholder.id)).key
     orphanedKey = (await createTestApiKey(org, ['write'], null)).key
     chainKey = (await createTestApiKey(chainOrg, ['write'], chainReviewer.id)).key
+    formerReviewer = await createTestUser(org, 'REVIEWER')
+    formerReviewerKey = (await createTestApiKey(org, ['write'], formerReviewer.id)).key
   })
 
   afterAll(async () => {
-    await cleanupTestOrg(org, [reviewer.id, stakeholder.id])
+    await cleanupTestOrg(org, [reviewer.id, stakeholder.id, formerReviewer.id])
     await cleanupTestOrg(chainOrg, [chainReviewer.id])
   })
 
@@ -106,6 +110,43 @@ describe.skipIf(!hasDb())('PATCH /api/v1/requests/[id] status changes', () => {
 
     expect(res.status).toBe(409)
     expect((await getFeatureRequestById(id))?.status).toBe('DRAFT')
+  })
+
+  it('should refuse a lifecycle move from a key whose creator is not a reviewer', async () => {
+    const id = await requestIn(org, reviewer, 'APPROVED')
+
+    const res = await patch(id, stakeholderKey, { status: 'IN_BACKLOG' })
+
+    expect(res.status).toBe(403)
+    expect((await getFeatureRequestById(id))?.status).toBe('APPROVED')
+  })
+
+  it('should refuse a lifecycle move from a key with no creator', async () => {
+    const id = await requestIn(org, reviewer, 'IN_PROGRESS')
+
+    const res = await patch(id, orphanedKey, { status: 'COMPLETED' })
+
+    expect(res.status).toBe(403)
+    expect((await getFeatureRequestById(id))?.status).toBe('IN_PROGRESS')
+  })
+
+  it('should refuse a lifecycle move from a key whose creator has left the organization', async () => {
+    const id = await requestIn(org, reviewer, 'IN_BACKLOG')
+    await query(`DELETE FROM organization_users WHERE organization_id = $1 AND user_id = $2`, [org.id, formerReviewer.id])
+
+    const res = await patch(id, formerReviewerKey, { status: 'IN_PROGRESS' })
+
+    expect(res.status).toBe(403)
+    expect((await getFeatureRequestById(id))?.status).toBe('IN_BACKLOG')
+  })
+
+  it('should refuse a move no user action offers, such as skipping assessment', async () => {
+    const id = await requestIn(org, reviewer, 'PENDING_ASSESSMENT')
+
+    const res = await patch(id, reviewerKey, { status: 'UNDER_REVIEW' })
+
+    expect(res.status).toBe(403)
+    expect((await getFeatureRequestById(id))?.status).toBe('PENDING_ASSESSMENT')
   })
 
   it('should still apply a legal non-decision transition', async () => {

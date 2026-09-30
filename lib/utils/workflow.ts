@@ -68,6 +68,11 @@ export function getAvailableActions(status: RequestStatus, userRole: UserRole): 
     .filter((action) => action && level >= roleLevel[action.requiredRole]);
 }
 
+/** Whether a user with this role may move a request between statuses by hand (app or API). */
+export function canRoleTransition(from: RequestStatus, to: RequestStatus, role: UserRole): boolean {
+  return getAvailableActions(from, role).some((action) => action.targetStatus === to);
+}
+
 export function formatStatus(status: string): string {
   return status
     .split('_')
