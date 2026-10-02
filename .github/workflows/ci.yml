@@ -42,6 +42,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vpo_test
       AUTH_SECRET: ci-test-secret-minimum-32-characters-long
+      INTEGRATION_ENCRYPTION_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=  # throwaway test key
       ANTHROPIC_API_KEY: sk-ant-test-placeholder
     steps:
       - uses: actions/checkout@v4
@@ -73,6 +74,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vpo_test
       AUTH_SECRET: ci-test-secret-minimum-32-characters-long
+      INTEGRATION_ENCRYPTION_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=  # throwaway test key
       ANTHROPIC_API_KEY: sk-ant-test-placeholder
     steps:
       - uses: actions/checkout@v4
@@ -105,6 +107,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vpo_test
       AUTH_SECRET: ci-test-secret-minimum-32-characters-long
+      INTEGRATION_ENCRYPTION_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=  # throwaway test key
       ANTHROPIC_API_KEY: sk-ant-test-placeholder
       # The Playwright config starts e2e/mock-anthropic.mjs as a second
       # webServer, so agent calls never leave the runner.

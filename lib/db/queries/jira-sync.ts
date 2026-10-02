@@ -1,5 +1,6 @@
 import { query } from '@/lib/db/pool';
 import { mapRow, mapRows } from '@/lib/db/mappers';
+import { decryptConfig, encryptConfig } from '@/lib/crypto/integration-secrets';
 import type {
   Integration,
   JiraSyncLog,
@@ -19,7 +20,13 @@ export async function getIntegrationByType(
     [orgId, type]
   );
   if (result.rows.length === 0) return null;
-  return mapRow<Integration>(result.rows[0]);
+  return toIntegration(result.rows[0]);
+}
+
+/** Map a stored row, decrypting its secret fields. */
+function toIntegration(row: Record<string, unknown>): Integration {
+  const integration = mapRow<Integration>(row);
+  return { ...integration, config: decryptConfig(integration.config).config };
 }
 
 export async function upsertIntegration(
@@ -34,9 +41,9 @@ export async function upsertIntegration(
      ON CONFLICT (organization_id, type) WHERE is_active = true
      DO UPDATE SET name = EXCLUDED.name, config = EXCLUDED.config, is_active = true, updated_at = NOW()
      RETURNING *`,
-    [orgId, type, name, JSON.stringify(config)]
+    [orgId, type, name, JSON.stringify(encryptConfig(config))]
   );
-  return mapRow<Integration>(result.rows[0]);
+  return toIntegration(result.rows[0]);
 }
 
 /**
@@ -56,7 +63,7 @@ export async function getIntegrationBySlackTeamId(
     [teamId]
   );
   if (result.rows.length === 0) return null;
-  return mapRow<Integration>(result.rows[0]);
+  return toIntegration(result.rows[0]);
 }
 
 export async function deactivateIntegration(id: string): Promise<void> {

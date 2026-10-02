@@ -104,6 +104,7 @@ Copy `.env.example` to `.env.local` and configure:
 **Required:**
 - `DATABASE_URL` — PostgreSQL connection string
 - `AUTH_SECRET` — Generate with `openssl rand -base64 32`
+- `INTEGRATION_ENCRYPTION_KEY` — Encrypts integration credentials at rest (AES-256-GCM). Generate with `openssl rand -base64 32`. To rotate: move the old value to `INTEGRATION_ENCRYPTION_KEY_PREVIOUS`, set a new key and deploy. The daily `/api/cron/integration-secrets` job then re-encrypts every secret; after it reports `failed: 0`, remove the previous key.
 - `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` — GitHub OAuth app credentials
 - `ANTHROPIC_API_KEY` — Anthropic API key for Claude
 - `AI_BUDGET_MAX_MONTHLY_USD` — optional positive USD ceiling per workspace; when set, workspace admins may configure only a lower monthly AI limit
