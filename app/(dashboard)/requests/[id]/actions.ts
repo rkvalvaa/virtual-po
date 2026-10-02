@@ -126,21 +126,17 @@ export async function transitionStatus(
     throw new Error("Review decisions need a rationale — use submitDecision");
   }
 
-  const request = await getFeatureRequestById(requestId);
-  if (!request) {
-    throw new Error("Feature request not found");
-  }
-  if (request.organizationId !== session.user.orgId) {
-    throw new Error("Feature request not found");
-  }
-
-  if (!canRoleTransition(request.status, targetStatus, session.user.role as UserRole)) {
-    throw new Error(
-      `Cannot transition from ${request.status} to ${targetStatus} with role ${session.user.role}`
-    );
-  }
-
-  await updateFeatureRequestStatus(requestId, targetStatus);
+  // Lock the row and read the actor's current role so a stale page or a demotion can't slip a move through.
+  const request = await transaction(async () => {
+    const current = await lockActiveMemberRequest(requestId, session.user.orgId, session.user.id);
+    if (!canRoleTransition(current.status, targetStatus, current.actorRole)) {
+      throw new Error(
+        `Cannot transition from ${current.status} to ${targetStatus} with role ${current.actorRole}`
+      );
+    }
+    await updateFeatureRequestStatus(requestId, targetStatus);
+    return current;
+  });
 
   try {
     await logActivity({
