@@ -8,6 +8,7 @@ function usesMachineAuthentication(pathname: string): boolean {
     "/api/slack/commands", "/api/slack/events", "/api/slack/interactions",
     "/api/cron/review-cycles", "/api/cron/webhooks", "/api/cron/email",
     "/api/cron/tracker-status-sync", "/api/cron/blob-cleanup", "/api/cron/tracker-delivery",
+    "/api/cron/integration-secrets",
     "/api/webhooks/resend", "/api/teams/messages", "/api/cron/teams", "/api/health",
   ].includes(pathname)
 }

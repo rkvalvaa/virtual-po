@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NextRequest } from 'next/server'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 const getToken = vi.hoisted(() => vi.fn())
 vi.mock('next-auth/jwt', () => ({ getToken }))
@@ -27,6 +29,14 @@ describe('proxy machine authentication boundary', () => {
 
   it('passes the blob cleanup cron through to its CRON_SECRET authentication', async () => {
     expect(await invoke('/api/cron/blob-cleanup')).toBeUndefined()
+    expect(getToken).not.toHaveBeenCalled()
+  })
+
+  it('passes every cron scheduled in vercel.json through to its CRON_SECRET authentication', async () => {
+    const { crons } = JSON.parse(readFileSync(join(process.cwd(), 'vercel.json'), 'utf8')) as { crons: { path: string }[] }
+    for (const { path } of crons) {
+      expect(await invoke(path), path).toBeUndefined()
+    }
     expect(getToken).not.toHaveBeenCalled()
   })
 
